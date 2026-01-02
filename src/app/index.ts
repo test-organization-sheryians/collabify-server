@@ -20,6 +20,6 @@ app.get("/", (c) => {
 });
 
 export default {
-  port: 3000,
+  port: 3001,
   fetch: app.fetch,
 };
