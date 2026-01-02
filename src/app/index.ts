@@ -10,7 +10,7 @@ const yoga = createYoga({
 });
 
 // Mount Yoga on the /graphql endpoint
-app.use("/graphql", (c) => {
+app.use("/graphql", async (c) => {
   return yoga.fetch(c.req.raw, app, c);
 });
 
