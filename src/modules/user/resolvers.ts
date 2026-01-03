@@ -13,7 +13,7 @@ export const userResolvers = {
     },
   },
   Mutation: {
-    createUser: async (
+    syncUser: async (
       _: any,
       args: {
         clerkId: string;
@@ -28,7 +28,7 @@ export const userResolvers = {
         throw AppError.unauthorized("Clerk ID mismatch");
       }
 
-      return UserService.createUserFromClerk(args);
+      return UserService.syncUserFromClerk(args);
     },
   },
 };

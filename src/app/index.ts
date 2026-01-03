@@ -16,8 +16,12 @@ import { checkConnection } from "../infra/db";
 
 const app = new Hono();
 
+import { cors } from "hono/cors";
+
 // Check DB connection on startup
 checkConnection();
+
+app.use("*", cors());
 
 app.get("/", (c) => {
   return c.text("Collabify Server is running!");

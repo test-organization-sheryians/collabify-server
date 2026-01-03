@@ -9,11 +9,11 @@ export const userTypeDefs = `
     updatedAt: String!
   }
 
-  type Query {
+  extend type Query {
     me: User
   }
 
-  type Mutation {
-    createUser(clerkId: String!, email: String!, fullName: String, avatarUrl: String): User!
+  extend type Mutation {
+    syncUser(clerkId: String!, email: String!, fullName: String, avatarUrl: String): User!
   }
 `;
