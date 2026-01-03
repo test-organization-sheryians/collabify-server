@@ -1,0 +1,33 @@
+import { z } from "zod";
+
+const envSchema = z.object({
+  NODE_ENV: z
+    .enum(["development", "production", "test"])
+    .default("development"),
+  PORT: z.coerce.number().default(3001),
+  LOG_LEVEL: z
+    .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
+    .default("info"),
+  LOG_HEADERS: z.coerce.boolean().default(false),
+  LOG_COOKIES: z.coerce.boolean().default(false),
+  LOG_REQ_BODY: z.coerce.boolean().default(false),
+  LOG_RES_BODY: z.coerce.boolean().default(false),
+  LOG_GRAPHQL_VARS: z.coerce.boolean().default(false),
+  LOG_DB_PARAMS: z.coerce.boolean().default(true),
+  DATABASE_URL: z.string().url(),
+  CLERK_SECRET_KEY: z.string().min(1),
+  CLERK_PUBLISHABLE_KEY: z.string().min(1),
+  FRONTEND_URL: z.string().url().default("http://localhost:3000"),
+});
+
+const parsed = envSchema.safeParse(process.env);
+
+if (!parsed.success) {
+  console.error(
+    "❌ Invalid environment variables:",
+    JSON.stringify(parsed.error.format(), null, 4)
+  );
+  process.exit(1);
+}
+
+export const env = parsed.data;
