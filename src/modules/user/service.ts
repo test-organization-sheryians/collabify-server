@@ -1,22 +1,20 @@
 import { db } from "../../infra/db";
+import { SyncUserSchema } from "./types";
 
-const prisma = db;
+// const prisma = db; // Removed alias
 
 export const UserService = {
   async findUserByClerkId(clerkId: string) {
-    return prisma.user.findUnique({
-      where: { clerkId },
+    return db.user.findUnique({
+      where: { clerkId, deletedAt: null },
     });
   },
 
-  async syncUserFromClerk(data: {
-    clerkId: string;
-    email: string;
-    fullName?: string;
-    avatarUrl?: string;
-  }) {
-    return prisma.$transaction(async (tx) => {
-      // 1. Try to find by Clerk ID (Update Schema)
+  async syncUserFromClerk(rawInput: unknown) {
+    const data = SyncUserSchema.parse(rawInput);
+
+    return db.$transaction(async (tx) => {
+      // 1. Try to find by Clerk ID
       const existingUser = await tx.user.findUnique({
         where: { clerkId: data.clerkId },
       });
@@ -29,7 +27,7 @@ export const UserService = {
             email: data.email,
             fullName: data.fullName,
             avatarUrl: data.avatarUrl,
-            status: "ACTIVE", // Reactivate if needed
+            status: "ACTIVE",
           },
         });
       }
@@ -47,6 +45,7 @@ export const UserService = {
             clerkId: data.clerkId,
             fullName: data.fullName || existingByEmail.fullName,
             avatarUrl: data.avatarUrl || existingByEmail.avatarUrl,
+            status: "ACTIVE",
           },
         });
       }
@@ -65,6 +64,8 @@ export const UserService = {
   },
 
   async findUserById(id: string) {
-    return prisma.user.findUnique({ where: { id } });
+    return db.user.findUnique({
+      where: { id, deletedAt: null },
+    });
   },
 };

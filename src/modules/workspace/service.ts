@@ -1,9 +1,11 @@
 import { db } from "../../infra/db";
+import { UserIdSchema, CreateOnboardingWorkspaceSchema } from "./types";
 import { AppError } from "../../shared/errors";
 import { logger } from "../../shared/logger";
 
 export const WorkspaceService = {
-  async getWorkspacesForUser(userId: string) {
+  async getWorkspacesForUser(input: { userId: string }) {
+    const { userId } = UserIdSchema.parse(input);
     return db.workspace.findMany({
       where: {
         members: {
@@ -15,8 +17,11 @@ export const WorkspaceService = {
     });
   },
 
-  async getOnboardingStatus(userId: string) {
-    const user = await db.user.findUnique({ where: { id: userId } });
+  async getOnboardingStatus(input: { userId: string }) {
+    const { userId } = UserIdSchema.parse(input);
+    const user = await db.user.findUnique({
+      where: { id: userId, deletedAt: null },
+    });
     if (!user) {
       return {
         hasUser: false,
@@ -59,9 +64,23 @@ export const WorkspaceService = {
     };
   },
 
-  async createOnboardingWorkspace(userId: string, userFullName: string) {
+  async createOnboardingWorkspace(input: {
+    userId: string;
+    userFullName: string;
+  }) {
+    const { userId, userFullName } =
+      CreateOnboardingWorkspaceSchema.parse(input);
+
     // 1. Check idempotency
-    const existing = await this.getWorkspacesForUser(userId);
+    const existing = await db.workspace.findMany({
+      where: {
+        members: {
+          some: { userId },
+        },
+        deletedAt: null,
+      },
+    });
+
     if (existing.length > 0) {
       return existing[0];
     }
