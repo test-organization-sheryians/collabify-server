@@ -1,5 +1,5 @@
 // This is your Prisma schema file.
-// V3: ENTERPRISE HYBRID PERMISSIONS
+// V5: STRICT SINGLE ROLE & OPTIMIZED INDEXES
 
 generator client {
   provider = "prisma-client-js"
@@ -19,15 +19,13 @@ enum UserStatus {
   DELETED
 }
 
-// Workspace-level roles (Structural)
+// Structural Role (Hard-coded logic)
 enum RoleType {
-  OWNER
-  ADMIN
-  MEMBER
-  GUEST
+  OWNER // Cannot be removed, pays the bills
+  MEMBER // Standard user (uses CustomRole for permissions)
+  GUEST // Restricted access
 }
 
-// Permission Effect (AWS Style)
 enum PolicyEffect {
   ALLOW
   DENY
@@ -53,27 +51,41 @@ model User {
   sessions         UserSession[]
   keys             UserKey[]
   workspaceMembers WorkspaceMember[]
-  auditLogs        AuditLog[] // Actor
+  auditLogs        AuditLog[]
 
-  // Polymorphic Notifications (Recipient)
+  // Direct Resource Interactions (The "Hybrid" Fix)
+  projectMembers   ProjectMember[]
+  resourcePolicies ResourcePolicy[]
+
+  // Activity
+  assignedTasks    Task[]            @relation("TaskAssignee")
+  reportedTasks    Task[]            @relation("TaskReporter")
+  chatMembers      ChatMember[]
+  sentMessages     ChatMessage[]
+  messageReactions MessageReaction[]
+  meetParticipants MeetParticipant[]
+
+  authoredPages Page[]
+  uploadedFiles VaultFile[]
+
   notifications     Notification[]
-  sentNotifications Notification[] @relation("NotificationActor")
-
-  // Global AI Memory
-  aiConversations CollabifyAiConversation[]
+  sentNotifications Notification[]            @relation("NotificationActor")
+  aiConversations   CollabifyAiConversation[]
 
   @@index([email])
   @@map("users")
 }
 
 model UserSession {
-  id         String   @id @default(cuid())
-  userId     String   @map("user_id")
-  tokenHash  String   @unique @map("token_hash")
-  deviceInfo String?  @map("device_info")
-  ipAddress  String?  @map("ip_address")
-  expiresAt  DateTime @map("expires_at")
-  createdAt  DateTime @default(now()) @map("created_at")
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Optional metadata
+  deviceInfo String? @map("device_info")
+  ipAddress  String? @map("ip_address")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -84,7 +96,7 @@ model UserSession {
 model UserKey {
   id         String @id @default(cuid())
   userId     String @map("user_id")
-  provider   String // "google", "github"
+  provider   String
   providerId String @map("provider_id")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -108,18 +120,13 @@ model Workspace {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  // Relations
-  members   WorkspaceMember[]
-  invites   WorkspaceInvite[]
-  auditLogs AuditLog[]
-
-  // Permission System
+  members     WorkspaceMember[]
+  invites     WorkspaceInvite[]
+  auditLogs   AuditLog[]
   customRoles CustomRole[]
+  projects    Project[]
 
-  // Structural Containers
-  projects Project[]
-
-  // Denormalized Lookups (for Sharding/Access)
+  // Denormalized relations for "Delete Workspace" cascades
   pages       Page[]
   vaultFiles  VaultFile[]
   whiteboards Whiteboard[]
@@ -135,49 +142,34 @@ model WorkspaceMember {
   workspaceId String @map("workspace_id")
   userId      String @map("user_id")
 
-  // Structural Role (Membership Type)
+  // 1. Structural Role (Billing/Ownership)
   role RoleType @default(MEMBER)
+
+  // 2. Permission Role (RBAC) - STRICT SINGLE ROLE ENFORCEMENT
+  // We removed the 'MemberRole' join table. Now it is a direct link.
+  customRoleId String? @map("custom_role_id")
 
   joinedAt DateTime @default(now()) @map("joined_at")
 
-  // Relations
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Custom Role Assignments (RBAC)
-  assignedRoles MemberRole[]
-
-  // Resource Overrides (ABAC)
-  policies ResourcePolicy[]
-
-  // Activity
-  projectMembers   ProjectMember[]
-  messageReactions MessageReaction[]
-  meetParticipants MeetParticipant[]
-
-  assignedTasks Task[] @relation("TaskAssignee")
-  reportedTasks Task[] @relation("TaskReporter")
-
-  chatMembers  ChatMember[]
-  chatMessages ChatMessage[]
-
-  pages      Page[]
-  vaultFiles VaultFile[]
+  customRole CustomRole? @relation(fields: [customRoleId], references: [id])
 
   @@unique([workspaceId, userId])
+  @@index([userId]) // Optimized for "List My Workspaces"
   @@map("workspace_members")
 }
 
 model WorkspaceInvite {
-  id          String    @id @default(cuid())
-  workspaceId String    @map("workspace_id")
+  id          String   @id @default(cuid())
+  workspaceId String   @map("workspace_id")
   email       String
-  token       String    @unique
-  role        RoleType  @default(MEMBER)
-  inviterId   String    @map("inviter_id")
-  expiresAt   DateTime  @map("expires_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  deletedAt   DateTime? @map("deleted_at")
+  token       String   @unique
+  role        RoleType @default(MEMBER) // Structural
+  inviterId   String   @map("inviter_id")
+  expiresAt   DateTime @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
@@ -189,19 +181,16 @@ model WorkspaceInvite {
 // 3. ENTERPRISE PERMISSIONS (HYBRID)
 // -----------------------------------------------------------------------------
 
-// The Immutable Menu of Capabilities (Developer Defined)
 model SystemPermission {
-  id          String @id // e.g. "FILES_EDIT", "TASKS_DELETE"
+  id          String @id
   description String
-  module      String // e.g. "VAULT", "TASKS"
+  module      String
 
-  // Relations
   inRoles RolePermission[]
 
   @@map("system_permissions")
 }
 
-// User-Defined Roles (RBAC)
 model CustomRole {
   id          String  @id @default(cuid())
   workspaceId String  @map("workspace_id")
@@ -213,15 +202,17 @@ model CustomRole {
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
-  // Relations
   permissions RolePermission[]
-  members     MemberRole[]
+
+  // Inverse Relations for the STRICT SINGLE ROLE model
+  workspaceMembers WorkspaceMember[]
+  projectMembers   ProjectMember[]
 
   @@unique([workspaceId, name])
+  @@unique([id, workspaceId]) // LOCK: Allows ProjectMember to verify Workspace scope
   @@map("custom_roles")
 }
 
-// Join Table: CustomRole <-> SystemPermission
 model RolePermission {
   roleId       String @map("role_id")
   permissionId String @map("permission_id")
@@ -233,36 +224,24 @@ model RolePermission {
   @@map("role_permissions")
 }
 
-// Join Table: WorkspaceMember <-> CustomRole (Users can have multiple roles)
-model MemberRole {
-  memberId String @map("workspace_member_id")
-  roleId   String @map("role_id")
+// REMOVED: MemberRole (Table Deleted - Redundant)
 
-  member WorkspaceMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  role   CustomRole      @relation(fields: [roleId], references: [id], onDelete: Cascade)
-
-  @@id([memberId, roleId])
-  @@map("member_roles")
-}
-
-// The Granular Override (ABAC / ACL)
-// "For this User, on this specific Resource, ALLOW/DENY this specific Permission"
 model ResourcePolicy {
-  id       String @id @default(cuid())
-  memberId String @map("workspace_member_id")
+  id     String @id @default(cuid())
+  userId String @map("user_id")
 
-  // Polymorphic Resource Pointer
   resourceId   String @map("resource_id")
   resourceType String @map("resource_type") // "PROJECT", "PAGE", "BOARD"
 
-  permissionId String       @map("permission_id") // Specific action being overridden
-  effect       PolicyEffect // ALLOW / DENY
+  permissionId String       @map("permission_id")
+  effect       PolicyEffect
 
   createdAt DateTime @default(now()) @map("created_at")
 
-  member WorkspaceMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // REMOVED: workspaceMemberId (Redundant)
 
-  @@unique([memberId, resourceId, permissionId]) // Only one policy per action per resource per user
+  @@unique([userId, resourceId, permissionId])
   @@index([resourceId, resourceType])
   @@map("resource_policies")
 }
@@ -284,11 +263,9 @@ model Project {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  // Relations
   workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   members   ProjectMember[]
 
-  // Resource Modules
   pages        Page[]
   vaultFolders VaultFolder[]
   vaultFiles   VaultFile[]
@@ -298,11 +275,11 @@ model Project {
   meets        Meet[]
   aiChats      CollabifyAiConversation[]
 
-  // Counters
   counters ProjectCounter[]
   tasks    Task[]
 
   @@unique([workspaceId, key])
+  @@unique([id, workspaceId]) // LOCK: Allows ProjectMember to verify Workspace scope
   @@index([workspaceId])
   @@map("projects")
 }
@@ -319,29 +296,38 @@ model ProjectCounter {
 }
 
 model ProjectMember {
-  id                String @id @default(cuid())
-  projectId         String @map("project_id")
-  workspaceMemberId String @map("workspace_member_id")
+  id String @id @default(cuid())
 
-  // Note: Project-level grouping only. Permissions come from CustomRoles/Policies.
-  // We remove 'roleId' here because Roles are now global or granularly applied?
-  // Actually, Users might need Project-Specific Roles (e.g. "Admin of Project A").
-  // For hybrid model, we can attach MemberRoles specifically scoped to a project context?
-  // Simplification for now: Project Membership is just Access. 
-  // Detailed permissions are handled via ResourcePolicies or Workspace-level Roles.
-  // OR, we can re-introduce a Project-Scoped Role binding.
-  // Re-introducing simple linkage for membership tracking.
+  // LOCK: Explicit Workspace ID to act as the "Bridge" regarding scope
+  workspaceId String @map("workspace_id")
+  projectId   String @map("project_id")
+  userId      String @map("user_id")
 
-  project         Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  workspaceMember WorkspaceMember @relation(fields: [workspaceMemberId], references: [id], onDelete: Cascade)
+  // STRICT SINGLE ROLE ENFORCEMENT
+  // This is the ONLY place a role lives for a project member.
+  projectRoleId String? @map("project_role_id")
 
-  @@unique([projectId, workspaceMemberId])
-  @@index([workspaceMemberId])
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  // LOCK 1: The Project must match this Workspace
+  project Project @relation(fields: [projectId, workspaceId], references: [id, workspaceId], onDelete: Cascade)
+
+  // LOCK 2: The Role must match THIS SAME Workspace
+  projectRole CustomRole? @relation(fields: [projectRoleId, workspaceId], references: [id, workspaceId])
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // REMOVED: workspaceMemberId (Optional relation removed for cleaner userId-based queries)
+
+  @@unique([projectId, userId])
+  @@index([userId])
   @@map("project_members")
 }
 
+// REMOVED: ProjectMemberRole (Table Deleted - Redundant)
+
 // -----------------------------------------------------------------------------
-// 5. PAGES (DOCS) - S3 BACKED
+// 5. PAGES (DOCS)
 // -----------------------------------------------------------------------------
 
 model Page {
@@ -357,15 +343,15 @@ model Page {
   contentS3Key   String? @map("content_s3_key")
   contentVersion Int     @default(1) @map("content_version")
 
-  authorMemberId String @map("author_member_id")
+  authorUserId String? @map("author_user_id") // FIX: Optional for SetNull
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  project   Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  author    WorkspaceMember @relation(fields: [authorMemberId], references: [id])
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author    User?     @relation(fields: [authorUserId], references: [id], onDelete: SetNull) // FIX
 
   parentPage Page?  @relation("PageHierarchy", fields: [parentPageId], references: [id])
   childPages Page[] @relation("PageHierarchy")
@@ -378,7 +364,7 @@ model Page {
 }
 
 // -----------------------------------------------------------------------------
-// 6. VAULT (FILES) - S3 BACKED
+// 6. VAULT (FILES)
 // -----------------------------------------------------------------------------
 
 model VaultFolder {
@@ -399,11 +385,11 @@ model VaultFolder {
 }
 
 model VaultFile {
-  id               String  @id @default(cuid())
-  workspaceId      String  @map("workspace_id")
-  projectId        String  @map("project_id")
-  folderId         String? @map("folder_id")
-  uploaderMemberId String? @map("uploader_member_id")
+  id             String  @id @default(cuid())
+  workspaceId    String  @map("workspace_id")
+  projectId      String  @map("project_id")
+  folderId       String? @map("folder_id")
+  uploaderUserId String? @map("uploader_user_id")
 
   name      String
   mimeType  String @map("mime_type")
@@ -413,17 +399,17 @@ model VaultFile {
   createdAt DateTime  @default(now()) @map("created_at")
   deletedAt DateTime? @map("deleted_at")
 
-  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  folder    VaultFolder?     @relation(fields: [folderId], references: [id])
-  uploader  WorkspaceMember? @relation(fields: [uploaderMemberId], references: [id])
+  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  folder    VaultFolder? @relation(fields: [folderId], references: [id])
+  uploader  User?        @relation(fields: [uploaderUserId], references: [id], onDelete: SetNull) // FIX
 
   @@index([projectId, folderId])
   @@map("vault_files")
 }
 
 // -----------------------------------------------------------------------------
-// 7. WHITEBOARD (CANVAS) - S3 BACKED
+// 7. WHITEBOARD (CANVAS)
 // -----------------------------------------------------------------------------
 
 model Whiteboard {
@@ -497,9 +483,9 @@ model Task {
   statusName  String       @default("Todo") @map("status_name")
   priority    TaskPriority @default(MEDIUM)
 
-  assigneeMemberId String? @map("assignee_member_id")
-  reporterMemberId String  @map("reporter_member_id")
-  parentTaskId     String? @map("parent_task_id")
+  assigneeUserId String? @map("assignee_user_id")
+  reporterUserId String? @map("reporter_user_id") // FIX: Optional for SetNull
+  parentTaskId   String? @map("parent_task_id")
 
   startDate DateTime? @map("start_date")
   dueDate   DateTime? @map("due_date")
@@ -512,8 +498,8 @@ model Task {
   project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   board     Board     @relation(fields: [boardId], references: [id], onDelete: Cascade)
 
-  assignee WorkspaceMember? @relation("TaskAssignee", fields: [assigneeMemberId], references: [id])
-  reporter WorkspaceMember  @relation("TaskReporter", fields: [reporterMemberId], references: [id])
+  assignee User? @relation("TaskAssignee", fields: [assigneeUserId], references: [id], onDelete: SetNull) // FIX
+  reporter User? @relation("TaskReporter", fields: [reporterUserId], references: [id], onDelete: SetNull) // FIX
 
   parentTask Task?  @relation("Subtasks", fields: [parentTaskId], references: [id])
   subtasks   Task[] @relation("Subtasks")
@@ -521,9 +507,8 @@ model Task {
   notifications Notification[]
 
   @@unique([projectId, seqId])
-  @@index([workspaceId])
-  @@index([boardId])
-  @@index([assigneeMemberId])
+  @@index([projectId, boardId]) // OPTIMIZED: Kanban Load
+  @@index([projectId, assigneeUserId]) // OPTIMIZED: "My Tasks"
   @@map("tasks")
 }
 
@@ -562,31 +547,31 @@ model ChatChannel {
 model ChatMember {
   id            String   @id @default(cuid())
   channelId     String   @map("channel_id")
-  memberId      String   @map("workspace_member_id")
+  userId        String   @map("user_id")
   joinedAt      DateTime @default(now()) @map("joined_at")
   lastReadMsgId String?  @map("last_read_msg_id")
 
-  channel ChatChannel     @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  member  WorkspaceMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  channel ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([channelId, memberId])
+  @@unique([channelId, userId])
   @@map("chat_members")
 }
 
 model ChatMessage {
-  id             String  @id @default(cuid())
-  channelId      String  @map("channel_id")
-  senderMemberId String? @map("sender_member_id")
-  content        String
-  attachmentIds  Json?
-  isSystem       Boolean @default(false) @map("is_system")
+  id            String  @id @default(cuid())
+  channelId     String  @map("channel_id")
+  senderUserId  String? @map("sender_user_id")
+  content       String
+  attachmentIds Json?
+  isSystem      Boolean @default(false) @map("is_system")
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  channel ChatChannel      @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  sender  WorkspaceMember? @relation(fields: [senderMemberId], references: [id])
+  channel ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  sender  User?       @relation(fields: [senderUserId], references: [id], onDelete: SetNull) // FIX
 
   reactions     MessageReaction[]
   notifications Notification[]
@@ -598,14 +583,14 @@ model ChatMessage {
 model MessageReaction {
   id        String   @id @default(cuid())
   messageId String   @map("message_id")
-  memberId  String   @map("workspace_member_id")
+  userId    String   @map("user_id")
   emoji     String
   createdAt DateTime @default(now()) @map("created_at")
 
-  message ChatMessage     @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  member  WorkspaceMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  message ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([messageId, memberId, emoji])
+  @@unique([messageId, userId, emoji])
   @@map("message_reactions")
 }
 
@@ -639,12 +624,14 @@ model Meet {
 model MeetParticipant {
   id       String    @id @default(cuid())
   meetId   String    @map("meet_id")
-  memberId String    @map("workspace_member_id")
+  userId   String    @map("user_id")
   joinedAt DateTime  @default(now()) @map("joined_at")
   leftAt   DateTime? @map("left_at")
 
-  meet   Meet            @relation(fields: [meetId], references: [id], onDelete: Cascade)
-  member WorkspaceMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  meet Meet @relation(fields: [meetId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // REMOVED: workspaceMemberId (Redundant)
 
   @@map("meet_participants")
 }
@@ -655,8 +642,8 @@ model MeetParticipant {
 
 model CollabifyAiConversation {
   id        String   @id @default(cuid())
-  userId    String   @map("user_id") // Global Owner
-  projectId String?  @map("project_id") // Optional Context
+  userId    String   @map("user_id")
+  projectId String?  @map("project_id")
   title     String
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -671,7 +658,7 @@ model CollabifyAiConversation {
 model CollabifyAiMessage {
   id             String   @id @default(cuid())
   conversationId String   @map("conversation_id")
-  role           String // "user", "assistant"
+  role           String
   content        String
   citationData   Json?
   createdAt      DateTime @default(now()) @map("created_at")
@@ -688,14 +675,13 @@ model CollabifyAiMessage {
 model Notification {
   id              String  @id @default(cuid())
   recipientUserId String  @map("recipient_user_id")
-  actorId         String? @map("actor_id") // User ID (Global)
+  actorId         String? @map("actor_id")
 
-  // Polymorphic Targets
   taskId        String? @map("task_id")
   chatMessageId String? @map("chat_message_id")
   pageId        String? @map("page_id")
 
-  type      String // "MENTION", "ASSIGN", "SYSTEM"
+  type      String
   isRead    Boolean  @default(false) @map("is_read")
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -715,7 +701,7 @@ model AuditLog {
   workspaceId    String  @map("workspace_id")
   actorUserId    String? @map("actor_user_id")
   action         String
-  targetResource String  @map("target_resource") // "Project:123"
+  targetResource String  @map("target_resource")
   metadata       Json?
 
   createdAt DateTime @default(now()) @map("created_at")
