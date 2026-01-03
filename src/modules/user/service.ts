@@ -4,51 +4,63 @@ const prisma = db;
 
 export const UserService = {
   async findUserByClerkId(clerkId: string) {
-    const key = await prisma.userKey.findUnique({
-      where: {
-        provider_providerId: {
-          provider: "clerk",
-          providerId: clerkId,
-        },
-      },
-      include: {
-        user: true,
-      },
+    return prisma.user.findUnique({
+      where: { clerkId },
     });
-    return key?.user || null;
   },
 
-  async createUserFromClerk(data: {
+  async syncUserFromClerk(data: {
     clerkId: string;
     email: string;
     fullName?: string;
     avatarUrl?: string;
   }) {
     return prisma.$transaction(async (tx) => {
-      // Check if user exists by email to prevent dupes (link account scenario)
-      let user = await tx.user.findUnique({ where: { email: data.email } });
+      // 1. Try to find by Clerk ID (Update Schema)
+      const existingUser = await tx.user.findUnique({
+        where: { clerkId: data.clerkId },
+      });
 
-      if (!user) {
-        user = await tx.user.create({
+      if (existingUser) {
+        // Update existing user
+        return tx.user.update({
+          where: { id: existingUser.id },
           data: {
             email: data.email,
             fullName: data.fullName,
             avatarUrl: data.avatarUrl,
-            status: "ACTIVE",
+            status: "ACTIVE", // Reactivate if needed
           },
         });
       }
 
-      // Create Key
-      await tx.userKey.create({
-        data: {
-          userId: user.id,
-          provider: "clerk",
-          providerId: data.clerkId,
-        },
+      // 2. Try to find by Email (Account Linking)
+      const existingByEmail = await tx.user.findUnique({
+        where: { email: data.email },
       });
 
-      return user;
+      if (existingByEmail) {
+        // Link the existing user to this Clerk ID
+        return tx.user.update({
+          where: { id: existingByEmail.id },
+          data: {
+            clerkId: data.clerkId,
+            fullName: data.fullName || existingByEmail.fullName,
+            avatarUrl: data.avatarUrl || existingByEmail.avatarUrl,
+          },
+        });
+      }
+
+      // 3. Create new user
+      return tx.user.create({
+        data: {
+          clerkId: data.clerkId,
+          email: data.email,
+          fullName: data.fullName,
+          avatarUrl: data.avatarUrl,
+          status: "ACTIVE",
+        },
+      });
     });
   },
 

@@ -4,6 +4,8 @@ import { schema } from "../graphql/schema";
 import { createContext } from "../graphql/context";
 import { mapToGraphQLError } from "../shared/errors";
 
+import webhookRoutes from "./routes/webhooks";
+
 import { clerkMiddleware } from "@hono/clerk-auth";
 import { pinoLogger } from "hono-pino";
 import { useLogger } from "graphql-yoga";
@@ -16,6 +18,13 @@ const app = new Hono();
 
 // Check DB connection on startup
 checkConnection();
+
+app.get("/", (c) => {
+  return c.text("Collabify Server is running!");
+});
+
+// Webhooks (Before Clerk Middleware or publicly accessible)
+app.route("/", webhookRoutes);
 
 app.use("*", clerkMiddleware());
 
@@ -61,9 +70,6 @@ app.use("/graphql", async (c) => {
 });
 
 // Hello World route
-app.get("/", (c) => {
-  return c.text("Collabify Server is running!");
-});
 
 export default {
   port: env.PORT,

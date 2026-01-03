@@ -18,6 +18,7 @@ const envSchema = z.object({
   CLERK_SECRET_KEY: z.string().min(1),
   CLERK_PUBLISHABLE_KEY: z.string().min(1),
   FRONTEND_URL: z.string().url().default("http://localhost:3000"),
+  CLERK_WEBHOOK_SIGNING_SECRET:z.string().min(1),
 });
 
 const parsed = envSchema.safeParse(process.env);
