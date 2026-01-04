@@ -1,5 +1,9 @@
 import { db } from "../../infra/db";
-import { UserIdSchema, CreateOnboardingWorkspaceSchema } from "./types";
+import {
+  UserIdSchema,
+  CreateOnboardingWorkspaceSchema,
+  WorkspaceBySlugSchema,
+} from "./types";
 import { AppError } from "../../shared/errors";
 import { logger } from "../../shared/logger";
 
@@ -15,6 +19,26 @@ export const WorkspaceService = {
       },
       orderBy: { createdAt: "desc" },
     });
+  },
+
+  async getWorkspaceBySlug(input: { userId: string; slug: string }) {
+    const { userId, slug } = WorkspaceBySlugSchema.parse(input);
+
+    const workspace = await db.workspace.findFirst({
+      where: {
+        slug,
+        members: {
+          some: { userId },
+        },
+        deletedAt: null,
+      },
+    });
+
+    if (!workspace) {
+      throw AppError.notFound("Workspace not found", "WORKSPACE_NOT_FOUND");
+    }
+
+    return workspace;
   },
 
   async getOnboardingStatus(input: { userId: string }) {
@@ -96,12 +120,20 @@ export const WorkspaceService = {
 
     let slug = baseSlug;
     let counter = 1;
+    const MAX_RETRIES = 10;
+    let attempts = 0;
 
     while (true) {
+      if (attempts >= MAX_RETRIES) {
+        throw new AppError("Could not generate unique workspace slug");
+      }
+
       const existingSlug = await db.workspace.findUnique({ where: { slug } });
       if (!existingSlug) break;
+
       slug = `${baseSlug}-${counter}`;
       counter++;
+      attempts++;
     }
 
     // 3. Create Workspace

@@ -4,6 +4,7 @@ export const typeDefs = `
     slug: String!
     name: String!
     logoUrl: String
+    domainWhitelist: String
     createdAt: String!
     updatedAt: String!
     # Add other fields as needed
@@ -19,6 +20,7 @@ export const typeDefs = `
   extend type Query {
     myWorkspaces: [Workspace!]!
     onboardingStatus: OnboardingStatus!
+    workspaceBySlug(slug: String!): Workspace!
   }
 
   extend type Mutation {

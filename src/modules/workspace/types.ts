@@ -14,4 +14,9 @@ export const CreateOnboardingWorkspaceSchema = z.object({
   userFullName: z.string(),
 });
 
+export const WorkspaceBySlugSchema = z.object({
+  userId: z.string().min(1),
+  slug: z.string().min(1),
+});
+
 export type CreateWorkspaceInput = z.infer<typeof CreateWorkspaceSchema>;
