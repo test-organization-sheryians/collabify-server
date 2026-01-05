@@ -4,7 +4,9 @@ import { userResolvers } from "../modules/user/resolvers";
 import { typeDefs as workspaceTypeDefs } from "../modules/workspace/schema";
 import { resolvers as workspaceResolvers } from "../modules/workspace/resolvers";
 
-export const schema = createSchema({
+import { ServiceContext } from "./types";
+
+export const schema = createSchema<ServiceContext>({
   typeDefs: [
     /* GraphQL */ `
       type Query {

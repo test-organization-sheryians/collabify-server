@@ -1,28 +1,24 @@
-import { GraphQLContext } from "../../graphql/context";
-import { AppError } from "../../shared/errors";
+import { ServiceContext } from "@/graphql/types";
+
 import { WorkspaceService } from "./service";
+import { requireUser } from "@/shared/utils/graphql-helpers";
 
 export const resolvers = {
   Query: {
-    myWorkspaces: async (_: any, __: any, ctx: GraphQLContext) => {
-      if (!ctx.auth?.userId) throw AppError.unauthorized("Unauthorized");
-
-      // Verify user exists in DB first (should use dataloader ideally if heavily used, or service)
-      const user = await ctx.dataloaders.user.userByClerkId.load(
-        ctx.auth.userId
-      );
-      if (!user) throw AppError.unauthorized("User not found");
-
+    myWorkspaces: async (
+      _root: unknown,
+      _args: unknown,
+      ctx: ServiceContext
+    ) => {
+      const user = await requireUser(ctx);
       return WorkspaceService.getWorkspacesForUser({ userId: user.id });
     },
-    onboardingStatus: async (_: any, __: any, ctx: GraphQLContext) => {
-      if (!ctx.auth?.userId) {
-        throw AppError.unauthorized("Unauthorized");
-      }
-
-      const user = await ctx.dataloaders.user.userByClerkId.load(
-        ctx.auth.userId
-      );
+    onboardingStatus: async (
+      _root: unknown,
+      _args: unknown,
+      ctx: ServiceContext
+    ) => {
+      const user = await requireUser(ctx).catch(() => null); // Allow missing user for onboarding status check logic check below
 
       if (!user) {
         return {
@@ -36,16 +32,11 @@ export const resolvers = {
       return WorkspaceService.getOnboardingStatus({ userId: user.id });
     },
     workspaceBySlug: async (
-      _: any,
+      _root: unknown,
       args: { slug: string },
-      ctx: GraphQLContext
+      ctx: ServiceContext
     ) => {
-      if (!ctx.auth?.userId) throw AppError.unauthorized("Unauthorized");
-
-      const user = await ctx.dataloaders.user.userByClerkId.load(
-        ctx.auth.userId
-      );
-      if (!user) throw AppError.unauthorized("User not found");
+      const user = await requireUser(ctx);
 
       return WorkspaceService.getWorkspaceBySlug({
         userId: user.id,
@@ -54,17 +45,41 @@ export const resolvers = {
     },
   },
   Mutation: {
-    createOnboardingWorkspace: async (_: any, __: any, ctx: GraphQLContext) => {
-      if (!ctx.auth?.userId) throw AppError.unauthorized("Unauthorized");
-
-      const user = await ctx.dataloaders.user.userByClerkId.load(
-        ctx.auth.userId
-      );
-      if (!user) throw AppError.unauthorized("User not found");
+    createOnboardingWorkspace: async (
+      _root: unknown,
+      _args: unknown,
+      ctx: ServiceContext
+    ) => {
+      const user = await requireUser(ctx);
 
       return WorkspaceService.createOnboardingWorkspace({
         userId: user.id,
         userFullName: user.fullName || "User",
+      });
+    },
+    checkSlugAvailability: async (
+      _root: unknown,
+      args: { slug: string },
+      ctx: ServiceContext
+    ) => {
+      const user = await requireUser(ctx);
+
+      return WorkspaceService.checkSlugAvailability({
+        slug: args.slug,
+        userId: user.id,
+      });
+    },
+    createWorkspace: async (
+      _root: unknown,
+      args: { slug: string; name: string },
+      ctx: ServiceContext
+    ) => {
+      const user = await requireUser(ctx);
+
+      return WorkspaceService.createWorkspace({
+        userId: user.id,
+        slug: args.slug,
+        name: args.name,
       });
     },
   },

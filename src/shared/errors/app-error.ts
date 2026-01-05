@@ -48,4 +48,8 @@ export class AppError extends Error {
   ) {
     return new AppError(message, code, 404);
   }
+
+  static conflict(message: string, code: ErrorCode = "CONFLICT") {
+    return new AppError(message, code, 409);
+  }
 }

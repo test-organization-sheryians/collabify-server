@@ -1,29 +1,31 @@
-import { Hono } from "hono";
-import { createYoga } from "graphql-yoga";
+import { Hono, Context } from "hono";
+import { createYoga, useLogger } from "graphql-yoga";
 import { schema } from "../graphql/schema";
 import { createContext } from "../graphql/context";
 import { mapToGraphQLError } from "../shared/errors";
-
 import webhookRoutes from "./routes/webhooks";
-
 import { clerkMiddleware } from "@hono/clerk-auth";
 import { pinoLogger } from "hono-pino";
-import { useLogger } from "graphql-yoga";
 import { logger } from "../shared/logger";
 import { env } from "../shared/config/env";
-
 import { checkConnection } from "../infra/db";
+import { cors } from "hono/cors";
+import { ServiceContext } from "../graphql/types";
+
+interface GraphQLLogPayload {
+  msg: string;
+  operation?: string;
+  variables?: Record<string, unknown>;
+}
 
 const app = new Hono();
-
-import { cors } from "hono/cors";
 
 // Check DB connection on startup
 checkConnection();
 
 app.use("*", cors());
 
-app.get("/", (c) => {
+app.get("/", (c: Context) => {
   return c.text("Collabify Server is running!");
 });
 
@@ -41,12 +43,12 @@ app.use(
   })
 );
 
-const yoga = createYoga({
+const yoga = createYoga<ServiceContext>({
   schema,
   graphqlEndpoint: "/graphql",
-  context: (c: any) => createContext(c),
+  context: ({ c }) => createContext(c),
   maskedErrors: {
-    maskError: (error: any, message: string) => {
+    maskError: (error: unknown, _message: string) => {
       return mapToGraphQLError(error);
     },
   },
@@ -54,12 +56,15 @@ const yoga = createYoga({
     useLogger({
       logFn: (eventName, args) => {
         if (eventName === "execute-start") {
-          const payload: any = {
+          const payload: GraphQLLogPayload = {
             msg: "GraphQL Execution Started",
-            operation: args.args.operationName,
+            operation: args.args.operationName ?? "Unnamed Operation",
           };
           if (env.LOG_GRAPHQL_VARS) {
-            payload.variables = args.args.variableValues;
+            payload.variables = args.args.variableValues as Record<
+              string,
+              unknown
+            >;
           }
           logger.info(payload);
         }
@@ -69,11 +74,9 @@ const yoga = createYoga({
 });
 
 // Mount Yoga on the /graphql endpoint
-app.use("/graphql", async (c) => {
-  return yoga.fetch(c.req.raw, app, c);
+app.use("/graphql", async (c: Context) => {
+  return yoga.fetch(c.req.raw, {}, { c });
 });
-
-// Hello World route
 
 export default {
   port: env.PORT,

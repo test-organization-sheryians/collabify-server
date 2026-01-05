@@ -17,6 +17,12 @@ export const typeDefs = `
     workspaceSlug: String
   }
 
+  type AvailabilityResponse {
+    available: Boolean!
+    message: String
+    reservationId: String
+  }
+
   extend type Query {
     myWorkspaces: [Workspace!]!
     onboardingStatus: OnboardingStatus!
@@ -25,5 +31,12 @@ export const typeDefs = `
 
   extend type Mutation {
     createOnboardingWorkspace: Workspace!
+    
+    checkSlugAvailability(slug: String!): AvailabilityResponse!
+    
+    createWorkspace(
+      slug: String!
+      name: String!
+    ): Workspace!
   }
 `;

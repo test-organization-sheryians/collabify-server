@@ -1,11 +1,11 @@
-import { Hono } from "hono";
+import { Hono, Context } from "hono";
 import { ClerkWebhookService } from "../../services/clerk/webhook";
 import { UserService } from "../../modules/user/service";
 import { logger } from "../../shared/logger";
 
 const webhookRouter = new Hono();
 
-webhookRouter.post("/api/webhooks/clerk", async (c) => {
+webhookRouter.post("/api/webhooks/clerk", async (c: Context) => {
   const payload = await c.req.text();
   const headers = {
     "svix-id": c.req.header("svix-id"),

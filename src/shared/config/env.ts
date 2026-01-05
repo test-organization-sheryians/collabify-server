@@ -13,12 +13,13 @@ const envSchema = z.object({
   LOG_REQ_BODY: z.coerce.boolean().default(false),
   LOG_RES_BODY: z.coerce.boolean().default(false),
   LOG_GRAPHQL_VARS: z.coerce.boolean().default(false),
-  LOG_DB_PARAMS: z.coerce.boolean().default(true),
+  LOG_DB_PARAMS: z.coerce.boolean().default(false),
   DATABASE_URL: z.string().url(),
   CLERK_SECRET_KEY: z.string().min(1),
   CLERK_PUBLISHABLE_KEY: z.string().min(1),
   FRONTEND_URL: z.string().url().default("http://localhost:3000"),
-  CLERK_WEBHOOK_SIGNING_SECRET:z.string().min(1),
+  CLERK_WEBHOOK_SIGNING_SECRET: z.string().min(1),
+  REDIS_URL: z.string().url(),
 });
 
 const parsed = envSchema.safeParse(process.env);

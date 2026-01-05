@@ -1,7 +1,7 @@
 import { GraphQLError } from "graphql";
 import { AppError } from "./app-error";
 
-export function mapToGraphQLError(originalError: any): GraphQLError {
+export function mapToGraphQLError(originalError: unknown): GraphQLError {
   if (originalError instanceof AppError) {
     return new GraphQLError(originalError.message, {
       extensions: {

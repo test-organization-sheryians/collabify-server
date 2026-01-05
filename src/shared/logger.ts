@@ -1,4 +1,4 @@
-import pino = require("pino");
+import pino from "pino";
 import { env } from "./config/env";
 
 const redact = ["req.headers.authorization"];

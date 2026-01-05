@@ -1,6 +1,6 @@
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { env } from "../shared/config/env";
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
@@ -24,44 +24,38 @@ export const db =
     ],
   });
 
-// @ts-ignore - Prisma types for events are tricky with the adapter setup sometimes
-db.$on("query", (e: any) => {
-  if (env.NODE_ENV === "development") {
-    const payload: any = {
-      msg: "Prisma Query",
-      query: e.query,
-      duration: `${e.duration}ms`,
-    };
-    if (env.LOG_DB_PARAMS) {
-      payload.params = e.params;
-    }
-    logger.debug(payload);
-  }
+// @ts-expect-error - Prisma internal typing for log emitter with adapter
+db.$on("query", (e: Prisma.QueryEvent) => {
+  if (e.duration < 100) return; // Ignore fast queries
+
+  const payload = {
+    msg: "DB Query",
+    query: e.query,
+    duration: `${e.duration}ms`,
+    params: env.LOG_DB_PARAMS ? e.params : undefined,
+  };
+  logger.debug(payload);
 });
 
-// @ts-ignore
-db.$on("error", (e: any) => {
-  logger.error({
-    msg: "Prisma Error",
-    target: e.target,
-    message: e.message,
-  });
+// @ts-expect-error - Prisma internal typing for log emitter with adapter
+db.$on("error", (e: Prisma.LogEvent) => {
+  logger.error({ target: e.target, message: e.message }, "Prisma Error");
 });
 
-// @ts-ignore
-db.$on("info", (e: any) => {
-  logger.info({
-    msg: "Prisma Info",
-    message: e.message,
-  });
+// @ts-expect-error - Prisma internal typing for log emitter with adapter
+db.$on("info", (e: Prisma.LogEvent) => {
+  logger.info(
+    {
+      target: e.target,
+      message: e.message,
+    },
+    "Prisma Info"
+  );
 });
 
-// @ts-ignore
-db.$on("warn", (e: any) => {
-  logger.warn({
-    msg: "Prisma Warning",
-    message: e.message,
-  });
+// @ts-expect-error - Prisma internal typing for log emitter with adapter
+db.$on("warn", (e: Prisma.LogEvent) => {
+  logger.warn({ target: e.target, message: e.message }, "Prisma Warning");
 });
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;

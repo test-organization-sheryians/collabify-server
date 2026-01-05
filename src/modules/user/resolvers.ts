@@ -1,10 +1,11 @@
 import { UserService } from "./service";
-import { GraphQLContext } from "../../graphql/context";
+import { ServiceContext } from "../../graphql/types";
 import { AppError } from "../../shared/errors";
+import { SyncUserSchema } from "./types";
 
 export const userResolvers = {
   Query: {
-    me: async (_: any, __: any, context: GraphQLContext) => {
+    me: async (_root: unknown, _args: unknown, context: ServiceContext) => {
       if (!context.auth.userId) return null;
 
       // Use DataLoader for caching and batching
@@ -12,14 +13,21 @@ export const userResolvers = {
     },
   },
   Mutation: {
-    syncUser: async (_: any, args: unknown, context: GraphQLContext) => {
+    syncUser: async (
+      _root: unknown,
+      args: unknown,
+      context: ServiceContext
+    ) => {
+      // Security: Validate input using Zod Schema (Validation Gateway)
+      const input = SyncUserSchema.parse(args);
+
       // Security: Ensure the caller owns this Clerk ID
-      const typedArgs = args as { clerkId: string };
-      if (context.auth.userId !== typedArgs.clerkId) {
+      if (context.auth.userId !== input.clerkId) {
         throw AppError.unauthorized("Clerk ID mismatch");
       }
 
-      return UserService.syncUserFromClerk(args);
+      // Redundant but safe: logic layer will re-validate, ensuring integrity
+      return UserService.syncUserFromClerk(input);
     },
   },
 };

@@ -58,6 +58,10 @@ model User {
   projectMembers   ProjectMember[]
   resourcePolicies ResourcePolicy[]
 
+  // 13. SUBSCRIPTIONS & QUOTAS
+  subscription Subscription?
+  usageRecords UsageRecord[]
+
   // Activity
   assignedTasks    Task[]            @relation("TaskAssignee")
   reportedTasks    Task[]            @relation("TaskReporter")
@@ -133,6 +137,8 @@ model Workspace {
   whiteboards Whiteboard[]
   chats       ChatChannel[]
   tasks       Task[]
+
+  usageRecords UsageRecord[]
 
   @@index([slug])
   @@map("workspaces")
@@ -712,4 +718,96 @@ model AuditLog {
 
   @@index([workspaceId, createdAt])
   @@map("audit_logs")
+}
+
+// -----------------------------------------------------------------------------
+// 13. SUBSCRIPTIONS & QUOTAS
+// -----------------------------------------------------------------------------
+
+model Plan {
+  id          String  @id @default(cuid())
+  slug        String  @unique // "free", "pro_user"
+  name        String
+  description String?
+  isActive    Boolean @default(true) // Soft delete for plans
+
+  // Normalized Limits
+  limits        PlanLimit[]
+  subscriptions Subscription[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt // Critical for cache invalidation
+
+  @@map("plans")
+}
+
+model PlanLimit {
+  id     String @id @default(cuid())
+  planId String @map("plan_id")
+
+  // "max_workspaces", "max_members_per_workspace", "storage_limit_mb"
+  resourceKey String @map("resource_key")
+  limitValue  Int    @map("limit_value") // -1 = Unlimited
+
+  plan Plan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  // INDEXING: Fast lookup for a specific checking a specific rule
+  @@unique([planId, resourceKey])
+  @@map("plan_limits")
+}
+
+model Subscription {
+  id     String @id @default(cuid())
+  userId String @unique @map("user_id") // ONE active subscription per user
+
+  planId String @map("plan_id")
+  status String @default("ACTIVE") // ACTIVE, CANCELED, PAST_DUE
+
+  startDate DateTime  @map("start_date")
+  endDate   DateTime? @map("end_date")
+
+  // Custom overrides for specific users (Sales/Support enabled)
+  overrides SubscriptionOverride[]
+
+  user User @relation(fields: [userId], references: [id])
+  plan Plan @relation(fields: [planId], references: [id])
+
+  @@index([status, endDate]) // For cron jobs finding expiring subs
+  @@map("subscriptions")
+}
+
+model SubscriptionOverride {
+  id             String @id @default(cuid())
+  subscriptionId String @map("subscription_id")
+  resourceKey    String @map("resource_key")
+  limitValue     Int    @map("limit_value")
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, resourceKey])
+  @@map("subscription_overrides")
+}
+
+model UsageRecord {
+  id String @id @default(cuid())
+
+  // We track usage per SCOPE.
+  // Some limits are User-scoped (e.g. Created Workspaces)
+  // Some are Workspace-scoped (e.g. Storage Used, Members)
+  userId      String? @map("user_id")
+  workspaceId String? @map("workspace_id")
+
+  resourceKey String @map("resource_key")
+  currentVal  Int    @default(0) @map("current_val")
+
+  // Lazy Reset Logic: Checked on READ. If now > resetAt, value = 0.
+  resetAt DateTime? @map("reset_at")
+
+  user      User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  // INDEXING: The most critical index.
+  @@unique([userId, resourceKey])
+  @@unique([workspaceId, resourceKey])
+  @@map("usage_records")
 }
