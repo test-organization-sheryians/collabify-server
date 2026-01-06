@@ -11,6 +11,7 @@ import { env } from "../shared/config/env";
 import { checkConnection } from "../infra/db";
 import { cors } from "hono/cors";
 import { ServiceContext } from "../graphql/types";
+import { idempotencyMiddleware } from "../shared/middleware/idempotency";
 
 interface GraphQLLogPayload {
   msg: string;
@@ -29,10 +30,11 @@ app.get("/", (c: Context) => {
   return c.text("Collabify Server is running!");
 });
 
-// Webhooks (Before Clerk Middleware or publicly accessible)
 app.route("/", webhookRoutes);
 
 app.use("*", clerkMiddleware());
+
+app.use("*", idempotencyMiddleware);
 
 app.use(
   pinoLogger({
