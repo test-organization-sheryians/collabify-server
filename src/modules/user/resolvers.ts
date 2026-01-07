@@ -1,7 +1,7 @@
 import { UserService } from "./service";
 import { ServiceContext } from "../../graphql/types";
 import { AppError } from "../../shared/errors";
-import { SyncUserSchema } from "./types";
+import { SyncUserSchema, SyncUserInput } from "./types";
 
 export const userResolvers = {
   Query: {
@@ -15,7 +15,7 @@ export const userResolvers = {
   Mutation: {
     syncUser: async (
       _root: unknown,
-      args: unknown,
+      args: SyncUserInput,
       context: ServiceContext
     ) => {
       // Security: Validate input using Zod Schema (Validation Gateway)
