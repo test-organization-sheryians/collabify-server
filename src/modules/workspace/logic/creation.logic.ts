@@ -1,4 +1,5 @@
 import { db } from "@/infra/db";
+import { SlugUtil } from "@/shared/utils/slug.util";
 import { redis } from "@/infra/redis";
 import { AppError } from "@/shared/errors";
 import { logger } from "@/shared/logger";
@@ -9,7 +10,7 @@ import { CreateWorkspaceSchema } from "../types";
 export const CreationLogic = {
   async createWorkspace(input: { slug: string; name: string; userId: string }) {
     const { slug, name, userId } = CreateWorkspaceSchema.parse(input);
-    const normalizedSlug = slug.toLowerCase();
+    const normalizedSlug = SlugUtil.sanitize(slug);
 
     // XSS Sanitization
     const sanitizedName = name.trim().replace(/[<>]/g, "");
@@ -24,7 +25,7 @@ export const CreationLogic = {
     if (reservedBy !== userId) {
       throw AppError.conflict(
         "Reservation expired or stolen. Please check availability again.",
-        "RESERVATION_INVALID"
+        "WORKSPACE_CREATION_RESERVATION_STOLEN"
       );
     }
 
@@ -63,7 +64,7 @@ export const CreationLogic = {
           await redis.del(lockKey);
           throw AppError.conflict(
             "Workspace URL is already taken.",
-            "SLUG_TAKEN"
+            "WORKSPACE_CREATION_DB_CONFLICT"
           );
         }
         if (error.code === "P2003") {

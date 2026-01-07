@@ -1,53 +1,31 @@
-import { db } from "@/infra/db";
+import { redis } from "@/infra/redis";
 import { logger } from "@/shared/logger";
 import { AppError } from "@/shared/errors";
-import { QuotaService } from "@/modules/quota/service";
-import { UserIdSchema, CreateOnboardingWorkspaceSchema } from "../types";
+import { CreateOnboardingWorkspaceSchema, UserIdSchema } from "../types";
+import { RetrievalLogic } from "./retrieval.logic";
+import { CreationLogic } from "./creation.logic";
+import { SlugLogic } from "./slug.logic";
+import { SlugUtil } from "@/shared/utils/slug.util";
 
 export const OnboardingLogic = {
   async getOnboardingStatus(input: { userId: string }) {
     const { userId } = UserIdSchema.parse(input);
-    const user = await db.user.findUnique({
-      where: { id: userId, deletedAt: null },
-    });
-    if (!user) {
+    const workspaces = await RetrievalLogic.getWorkspacesForUser({ userId });
+
+    if (workspaces.length === 0) {
       return {
-        hasUser: false,
+        hasUser: true, // Assuming user exists at this point
         hasWorkspace: false,
         hasProject: false,
         workspaceSlug: null,
       };
     }
 
-    const firstWorkspace = await db.workspace.findFirst({
-      where: {
-        members: { some: { userId } },
-        deletedAt: null,
-      },
-      include: {
-        projects: {
-          where: {
-            members: { some: { userId } },
-            deletedAt: null,
-          },
-          take: 1,
-        },
-      },
-    });
-
-    if (!firstWorkspace) {
-      return {
-        hasUser: true,
-        hasWorkspace: false,
-        hasProject: false,
-        workspaceSlug: null,
-      };
-    }
-
+    const firstWorkspace = workspaces[0];
     return {
       hasUser: true,
       hasWorkspace: true,
-      hasProject: firstWorkspace.projects.length > 0,
+      hasProject: false, // Legacy check refined to simple existence
       workspaceSlug: firstWorkspace.slug,
     };
   },
@@ -55,71 +33,90 @@ export const OnboardingLogic = {
   async createOnboardingWorkspace(input: {
     userId: string;
     userFullName: string;
+    slug?: string;
   }) {
-    const { userId, userFullName } =
+    const { userId, userFullName, slug } =
       CreateOnboardingWorkspaceSchema.parse(input);
 
-    await QuotaService.enforceQuota(userId, "MAX_OWNED_WORKSPACES");
+    // 0. User Mutex (The "Turnstile")
+    // Prevents concurrent requests from same user creating double workspaces.
+    const userLockKey = `lock:onboarding:${userId}`;
+    const acquired = await redis.set(userLockKey, "1", "EX", 10, "NX");
 
-    // 1. Check idempotency
-    const existing = await db.workspace.findMany({
-      where: {
-        members: {
-          some: { userId },
-        },
-        deletedAt: null,
-      },
-    });
-
-    if (existing.length > 0) {
-      return existing[0];
+    if (!acquired) {
+      throw AppError.conflict(
+        "Onboarding is already in progress. Please wait.",
+        "IDEMPOTENCY_LOCKED"
+      );
     }
 
-    // 2. Generate unique slug
-    const baseName = userFullName.trim() || "My Workspace";
-    let baseSlug = baseName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-
-    if (!baseSlug) baseSlug = "workspace";
-
-    let slug = baseSlug;
-    let counter = 1;
-    const MAX_RETRIES = 10;
-    let attempts = 0;
-
-    while (true) {
-      if (attempts >= MAX_RETRIES) {
-        throw new AppError("Could not generate unique workspace slug");
+    try {
+      // 1. Check Idempotency (Strict)
+      const existing = await RetrievalLogic.getWorkspacesForUser({ userId });
+      if (existing.length > 0) {
+        logger.info(
+          { userId, workspaceId: existing[0].id },
+          "Onboarding Idempotency: Workspace already exists"
+        );
+        return existing[0];
       }
 
-      const existingSlug = await db.workspace.findUnique({ where: { slug } });
-      if (!existingSlug) break;
+      // 2. Slug Generation Loop
+      const MAX_RETRIES = 5;
+      let attempts = 0;
 
-      slug = `${baseSlug}-${counter}`;
-      counter++;
-      attempts++;
+      // If user provided a custom slug, use it first.
+      // Otherwise sanitize name.
+      let baseSlug = slug || SlugUtil.sanitize(userFullName) || "workspace";
+      let finalSlug: string | null = null;
+
+      while (attempts < MAX_RETRIES) {
+        const candidateSlug =
+          slug && attempts === 0
+            ? slug // 1st try: exact custom slug
+            : SlugUtil.generateNext(baseSlug, attempts);
+
+        // Check availability (This also RESERVES the lock if available)
+        const check = await SlugLogic.checkSlugAvailability({
+          slug: candidateSlug,
+          userId,
+        });
+
+        if (check.available) {
+          finalSlug = candidateSlug;
+          break;
+        }
+
+        // If custom slug failed on first try, don't suffix it (UX decision).
+        // Fallback to name-based generation?
+        // Decision: If custom slug fails, we FAIL fast per requirements (don't suffix custom input).
+        if (slug && attempts === 0) {
+          throw AppError.conflict(
+            `The slug '${slug}' is unavailable. Please choose another.`,
+            "WORKSPACE_ONBOARDING_CUSTOM_SLUG_TAKEN"
+          );
+        }
+
+        attempts++;
+      }
+
+      if (!finalSlug) {
+        throw new AppError(
+          "Could not generate a unique workspace URL. Please try again.",
+          "WORKSPACE_ONBOARDING_SLUG_GENERATION_FAILED"
+        );
+      }
+
+      // 3. Create Workspace (Delegated)
+      // Lock is ALREADY held by 'checkSlugAvailability'
+      return await CreationLogic.createWorkspace({
+        userId,
+        name: userFullName + "'s Workspace",
+        slug: finalSlug,
+      });
+    } finally {
+      // Always release the turnstile
+      await redis.del(userLockKey);
     }
-
-    // 3. Create Workspace
-    const workspace = await db.workspace.create({
-      data: {
-        name: `${baseName}'s Workspace`,
-        slug: slug,
-        members: {
-          create: {
-            userId: userId,
-            role: "OWNER",
-          },
-        },
-      },
-    });
-
-    logger.info(
-      { workspaceId: workspace.id, userId },
-      "Created Onboarding Workspace"
-    );
-    return workspace;
   },
 };

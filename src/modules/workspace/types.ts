@@ -45,6 +45,12 @@ export const CheckAvailabilitySchema = z.object({
 export const CreateOnboardingWorkspaceSchema = z.object({
   userId: z.string().min(1),
   userFullName: z.string(),
+  slug: z
+    .string()
+    .min(3)
+    .max(50)
+    .regex(SLUG_REGEX, "Invalid slug format")
+    .optional(),
 });
 
 export const WorkspaceBySlugSchema = z.object({
