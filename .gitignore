@@ -3,10 +3,6 @@ node_modules/
 
 /src/generated/prisma
 .env
-.env
-.gitignore
-
-.env
 .gitignore
 test/
 scripts/
