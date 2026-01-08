@@ -67,7 +67,7 @@ export const OnboardingLogic = {
 
       // If user provided a custom slug, use it first.
       // Otherwise sanitize name.
-      let baseSlug = slug || SlugUtil.sanitize(userFullName) || "workspace";
+      const baseSlug = slug || SlugUtil.sanitize(userFullName) || "workspace";
       let finalSlug: string | null = null;
 
       while (attempts < MAX_RETRIES) {

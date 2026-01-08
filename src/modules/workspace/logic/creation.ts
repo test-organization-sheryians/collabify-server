@@ -7,6 +7,13 @@ import { QuotaService } from "@/modules/quota/service";
 import { Prisma } from "@prisma/client";
 import { CreateWorkspaceSchema } from "../types";
 
+const FINALIZE_CREATION_SCRIPT = `
+  redis.call("DEL", KEYS[1])
+  redis.call("DEL", KEYS[2])
+  redis.call("SET", KEYS[3], "1", "EX", ARGV[1])
+  return 1
+`;
+
 export const creationLogic = {
   async createWorkspace(input: { slug: string; name: string; userId: string }) {
     const { slug, name, userId } = CreateWorkspaceSchema.parse(input);
@@ -20,12 +27,20 @@ export const creationLogic = {
 
     // 1. Strict Lock Validation
     const lockKey = `reserve:slug:${normalizedSlug}`;
-    const reservedBy = await redis.get(lockKey);
+    try {
+      const reservedBy = await redis.get(lockKey);
 
-    if (reservedBy !== userId) {
-      throw AppError.conflict(
-        "Reservation expired or stolen. Please check availability again.",
-        "WORKSPACE_CREATION_RESERVATION_STOLEN"
+      if (reservedBy !== userId) {
+        throw AppError.conflict(
+          "Reservation expired or stolen. Please check availability again.",
+          "WORKSPACE_CREATION_RESERVATION_STOLEN"
+        );
+      }
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      logger.warn(
+        { error, userId, slug: normalizedSlug },
+        "Redis lock check failed, proceeding optimistically"
       );
     }
 
@@ -44,13 +59,25 @@ export const creationLogic = {
         },
       });
 
-      // 3. Cleanup & Cache
+      // 3. Cleanup & Cache (Atomic Transition)
       const userResKey = `user:reservation:${userId}`;
-      await Promise.all([
-        redis.del(lockKey),
-        redis.del(userResKey),
-        redis.set(`workspace:exists:${normalizedSlug}`, "1", "EX", 3600),
-      ]);
+      const existsKey = `workspace:exists:${normalizedSlug}`;
+
+      try {
+        await redis.eval(
+          FINALIZE_CREATION_SCRIPT,
+          3,
+          lockKey,
+          userResKey,
+          existsKey,
+          "3600" // ARGV[1]: Cache TTL
+        );
+      } catch (error) {
+        logger.error(
+          { error, userId, slug: normalizedSlug },
+          "Redis cleanup failed, relying on TTL"
+        );
+      }
 
       logger.info(
         { workspaceId: workspace.id, slug: normalizedSlug, userId },

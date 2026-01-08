@@ -2,6 +2,7 @@ import { redis } from "@/infra/redis";
 import { SlugUtil } from "@/shared/utils/slug.util";
 import { db } from "@/infra/db";
 import { AppError } from "@/shared/errors";
+import { logger } from "@/shared/logger";
 import { WORKSPACE_LIMITS } from "@/shared/config/limits";
 import { checkRateLimit } from "@/shared/utils/rate-limiter";
 import { CheckAvailabilitySchema } from "../types";
@@ -27,28 +28,38 @@ export const SlugLogic = {
 
     const normalizedSlug = SlugUtil.sanitize(slug);
 
-    // 1. Check Permanent Cache
-    const existsCache = await redis.get(`workspace:exists:${normalizedSlug}`);
-    if (existsCache) {
-      return {
-        available: false,
-        message: "Workspace already exists",
-        reason: "WORKSPACE_SLUG_TAKEN_PERMANENT",
-      };
+    // 1. Check Permanent Cache (Soft)
+    try {
+      const existsCache = await redis.get(`workspace:exists:${normalizedSlug}`);
+      if (existsCache) {
+        return {
+          available: false,
+          message: "Workspace already exists",
+          reason: "WORKSPACE_SLUG_TAKEN_PERMANENT",
+        };
+      }
+    } catch (error) {
+      logger.warn({ error }, "Redis cache check failed");
+      // Ignore Redis cache errors, fall through to DB check
     }
 
-    // 2. Check Lock
+    // 2. Check Lock (Soft)
     const lockKey = `reserve:slug:${normalizedSlug}`;
-    const reservedBy = await redis.get(lockKey);
-    if (reservedBy && reservedBy !== userId) {
-      return {
-        available: false,
-        message: "Slug is currently reserved",
-        reason: "WORKSPACE_SLUG_TAKEN_RESERVED",
-      };
+    try {
+      const reservedBy = await redis.get(lockKey);
+      if (reservedBy && reservedBy !== userId) {
+        return {
+          available: false,
+          message: "Slug is currently reserved",
+          reason: "WORKSPACE_SLUG_TAKEN_RESERVED",
+        };
+      }
+    } catch (error) {
+      logger.warn({ error }, "Redis lock check failed");
+      // Ignore Redis lock errors
     }
 
-    // 3. Check Permanent DB
+    // 3. Check Permanent DB (Hard Source of Truth)
     const existingDB = await db.workspace.findUnique({
       where: { slug: normalizedSlug },
     });
@@ -84,28 +95,40 @@ export const SlugLogic = {
       return 1 -- Success
     `;
 
-    const userResKey = `user:reservation:${userId}`;
-    const result = await redis.eval(
-      ACQUIRE_LOCK_SCRIPT,
-      2,
-      userResKey,
-      lockKey,
-      userId,
-      normalizedSlug,
-      "180" // TTL
-    );
+    try {
+      const userResKey = `user:reservation:${userId}`;
+      const result = await redis.eval(
+        ACQUIRE_LOCK_SCRIPT,
+        2,
+        userResKey,
+        lockKey,
+        userId,
+        normalizedSlug,
+        "180" // TTL
+      );
 
-    if (result === 0) {
+      if (result === 0) {
+        return {
+          available: false,
+          message: "Slug is currently reserved",
+          reason: "WORKSPACE_SLUG_RESERVATION_FAILED",
+        };
+      }
+
       return {
-        available: false,
-        message: "Slug is currently reserved",
-        reason: "WORKSPACE_SLUG_RESERVATION_FAILED",
+        available: true,
+        reservationId: lockKey,
+      };
+    } catch (error) {
+      logger.error(
+        { error },
+        "Redis reservation failed, falling back to soft check"
+      );
+      // Redis Failure Fallback: Return available (checked DB) but no reservation
+      return {
+        available: true,
+        reservationId: null,
       };
     }
-
-    return {
-      available: true,
-      reservationId: lockKey,
-    };
   },
 };
