@@ -5,14 +5,14 @@
  * Delegates logic to sub-modules in ./logic/
  */
 
-import { SlugLogic } from "./logic/slug.logic";
-import { CreationLogic } from "./logic/creation.logic";
-import { RetrievalLogic } from "./logic/retrieval.logic";
-import { OnboardingLogic } from "./logic/onboarding.logic";
+import { SlugLogic } from "./logic/slug";
+import { creationLogic } from "./logic/creation";
+import { RetrievalLogic } from "./logic/retrieval";
+import { OnboardingLogic } from "./logic/onboarding";
 
 export const WorkspaceService = {
   ...SlugLogic,
-  ...CreationLogic,
+  ...creationLogic,
   ...RetrievalLogic,
   ...OnboardingLogic,
 };

@@ -2,9 +2,9 @@ import { redis } from "@/infra/redis";
 import { logger } from "@/shared/logger";
 import { AppError } from "@/shared/errors";
 import { CreateOnboardingWorkspaceSchema, UserIdSchema } from "../types";
-import { RetrievalLogic } from "./retrieval.logic";
-import { CreationLogic } from "./creation.logic";
-import { SlugLogic } from "./slug.logic";
+import { RetrievalLogic } from "./retrieval";
+import { creationLogic } from "./creation";
+import { SlugLogic } from "./slug";
 import { SlugUtil } from "@/shared/utils/slug.util";
 
 export const OnboardingLogic = {
@@ -109,7 +109,7 @@ export const OnboardingLogic = {
 
       // 3. Create Workspace (Delegated)
       // Lock is ALREADY held by 'checkSlugAvailability'
-      return await CreationLogic.createWorkspace({
+      return await creationLogic.createWorkspace({
         userId,
         name: userFullName + "'s Workspace",
         slug: finalSlug,

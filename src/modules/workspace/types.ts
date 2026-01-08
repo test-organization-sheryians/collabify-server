@@ -7,7 +7,7 @@ const SLUG_REGEX = /^(?![0-9]+$)[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const CreateWorkspaceSchema = z.object({
   slug: z
     .string()
-    .min(3, "Slug must be at least 3 characters")
+    .min(8, "Slug must be at least 8 characters")
     .max(50, "Slug must be at most 50 characters")
     .regex(
       SLUG_REGEX,
@@ -30,7 +30,7 @@ export const UserIdSchema = z.object({
 export const CheckAvailabilitySchema = z.object({
   slug: z
     .string()
-    .min(3)
+    .min(8)
     .max(50)
     .regex(SLUG_REGEX, "Invalid slug format")
     .refine(
@@ -47,7 +47,7 @@ export const CreateOnboardingWorkspaceSchema = z.object({
   userFullName: z.string(),
   slug: z
     .string()
-    .min(3)
+    .min(8)
     .max(50)
     .regex(SLUG_REGEX, "Invalid slug format")
     .optional(),
@@ -55,7 +55,7 @@ export const CreateOnboardingWorkspaceSchema = z.object({
 
 export const WorkspaceBySlugSchema = z.object({
   userId: z.string().min(1),
-  slug: z.string().min(1),
+  slug: z.string().min(8),
 });
 
 export type CreateWorkspaceInput = z.infer<typeof CreateWorkspaceSchema>;

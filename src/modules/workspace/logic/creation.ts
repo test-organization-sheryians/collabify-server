@@ -7,7 +7,7 @@ import { QuotaService } from "@/modules/quota/service";
 import { Prisma } from "@prisma/client";
 import { CreateWorkspaceSchema } from "../types";
 
-export const CreationLogic = {
+export const creationLogic = {
   async createWorkspace(input: { slug: string; name: string; userId: string }) {
     const { slug, name, userId } = CreateWorkspaceSchema.parse(input);
     const normalizedSlug = SlugUtil.sanitize(slug);

@@ -1,4 +1,4 @@
-import { Hono, Context } from "hono";
+import { Hono, Context, Next } from "hono";
 import { createYoga, useLogger } from "graphql-yoga";
 import { schema } from "../graphql/schema";
 import { createContext } from "../graphql/context";
@@ -36,14 +36,19 @@ app.use("*", clerkMiddleware());
 
 app.use("*", idempotencyMiddleware);
 
-app.use(
-  pinoLogger({
-    pino: logger,
-    http: {
-      reqId: () => crypto.randomUUID(),
-    },
-  })
-);
+const loggerMiddleware = pinoLogger({
+  pino: logger,
+  http: {
+    reqId: () => crypto.randomUUID(),
+  },
+});
+
+app.use("*", async (c: Context, next: Next) => {
+  if (c.req.path === "/graphql") {
+    return next();
+  }
+  return loggerMiddleware(c, next);
+});
 
 const yoga = createYoga<ServiceContext>({
   schema,
@@ -69,6 +74,15 @@ const yoga = createYoga<ServiceContext>({
             >;
           }
           logger.info(payload);
+        }
+        if (eventName === "execute-end") {
+          const result = args.result;
+          logger.info({
+            msg: "GraphQL Execution Completed",
+            // operation: args.args.operationName ?? "Unnamed Operation",
+            // data: result.data,
+            errors: result.errors,
+          });
         }
       },
     }),

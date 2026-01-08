@@ -62683,7 +62683,7 @@ var userTypeDefs = `
   }
 
   extend type Mutation {
-    syncUser(clerkId: String!, email: String!, fullName: String, avatarUrl: String): User!
+    syncUser(clerkId: String!, email: String!, fullName: String, avatarUrl: String, emailVerified: Boolean): User!
   }
 `;
 
@@ -77333,6 +77333,12 @@ if (!env.LOG_REQ_BODY) {
 if (!env.LOG_RES_BODY) {
   redact.push("res.body");
 }
+if (!env.LOG_GRAPHQL_VARS) {
+  redact.push("res.body");
+}
+if (!env.LOG_RES_BODY) {
+  redact.push("res.body");
+}
 var logger2 = import_pino.default({
   level: env.LOG_LEVEL,
   redact,
@@ -77403,180 +77409,10 @@ var checkConnection = async () => {
 var SyncUserSchema = exports_external.object({
   clerkId: exports_external.string().min(1, "Clerk ID is required"),
   email: exports_external.string().email("Invalid email format"),
-  fullName: exports_external.string().optional(),
-  avatarUrl: exports_external.string().url("Invalid avatar URL").optional()
+  fullName: exports_external.string().regex(/^[^<>]*$/, "HTML tags are not allowed in names").nullable().optional(),
+  avatarUrl: exports_external.string().url("Invalid avatar URL").startsWith("https://", "Avatar URL must use HTTPS").nullable().optional(),
+  emailVerified: exports_external.boolean().default(false)
 });
-
-// src/modules/user/service.ts
-var UserService = {
-  async findUserByClerkId(clerkId) {
-    return db.user.findUnique({
-      where: { clerkId, deletedAt: null }
-    });
-  },
-  async syncUserFromClerk(rawInput) {
-    const data = SyncUserSchema.parse(rawInput);
-    return db.$transaction(async (tx) => {
-      const existingUser = await tx.user.findUnique({
-        where: { clerkId: data.clerkId }
-      });
-      if (existingUser) {
-        return tx.user.update({
-          where: { id: existingUser.id },
-          data: {
-            email: data.email,
-            fullName: data.fullName,
-            avatarUrl: data.avatarUrl,
-            status: "ACTIVE"
-          }
-        });
-      }
-      const existingByEmail = await tx.user.findUnique({
-        where: { email: data.email }
-      });
-      if (existingByEmail) {
-        return tx.user.update({
-          where: { id: existingByEmail.id },
-          data: {
-            clerkId: data.clerkId,
-            fullName: data.fullName || existingByEmail.fullName,
-            avatarUrl: data.avatarUrl || existingByEmail.avatarUrl,
-            status: "ACTIVE"
-          }
-        });
-      }
-      return tx.user.create({
-        data: {
-          clerkId: data.clerkId,
-          email: data.email,
-          fullName: data.fullName,
-          avatarUrl: data.avatarUrl,
-          status: "ACTIVE"
-        }
-      });
-    });
-  },
-  async findUserById(id) {
-    return db.user.findUnique({
-      where: { id, deletedAt: null }
-    });
-  }
-};
-
-// src/shared/errors/app-error.ts
-class AppError extends Error {
-  code;
-  httpStatus;
-  isOperational;
-  metadata;
-  constructor(message, code = "INTERNAL_SERVER_ERROR", httpStatus = 500, isOperational = true, metadata) {
-    super(message);
-    this.code = code;
-    this.httpStatus = httpStatus;
-    this.isOperational = isOperational;
-    this.metadata = metadata;
-    this.name = "AppError";
-    Error.captureStackTrace(this, this.constructor);
-  }
-  static badRequest(message, code = "BAD_REQUEST") {
-    return new AppError(message, code, 400);
-  }
-  static unauthorized(message = "Unauthorized", code = "UNAUTHORIZED") {
-    return new AppError(message, code, 401);
-  }
-  static forbidden(message = "Forbidden", code = "FORBIDDEN") {
-    return new AppError(message, code, 403);
-  }
-  static notFound(message = "Not Found", code = "NOT_FOUND") {
-    return new AppError(message, code, 404);
-  }
-  static conflict(message, code = "CONFLICT") {
-    return new AppError(message, code, 409);
-  }
-}
-// src/shared/errors/error-mapper.ts
-function mapToGraphQLError(originalError) {
-  if (originalError instanceof AppError) {
-    return new GraphQLError(originalError.message, {
-      extensions: {
-        code: originalError.code,
-        httpStatus: originalError.httpStatus,
-        isOperational: originalError.isOperational,
-        metadata: originalError.metadata
-      }
-    });
-  }
-  return new GraphQLError("Internal Server Error", {
-    extensions: {
-      code: "INTERNAL_SERVER_ERROR",
-      httpStatus: 500,
-      isOperational: false
-    }
-  });
-}
-// src/modules/user/resolvers.ts
-var userResolvers = {
-  Query: {
-    me: async (_root, _args, context) => {
-      if (!context.auth.userId)
-        return null;
-      return context.dataloaders.user.userByClerkId.load(context.auth.userId);
-    }
-  },
-  Mutation: {
-    syncUser: async (_root, args, context) => {
-      const input = SyncUserSchema.parse(args);
-      if (context.auth.userId !== input.clerkId) {
-        throw AppError.unauthorized("Clerk ID mismatch");
-      }
-      return UserService.syncUserFromClerk(input);
-    }
-  }
-};
-
-// src/modules/workspace/schema.ts
-var typeDefs = `
-  type Workspace {
-    id: ID!
-    slug: String!
-    name: String!
-    logoUrl: String
-    domainWhitelist: String
-    createdAt: String!
-    updatedAt: String!
-    # Add other fields as needed
-  }
-
-  type OnboardingStatus {
-    hasUser: Boolean!
-    hasWorkspace: Boolean!
-    hasProject: Boolean!
-    workspaceSlug: String
-  }
-
-  type AvailabilityResponse {
-    available: Boolean!
-    message: String
-    reservationId: String
-  }
-
-  extend type Query {
-    myWorkspaces: [Workspace!]!
-    onboardingStatus: OnboardingStatus!
-    workspaceBySlug(slug: String!): Workspace!
-  }
-
-  extend type Mutation {
-    createOnboardingWorkspace: Workspace!
-    
-    checkSlugAvailability(slug: String!): AvailabilityResponse!
-    
-    createWorkspace(
-      slug: String!
-      name: String!
-    ): Workspace!
-  }
-`;
 
 // src/infra/redis.ts
 var import_ioredis = __toESM(require_built3(), 1);
@@ -77641,30 +77477,355 @@ var IdempotencyStore = {
   }
 };
 
+// src/shared/errors/app-error.ts
+class AppError extends Error {
+  code;
+  httpStatus;
+  isOperational;
+  metadata;
+  constructor(message, code = "INTERNAL_SERVER_ERROR", httpStatus = 500, isOperational = true, metadata) {
+    super(message);
+    this.code = code;
+    this.httpStatus = httpStatus;
+    this.isOperational = isOperational;
+    this.metadata = metadata;
+    this.name = "AppError";
+    Error.captureStackTrace(this, this.constructor);
+  }
+  static badRequest(message, code = "BAD_REQUEST") {
+    return new AppError(message, code, 400);
+  }
+  static unauthorized(message = "Unauthorized", code = "UNAUTHORIZED") {
+    return new AppError(message, code, 401);
+  }
+  static forbidden(message = "Forbidden", code = "FORBIDDEN") {
+    return new AppError(message, code, 403);
+  }
+  static notFound(message = "Not Found", code = "NOT_FOUND") {
+    return new AppError(message, code, 404);
+  }
+  static conflict(message, code = "CONFLICT") {
+    return new AppError(message, code, 409);
+  }
+}
+// src/shared/errors/error-mapper.ts
+function mapToGraphQLError(originalError) {
+  if (originalError instanceof AppError) {
+    return new GraphQLError(originalError.message, {
+      extensions: {
+        code: originalError.code,
+        httpStatus: originalError.httpStatus,
+        isOperational: originalError.isOperational,
+        metadata: originalError.metadata
+      }
+    });
+  }
+  return new GraphQLError("Internal Server Error", {
+    extensions: {
+      code: "INTERNAL_SERVER_ERROR",
+      httpStatus: 500,
+      isOperational: false
+    }
+  });
+}
+// src/modules/user/service.ts
+var UserService = {
+  async findUserByClerkId(clerkId) {
+    const cacheKey = `user:clerkId:${clerkId}`;
+    const cached2 = await redis.get(cacheKey);
+    if (cached2)
+      return JSON.parse(cached2);
+    const user = await db.user.findUnique({
+      where: { clerkId, deletedAt: null }
+    });
+    if (user) {
+      await redis.set(cacheKey, JSON.stringify(user), "EX", 300);
+    }
+    return user;
+  },
+  async syncUserFromClerk(rawInput) {
+    const data = SyncUserSchema.parse(rawInput);
+    const user = await db.$transaction(async (tx) => {
+      const existingUser = await tx.user.findUnique({
+        where: { clerkId: data.clerkId }
+      });
+      if (existingUser) {
+        return tx.user.update({
+          where: { id: existingUser.id },
+          data: {
+            email: data.email,
+            fullName: data.fullName ?? existingUser.fullName,
+            avatarUrl: data.avatarUrl ?? existingUser.avatarUrl,
+            status: "ACTIVE",
+            deletedAt: null
+          }
+        });
+      }
+      const existingByEmail = await tx.user.findUnique({
+        where: { email: data.email }
+      });
+      if (existingByEmail) {
+        if (!data.emailVerified) {
+          throw AppError.forbidden("Cannot link account: Email is not verified.");
+        }
+        return tx.user.update({
+          where: { id: existingByEmail.id },
+          data: {
+            clerkId: data.clerkId,
+            fullName: data.fullName ?? existingByEmail.fullName,
+            avatarUrl: data.avatarUrl ?? existingByEmail.avatarUrl,
+            status: "ACTIVE",
+            deletedAt: null
+          }
+        });
+      }
+      return tx.user.create({
+        data: {
+          clerkId: data.clerkId,
+          email: data.email,
+          fullName: data.fullName,
+          avatarUrl: data.avatarUrl,
+          status: "ACTIVE"
+        }
+      });
+    });
+    const cacheKey = `user:clerkId:${data.clerkId}`;
+    await redis.set(cacheKey, JSON.stringify(user), "EX", 300);
+    return user;
+  },
+  async findUserById(id) {
+    return db.user.findUnique({
+      where: { id, deletedAt: null }
+    });
+  }
+};
+
+// src/modules/user/resolvers.ts
+var userResolvers = {
+  Query: {
+    me: async (_root, _args, context) => {
+      if (!context.auth.userId)
+        return null;
+      return context.dataloaders.user.userByClerkId.load(context.auth.userId);
+    }
+  },
+  Mutation: {
+    syncUser: async (_root, args, context) => {
+      const input = SyncUserSchema.parse(args);
+      if (context.auth.userId !== input.clerkId) {
+        throw AppError.unauthorized("Clerk ID mismatch");
+      }
+      return UserService.syncUserFromClerk(input);
+    }
+  }
+};
+
+// src/modules/workspace/schema.ts
+var typeDefs = `
+  type Workspace {
+    id: ID!
+    slug: String!
+    name: String!
+    logoUrl: String
+    domainWhitelist: String
+    createdAt: String!
+    updatedAt: String!
+    # Add other fields as needed
+  }
+
+  type OnboardingStatus {
+    hasUser: Boolean!
+    hasWorkspace: Boolean!
+    hasProject: Boolean!
+    workspaceSlug: String
+  }
+
+  type AvailabilityResponse {
+    available: Boolean!
+    message: String
+    reservationId: String
+  }
+
+  extend type Query {
+    myWorkspaces: [Workspace!]!
+    onboardingStatus: OnboardingStatus!
+    workspaceBySlug(slug: String!): Workspace!
+  }
+
+  extend type Mutation {
+    createOnboardingWorkspace: Workspace!
+    
+    checkSlugAvailability(slug: String!): AvailabilityResponse!
+    
+    createWorkspace(
+      slug: String!
+      name: String!
+    ): Workspace!
+  }
+`;
+
+// src/shared/utils/slug.util.ts
+var ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz";
+function generateSuffix(length = 4) {
+  const alphabetLength = ALPHABET.length;
+  const limit = 252;
+  let result = "";
+  const bufferSize = length + 8;
+  const buffer = new Uint8Array(bufferSize);
+  while (result.length < length) {
+    crypto.getRandomValues(buffer);
+    for (const byte of buffer) {
+      if (byte < limit) {
+        result += ALPHABET[byte % alphabetLength];
+        if (result.length === length)
+          break;
+      }
+    }
+  }
+  return result;
+}
+var SlugUtil = {
+  sanitize(input) {
+    return input.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  },
+  generateNext(base, attempt) {
+    const safeBase = this.sanitize(base);
+    if (attempt === 0) {
+      return safeBase || "workspace";
+    }
+    return `${safeBase}-${generateSuffix()}`;
+  }
+};
+
 // src/shared/config/limits.ts
 var RESERVED_SLUGS = [
   "admin",
+  "administrator",
   "api",
   "app",
+  "assets",
   "auth",
+  "authentication",
   "billing",
   "blog",
+  "cache",
+  "calendar",
+  "cdn",
+  "chat",
+  "config",
+  "connect",
   "dashboard",
+  "dev",
+  "developers",
+  "doc",
   "docs",
+  "documentation",
+  "download",
+  "downloads",
+  "email",
+  "enterprise",
+  "error",
+  "events",
+  "faq",
+  "features",
+  "feed",
+  "files",
+  "forum",
+  "graphql",
+  "guest",
+  "health",
   "help",
+  "home",
+  "img",
+  "index",
+  "integrations",
+  "invite",
+  "jobs",
+  "join",
+  "legal",
+  "live",
   "login",
   "logout",
+  "mail",
+  "main",
+  "maintenance",
+  "marketing",
+  "marketplace",
+  "media",
+  "members",
+  "messages",
+  "mobile",
+  "new",
+  "news",
+  "notification",
+  "notifications",
+  "oauth",
+  "offer",
+  "onboarding",
+  "organizations",
+  "orgs",
+  "pages",
+  "partners",
+  "payment",
+  "payments",
+  "plans",
+  "portal",
   "pricing",
   "privacy",
+  "profile",
+  "project",
+  "projects",
+  "public",
   "register",
+  "registration",
+  "report",
+  "reset",
+  "root",
+  "rss",
+  "search",
+  "secure",
+  "security",
+  "service",
+  "services",
   "settings",
+  "shop",
   "signin",
   "signup",
+  "sitemap",
+  "static",
+  "stats",
   "status",
+  "store",
+  "subscribe",
+  "subscriptions",
   "support",
+  "system",
+  "team",
+  "teams",
   "terms",
   "test",
-  "www"
+  "themes",
+  "tools",
+  "ui",
+  "update",
+  "upload",
+  "uploads",
+  "user",
+  "users",
+  "v1",
+  "v2",
+  "video",
+  "webhooks",
+  "welcome",
+  "wiki",
+  "www",
+  "abuse",
+  "spam",
+  "sudo",
+  "root",
+  "null",
+  "undefined",
+  "void"
 ];
 var WORKSPACE_LIMITS = {
   MAX_OWNED_WORKSPACES: 10,
@@ -77686,7 +77847,7 @@ async function checkRateLimit(key, limit, windowSeconds) {
 // src/modules/workspace/types.ts
 var SLUG_REGEX = /^(?![0-9]+$)[a-z0-9]+(?:-[a-z0-9]+)*$/;
 var CreateWorkspaceSchema = exports_external.object({
-  slug: exports_external.string().min(3, "Slug must be at least 3 characters").max(50, "Slug must be at most 50 characters").regex(SLUG_REGEX, "Slug must be lowercase, alphanumeric, and cannot be purely numeric").refine((val) => !RESERVED_SLUGS.includes(val), {
+  slug: exports_external.string().min(8, "Slug must be at least 8 characters").max(50, "Slug must be at most 50 characters").regex(SLUG_REGEX, "Slug must be lowercase, alphanumeric, and cannot be purely numeric").refine((val) => !RESERVED_SLUGS.includes(val), {
     message: "This slug is reserved for system use"
   }),
   name: exports_external.string().min(1).max(50),
@@ -77696,51 +77857,89 @@ var UserIdSchema = exports_external.object({
   userId: exports_external.string().min(1)
 });
 var CheckAvailabilitySchema = exports_external.object({
-  slug: exports_external.string().min(3).max(50).regex(SLUG_REGEX, "Invalid slug format").refine((val) => !RESERVED_SLUGS.includes(val), {
+  slug: exports_external.string().min(8).max(50).regex(SLUG_REGEX, "Invalid slug format").refine((val) => !RESERVED_SLUGS.includes(val), {
     message: "Reserved slug"
   }),
   userId: exports_external.string()
 });
 var CreateOnboardingWorkspaceSchema = exports_external.object({
   userId: exports_external.string().min(1),
-  userFullName: exports_external.string()
+  userFullName: exports_external.string(),
+  slug: exports_external.string().min(8).max(50).regex(SLUG_REGEX, "Invalid slug format").optional()
 });
 var WorkspaceBySlugSchema = exports_external.object({
   userId: exports_external.string().min(1),
-  slug: exports_external.string().min(1)
+  slug: exports_external.string().min(8)
 });
 
-// src/modules/workspace/logic/slug.logic.ts
+// src/modules/workspace/logic/slug.ts
 var SlugLogic = {
   async checkSlugAvailability(input) {
     const { slug, userId } = CheckAvailabilitySchema.parse(input);
     const allowed = await checkRateLimit(`ratelimit:check_slug:${userId}`, WORKSPACE_LIMITS.CHECK_AVAILABILITY_RATE_LIMIT.MAX_REQUESTS, WORKSPACE_LIMITS.CHECK_AVAILABILITY_RATE_LIMIT.WINDOW_SECONDS);
     if (!allowed) {
-      throw new AppError("Too many attempts. Please try again later.", "BAD_REQUEST", 429);
+      throw new AppError("Too many attempts. Please try again later.", "WORKSPACE_SLUG_RATE_LIMITED", 429);
     }
-    const normalizedSlug = slug.toLowerCase();
+    const normalizedSlug = SlugUtil.sanitize(slug);
     const existsCache = await redis.get(`workspace:exists:${normalizedSlug}`);
     if (existsCache) {
-      return { available: false, message: "Workspace already exists" };
+      return {
+        available: false,
+        message: "Workspace already exists",
+        reason: "WORKSPACE_SLUG_TAKEN_PERMANENT"
+      };
     }
     const lockKey = `reserve:slug:${normalizedSlug}`;
     const reservedBy = await redis.get(lockKey);
     if (reservedBy && reservedBy !== userId) {
-      return { available: false, message: "Slug is currently reserved" };
+      return {
+        available: false,
+        message: "Slug is currently reserved",
+        reason: "WORKSPACE_SLUG_TAKEN_RESERVED"
+      };
     }
     const existingDB = await db.workspace.findUnique({
       where: { slug: normalizedSlug }
     });
     if (existingDB) {
-      return { available: false, message: "Workspace already exists" };
+      return {
+        available: false,
+        message: "Workspace already exists",
+        reason: "WORKSPACE_SLUG_TAKEN_PERMANENT"
+      };
     }
+    const ACQUIRE_LOCK_SCRIPT = `
+      -- 1. Check if target slug is taken by SOMEONE ELSE
+      local owner = redis.call("GET", KEYS[2])
+      if owner and owner ~= ARGV[1] then
+          return 0 -- Taken
+      end
+
+      -- 2. Rolling Release: Handle previous reservation
+      local oldSlug = redis.call("GET", KEYS[1])
+      if oldSlug and oldSlug ~= ARGV[2] then
+          local oldLockKey = "reserve:slug:" .. oldSlug
+          local oldOwner = redis.call("GET", oldLockKey)
+          if oldOwner == ARGV[1] then
+              redis.call("DEL", oldLockKey) -- Release old lock
+          end
+      end
+
+      -- 3. Acquire New Lock
+      redis.call("SET", KEYS[2], ARGV[1], "EX", ARGV[3])
+      redis.call("SET", KEYS[1], ARGV[2], "EX", ARGV[3])
+
+      return 1 -- Success
+    `;
     const userResKey = `user:reservation:${userId}`;
-    const oldSlug = await redis.get(userResKey);
-    if (oldSlug && oldSlug !== normalizedSlug) {
-      await redis.del(`reserve:slug:${oldSlug}`);
+    const result = await redis.eval(ACQUIRE_LOCK_SCRIPT, 2, userResKey, lockKey, userId, normalizedSlug, "180");
+    if (result === 0) {
+      return {
+        available: false,
+        message: "Slug is currently reserved",
+        reason: "WORKSPACE_SLUG_RESERVATION_FAILED"
+      };
     }
-    await redis.set(lockKey, userId, "EX", 180, "NX");
-    await redis.set(userResKey, normalizedSlug, "EX", 180);
     return {
       available: true,
       reservationId: lockKey
@@ -77801,18 +78000,18 @@ var QuotaService = {
   }
 };
 
-// src/modules/workspace/logic/creation.logic.ts
+// src/modules/workspace/logic/creation.ts
 var import_client2 = __toESM(require_default2(), 1);
-var CreationLogic = {
+var creationLogic = {
   async createWorkspace(input) {
     const { slug, name: name2, userId } = CreateWorkspaceSchema.parse(input);
-    const normalizedSlug = slug.toLowerCase();
+    const normalizedSlug = SlugUtil.sanitize(slug);
     const sanitizedName = name2.trim().replace(/[<>]/g, "");
     await QuotaService.enforceQuota(userId, "MAX_OWNED_WORKSPACES");
     const lockKey = `reserve:slug:${normalizedSlug}`;
     const reservedBy = await redis.get(lockKey);
     if (reservedBy !== userId) {
-      throw AppError.conflict("Reservation expired or stolen. Please check availability again.", "RESERVATION_INVALID");
+      throw AppError.conflict("Reservation expired or stolen. Please check availability again.", "WORKSPACE_CREATION_RESERVATION_STOLEN");
     }
     try {
       const workspace = await db.workspace.create({
@@ -77839,7 +78038,7 @@ var CreationLogic = {
       if (error48 instanceof import_client2.Prisma.PrismaClientKnownRequestError) {
         if (error48.code === "P2002") {
           await redis.del(lockKey);
-          throw AppError.conflict("Workspace URL is already taken.", "SLUG_TAKEN");
+          throw AppError.conflict("Workspace URL is already taken.", "WORKSPACE_CREATION_DB_CONFLICT");
         }
         if (error48.code === "P2003") {
           await redis.del(lockKey);
@@ -77851,7 +78050,7 @@ var CreationLogic = {
   }
 };
 
-// src/modules/workspace/logic/retrieval.logic.ts
+// src/modules/workspace/logic/retrieval.ts
 var RetrievalLogic = {
   async getWorkspacesForUser(input) {
     const { userId } = UserIdSchema.parse(input);
@@ -77883,37 +78082,12 @@ var RetrievalLogic = {
   }
 };
 
-// src/modules/workspace/logic/onboarding.logic.ts
+// src/modules/workspace/logic/onboarding.ts
 var OnboardingLogic = {
   async getOnboardingStatus(input) {
     const { userId } = UserIdSchema.parse(input);
-    const user = await db.user.findUnique({
-      where: { id: userId, deletedAt: null }
-    });
-    if (!user) {
-      return {
-        hasUser: false,
-        hasWorkspace: false,
-        hasProject: false,
-        workspaceSlug: null
-      };
-    }
-    const firstWorkspace = await db.workspace.findFirst({
-      where: {
-        members: { some: { userId } },
-        deletedAt: null
-      },
-      include: {
-        projects: {
-          where: {
-            members: { some: { userId } },
-            deletedAt: null
-          },
-          take: 1
-        }
-      }
-    });
-    if (!firstWorkspace) {
+    const workspaces = await RetrievalLogic.getWorkspacesForUser({ userId });
+    if (workspaces.length === 0) {
       return {
         hasUser: true,
         hasWorkspace: false,
@@ -77921,67 +78095,64 @@ var OnboardingLogic = {
         workspaceSlug: null
       };
     }
+    const firstWorkspace = workspaces[0];
     return {
       hasUser: true,
       hasWorkspace: true,
-      hasProject: firstWorkspace.projects.length > 0,
+      hasProject: false,
       workspaceSlug: firstWorkspace.slug
     };
   },
   async createOnboardingWorkspace(input) {
-    const { userId, userFullName } = CreateOnboardingWorkspaceSchema.parse(input);
-    await QuotaService.enforceQuota(userId, "MAX_OWNED_WORKSPACES");
-    const existing = await db.workspace.findMany({
-      where: {
-        members: {
-          some: { userId }
-        },
-        deletedAt: null
-      }
-    });
-    if (existing.length > 0) {
-      return existing[0];
+    const { userId, userFullName, slug } = CreateOnboardingWorkspaceSchema.parse(input);
+    const userLockKey = `lock:onboarding:${userId}`;
+    const acquired = await redis.set(userLockKey, "1", "EX", 10, "NX");
+    if (!acquired) {
+      throw AppError.conflict("Onboarding is already in progress. Please wait.", "IDEMPOTENCY_LOCKED");
     }
-    const baseName = userFullName.trim() || "My Workspace";
-    let baseSlug = baseName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-    if (!baseSlug)
-      baseSlug = "workspace";
-    let slug = baseSlug;
-    let counter = 1;
-    const MAX_RETRIES = 10;
-    let attempts = 0;
-    while (true) {
-      if (attempts >= MAX_RETRIES) {
-        throw new AppError("Could not generate unique workspace slug");
+    try {
+      const existing = await RetrievalLogic.getWorkspacesForUser({ userId });
+      if (existing.length > 0) {
+        logger2.info({ userId, workspaceId: existing[0].id }, "Onboarding Idempotency: Workspace already exists");
+        return existing[0];
       }
-      const existingSlug = await db.workspace.findUnique({ where: { slug } });
-      if (!existingSlug)
-        break;
-      slug = `${baseSlug}-${counter}`;
-      counter++;
-      attempts++;
-    }
-    const workspace = await db.workspace.create({
-      data: {
-        name: `${baseName}'s Workspace`,
-        slug,
-        members: {
-          create: {
-            userId,
-            role: "OWNER"
-          }
+      const MAX_RETRIES = 5;
+      let attempts = 0;
+      let baseSlug = slug || SlugUtil.sanitize(userFullName) || "workspace";
+      let finalSlug = null;
+      while (attempts < MAX_RETRIES) {
+        const candidateSlug = slug && attempts === 0 ? slug : SlugUtil.generateNext(baseSlug, attempts);
+        const check2 = await SlugLogic.checkSlugAvailability({
+          slug: candidateSlug,
+          userId
+        });
+        if (check2.available) {
+          finalSlug = candidateSlug;
+          break;
         }
+        if (slug && attempts === 0) {
+          throw AppError.conflict(`The slug '${slug}' is unavailable. Please choose another.`, "WORKSPACE_ONBOARDING_CUSTOM_SLUG_TAKEN");
+        }
+        attempts++;
       }
-    });
-    logger2.info({ workspaceId: workspace.id, userId }, "Created Onboarding Workspace");
-    return workspace;
+      if (!finalSlug) {
+        throw new AppError("Could not generate a unique workspace URL. Please try again.", "WORKSPACE_ONBOARDING_SLUG_GENERATION_FAILED");
+      }
+      return await creationLogic.createWorkspace({
+        userId,
+        name: userFullName + "'s Workspace",
+        slug: finalSlug
+      });
+    } finally {
+      await redis.del(userLockKey);
+    }
   }
 };
 
 // src/modules/workspace/service.ts
 var WorkspaceService = {
   ...SlugLogic,
-  ...CreationLogic,
+  ...creationLogic,
   ...RetrievalLogic,
   ...OnboardingLogic
 };
@@ -85044,12 +85215,18 @@ app.get("/", (c) => {
 app.route("/", webhooks_default);
 app.use("*", clerkMiddleware());
 app.use("*", idempotencyMiddleware);
-app.use(pinoLogger({
+var loggerMiddleware = pinoLogger({
   pino: logger2,
   http: {
     reqId: () => crypto.randomUUID()
   }
-}));
+});
+app.use("*", async (c, next) => {
+  if (c.req.path === "/graphql") {
+    return next();
+  }
+  return loggerMiddleware(c, next);
+});
 var yoga = createYoga({
   schema: schema2,
   graphqlEndpoint: "/graphql",
@@ -85071,6 +85248,13 @@ var yoga = createYoga({
             payload.variables = args.args.variableValues;
           }
           logger2.info(payload);
+        }
+        if (eventName === "execute-end") {
+          const result = args.result;
+          logger2.info({
+            msg: "GraphQL Execution Completed",
+            errors: result.errors
+          });
         }
       }
     })

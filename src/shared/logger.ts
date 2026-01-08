@@ -18,6 +18,12 @@ if (!env.LOG_REQ_BODY) {
 if (!env.LOG_RES_BODY) {
   redact.push("res.body");
 }
+if (!env.LOG_GRAPHQL_VARS) {
+  redact.push("res.body");
+}
+if (!env.LOG_RES_BODY) {
+  redact.push("res.body");
+}
 
 export const logger = pino({
   level: env.LOG_LEVEL,
