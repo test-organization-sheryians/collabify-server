@@ -9,8 +9,8 @@ export class AppError extends Error {
   constructor(
     message: string,
     code: ErrorCode = "INTERNAL_SERVER_ERROR",
-    httpStatus: number = 500,
-    isOperational: boolean = true,
+    httpStatus = 500,
+    isOperational = true,
     metadata?: Record<string, unknown>
   ) {
     super(message);
@@ -29,23 +29,17 @@ export class AppError extends Error {
   }
 
   static unauthorized(
-    message: string = "Unauthorized",
+    message = "Unauthorized",
     code: ErrorCode = "UNAUTHORIZED"
   ) {
     return new AppError(message, code, 401);
   }
 
-  static forbidden(
-    message: string = "Forbidden",
-    code: ErrorCode = "FORBIDDEN"
-  ) {
+  static forbidden(message = "Forbidden", code: ErrorCode = "FORBIDDEN") {
     return new AppError(message, code, 403);
   }
 
-  static notFound(
-    message: string = "Not Found",
-    code: ErrorCode = "NOT_FOUND"
-  ) {
+  static notFound(message = "Not Found", code: ErrorCode = "NOT_FOUND") {
     return new AppError(message, code, 404);
   }
 

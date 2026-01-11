@@ -73,9 +73,10 @@ model User {
   authoredPages Page[]
   uploadedFiles VaultFile[]
 
-  notifications     Notification[]
-  sentNotifications Notification[]            @relation("NotificationActor")
-  aiConversations   CollabifyAiConversation[]
+  notifications           Notification[]
+  sentNotifications       Notification[]            @relation("NotificationActor")
+  aiConversations         CollabifyAiConversation[]
+  notificationPreferences NotificationPreference[]
 
   @@index([email])
   @@map("users")
@@ -138,7 +139,9 @@ model Workspace {
   chats       ChatChannel[]
   tasks       Task[]
 
-  usageRecords UsageRecord[]
+  usageRecords            UsageRecord[]
+  notificationPreferences NotificationPreference[]
+  notifications           Notification[]
 
   @@index([slug])
   @@map("workspaces")
@@ -282,8 +285,10 @@ model Project {
   meets        Meet[]
   aiChats      CollabifyAiConversation[]
 
-  counters ProjectCounter[]
-  tasks    Task[]
+  counters                ProjectCounter[]
+  tasks                   Task[]
+  notificationPreferences NotificationPreference[]
+  notifications           Notification[]
 
   @@unique([workspaceId, key])
   @@unique([id, workspaceId]) // LOCK: Allows ProjectMember to verify Workspace scope
@@ -363,10 +368,6 @@ model Page {
   parentPage Page?  @relation("PageHierarchy", fields: [parentPageId], references: [id])
   childPages Page[] @relation("PageHierarchy")
 
-  notifications Notification[]
-
-  @@index([projectId])
-  @@index([workspaceId])
   @@map("pages")
 }
 
@@ -511,8 +512,6 @@ model Task {
   parentTask Task?  @relation("Subtasks", fields: [parentTaskId], references: [id])
   subtasks   Task[] @relation("Subtasks")
 
-  notifications Notification[]
-
   @@unique([projectId, seqId])
   @@index([projectId, boardId]) // OPTIMIZED: Kanban Load
   @@index([projectId, assigneeUserId]) // OPTIMIZED: "My Tasks"
@@ -580,8 +579,7 @@ model ChatMessage {
   channel ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
   sender  User?       @relation(fields: [senderUserId], references: [id], onDelete: SetNull) // FIX
 
-  reactions     MessageReaction[]
-  notifications Notification[]
+  reactions MessageReaction[]
 
   @@index([channelId, createdAt])
   @@map("chat_messages")
@@ -676,30 +674,103 @@ model CollabifyAiMessage {
 }
 
 // -----------------------------------------------------------------------------
-// 12. NOTIFICATIONS & AUDIT
 // -----------------------------------------------------------------------------
+// 12. NOTIFICATIONS (v2 - ARCHITECTURE ALIGNED)
+// -----------------------------------------------------------------------------
+
+enum NotificationStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model NotificationOutbox {
+  id        BigInt @id @default(autoincrement()) // BigInt for infinite scale
+  eventType String @map("event_type") // e.g. "workspace.invite", "task.assigned"
+
+  // The Payload contains EVERYTHING needed to reconstruct the event.
+  // schema: { actorId, entityId, title, diff: {}, etc. }
+  payload Json
+
+  status NotificationStatus @default(PENDING)
+
+  // For Deduplication/Idempotency
+  deduplicationId String? @unique @map("deduplication_id")
+
+  // For "Hybrid Poller" performance, we index status + createdAt
+  createdAt   DateTime  @default(now()) @map("created_at")
+  processedAt DateTime? @map("processed_at")
+  errorLog    Json?     @map("error_log")
+
+  @@index([status, createdAt]) // The Poller's bread and butter
+  @@map("notification_outbox")
+}
+
+model NotificationPreference {
+  id     String @id @default(cuid())
+  userId String @map("user_id")
+
+  // Scope: Minimalist approach. 
+  // If workspaceId is NULL and projectId is NULL -> Global Preference
+  workspaceId String? @map("workspace_id")
+  projectId   String? @map("project_id")
+
+  // The category key, e.g., "chat_mentions", "task_updates", "marketing"
+  categoryKey String @map("category_key")
+
+  // Channels
+  emailEnabled Boolean @default(true) @map("email_enabled")
+  pushEnabled  Boolean @default(true) @map("push_enabled")
+  inAppEnabled Boolean @default(true) @map("in_app_enabled")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Optional relations for cascade deletes
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project?   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId, projectId, categoryKey], map: "unique_user_preference_scope")
+  @@map("notification_preferences")
+}
 
 model Notification {
   id              String  @id @default(cuid())
   recipientUserId String  @map("recipient_user_id")
-  actorId         String? @map("actor_id")
+  actorId         String? @map("actor_id") // Who triggered it?
 
-  taskId        String? @map("task_id")
-  chatMessageId String? @map("chat_message_id")
-  pageId        String? @map("page_id")
+  // 1. POLYMORPHIC / GENERIC REFERENCES (Replaces taskId, pageId, etc.)
+  // Allows frontend to route to /<entityType>/<entityId>
+  entityType String @map("entity_type") // "TASK", "PAGE", "WORKSPACE"
+  entityId   String @map("entity_id")
 
-  type      String
-  isRead    Boolean  @default(false) @map("is_read")
+  // 2. GROUPING & BATCHING
+  // Used for "Digest" generation or UI grouping ("System", "Social")
+  category String @default("general")
+
+  // 3. RICH CONTENT MODEL (JSON)
+  // Contains pre-computed strings for fast read: { title: "Draft", subtitle: "X assigned Y" }
+  // Also contains 'actions': [{ label: "Approve", url: "..." }]
+  data Json
+
+  isRead     Boolean @default(false) @map("is_read")
+  isArchived Boolean @default(false) @map("is_archived")
+
   createdAt DateTime @default(now()) @map("created_at")
 
   recipient User  @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
   actor     User? @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
 
-  task        Task?        @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  chatMessage ChatMessage? @relation(fields: [chatMessageId], references: [id], onDelete: Cascade)
-  page        Page?        @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id])
+  workspaceId String?
+  project     Project?   @relation(fields: [projectId], references: [id])
+  projectId   String?
 
-  @@index([recipientUserId, isRead])
+  // 1. "My Unread Notifications" (Most common query)
+  @@index([recipientUserId, isRead, createdAt(sort: Desc)])
+  // 2. "Cursor Pagination" for full history
+  @@index([recipientUserId, createdAt(sort: Desc)])
   @@map("notifications")
 }
 

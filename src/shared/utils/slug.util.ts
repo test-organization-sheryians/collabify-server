@@ -1,6 +1,6 @@
 const ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz";
 
-function generateSuffix(length: number = 4): string {
+function generateSuffix(length = 4): string {
   const alphabetLength = ALPHABET.length;
   const limit = 252;
 

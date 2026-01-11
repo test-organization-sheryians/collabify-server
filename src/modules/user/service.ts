@@ -2,6 +2,8 @@ import { db } from "../../infra/db";
 import { SyncUserSchema } from "./types";
 import { redis } from "../../infra/redis";
 import { AppError } from "../../shared/errors";
+import { logger } from "../../shared/logger";
+import { OutboxWriter } from "../notification/lib/outbox.writer";
 
 // const prisma = db; // Removed alias
 
@@ -86,6 +88,33 @@ export const UserService = {
     // Cache Invalidation / Update
     const cacheKey = `user:clerkId:${data.clerkId}`;
     await redis.set(cacheKey, JSON.stringify(user), "EX", 300);
+
+    // -------------------------------------------------------------------------
+    // Phase 13: Welcome Event (At-Most-Once)
+    // -------------------------------------------------------------------------
+    try {
+      await OutboxWriter.emit(db, {
+        type: "welcome.user",
+        payload: {
+          userId: user.id,
+          userName: user.fullName || "Collabify User",
+          userEmail: user.email,
+        },
+        deduplicationId: `welcome-v1:${user.id}`, // <--- The Guard Rail
+      });
+    } catch (rawError: unknown) {
+      // Safe cast to check properties
+      const err = rawError as { code?: string; message?: string };
+
+      // P2002 = Unique Constraint Violation (DeduplicationId)
+      // If this happens, it means the user already got the welcome email.
+      // We silently ignore it.
+      if (err.code !== "P2002" && !err.message?.includes("Unique constraint")) {
+        // Log real errors using standard logger, but don't fail the login
+        // We wrap it in a pseudo AppError metadata structure for visibility
+        logger.error({ err }, "Failed to queue welcome email");
+      }
+    }
 
     return user;
   },

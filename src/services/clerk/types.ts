@@ -24,11 +24,11 @@ export interface UserDeletedEvent {
 
 export interface UserEventData {
   id: string;
-  email_addresses: Array<{
+  email_addresses: {
     id: string;
     email_address: string;
     verification: { status: string; strategy: string };
-  }>;
+  }[];
   primary_email_address_id: string | null;
   first_name: string | null;
   last_name: string | null;

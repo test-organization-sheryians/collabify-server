@@ -3,6 +3,8 @@ import { userTypeDefs } from "../modules/user/schema";
 import { userResolvers } from "../modules/user/resolvers";
 import { typeDefs as workspaceTypeDefs } from "../modules/workspace/schema";
 import { resolvers as workspaceResolvers } from "../modules/workspace/resolvers";
+import { typeDefs as notificationTypeDefs } from "../modules/notification/schema";
+import { resolvers as notificationResolvers } from "../modules/notification/resolvers";
 
 import { ServiceContext } from "./types";
 
@@ -18,6 +20,7 @@ export const schema = createSchema<ServiceContext>({
     `,
     userTypeDefs,
     workspaceTypeDefs,
+    notificationTypeDefs,
   ],
   resolvers: [
     {
@@ -27,5 +30,6 @@ export const schema = createSchema<ServiceContext>({
     },
     userResolvers,
     workspaceResolvers,
+    notificationResolvers,
   ],
 });

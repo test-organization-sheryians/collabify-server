@@ -10,6 +10,7 @@ export const redis = new Redis(REDIS_URL, {
     const delay = Math.min(times * 50, 2000);
     return delay;
   },
+  connectionName: "bun-server-redis",
 });
 
 redis.on("error", (err) => {

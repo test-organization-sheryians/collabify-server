@@ -12,6 +12,7 @@ import { checkConnection } from "../infra/db";
 import { cors } from "hono/cors";
 import { ServiceContext } from "../graphql/types";
 import { idempotencyMiddleware } from "../shared/middleware/idempotency";
+import { NotificationModule } from "../modules/notification";
 
 interface GraphQLLogPayload {
   msg: string;
@@ -23,6 +24,10 @@ const app = new Hono();
 
 // Check DB connection on startup
 checkConnection();
+// Start Notification Engine (Poller + Workers)
+NotificationModule.startEngine().catch((err) => {
+  logger.error({ err }, "Failed to start Notification Engine");
+});
 
 app.use("*", cors());
 

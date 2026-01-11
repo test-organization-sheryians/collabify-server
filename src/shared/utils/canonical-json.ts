@@ -11,7 +11,7 @@ export const stableStringify = (obj: unknown): string => {
     return "[" + obj.map((item) => stableStringify(item)).join(",") + "]";
   }
 
-  const keys = Object.keys(obj as object).sort();
+  const keys = Object.keys(obj).sort();
   return (
     "{" +
     keys

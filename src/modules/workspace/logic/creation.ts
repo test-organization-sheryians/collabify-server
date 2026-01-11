@@ -6,6 +6,7 @@ import { logger } from "@/shared/logger";
 import { QuotaService } from "@/modules/quota/service";
 import { Prisma } from "@prisma/client";
 import { CreateWorkspaceSchema } from "../types";
+import { NotificationModule } from "@/modules/notification";
 
 const FINALIZE_CREATION_SCRIPT = `
   redis.call("DEL", KEYS[1])
@@ -44,19 +45,36 @@ export const creationLogic = {
       );
     }
 
-    // 2. Create Workspace (Transaction)
+    // 2. Create Workspace (Transaction + Outbox)
     try {
-      const workspace = await db.workspace.create({
-        data: {
-          name: sanitizedName,
-          slug: normalizedSlug,
-          members: {
-            create: {
-              userId,
-              role: "OWNER",
+      const workspace = await db.$transaction(async (tx) => {
+        const ws = await tx.workspace.create({
+          data: {
+            name: sanitizedName,
+            slug: normalizedSlug,
+            members: {
+              create: {
+                userId,
+                role: "OWNER",
+              },
             },
           },
-        },
+        });
+
+        // 2.1 Trigger Notification (Producer Wiring)
+        await NotificationModule.notify(tx, {
+          type: "workspace.created", // Assuming this type exists or we use generic
+          actorId: userId,
+          tenantId: ws.id,
+          payload: {
+            workspaceId: ws.id,
+            name: ws.name,
+            slug: ws.slug,
+            ownerId: userId,
+          },
+        });
+
+        return ws;
       });
 
       // 3. Cleanup & Cache (Atomic Transition)

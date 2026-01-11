@@ -20,6 +20,18 @@ const envSchema = z.object({
   FRONTEND_URL: z.string().url().default("http://localhost:3000"),
   CLERK_WEBHOOK_SIGNING_SECRET: z.string().min(1),
   REDIS_URL: z.string().url(),
+
+  // Email
+  EMAIL_FROM: z.string().email(),
+  EMAIL_PROVIDER: z.enum(["ses", "console", "sendgrid"]).default("console"),
+
+  // SendGrid
+  SENDGRID_API_KEY: z.string().optional(),
+
+  // AWS (SES, S3, etc)
+  AWS_ACCESS_KEY_ID: z.string().optional(),
+  AWS_SECRET_ACCESS_KEY: z.string().optional(),
+  AWS_REGION: z.string().default("us-east-1"),
 });
 
 const parsed = envSchema.safeParse(process.env);
