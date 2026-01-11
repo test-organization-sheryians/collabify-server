@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { NotificationEvent } from "../core/types";
 import { AppError } from "@/shared/errors";
 import { logger } from "@/shared/logger";

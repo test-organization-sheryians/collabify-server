@@ -1,4 +1,4 @@
-import { createQueue, Job } from "@/services/bullmq";
+import { createQueue, createWorker, Job } from "@/services/bullmq";
 import { db } from "@/infra/db";
 import { logger } from "@/shared/logger";
 
@@ -8,7 +8,7 @@ export const createCleanupCron = () => {
   const queue = createQueue(CLEANUP_QUEUE_NAME);
 
   // Run Daily at Midnight
-  queue.add(
+  void queue.add(
     "prune-outbox",
     {},
     {
@@ -17,8 +17,6 @@ export const createCleanupCron = () => {
       },
     }
   );
-
-  const { createWorker } = require("@/services/bullmq");
 
   createWorker(CLEANUP_QUEUE_NAME, async (job: Job) => {
     logger.info("🧹 Running Cleanup Job: " + job.name);

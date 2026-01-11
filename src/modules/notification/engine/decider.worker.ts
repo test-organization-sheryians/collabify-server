@@ -24,6 +24,8 @@ const getQueueForChannel = (channel: NotificationChannel) => {
       return pushQueue;
     case NotificationChannel.IN_APP:
       return inAppQueue;
+    case NotificationChannel.SMS:
+      return null;
     default:
       return null;
   }
@@ -68,16 +70,20 @@ export const createDeciderWorker = () => {
         );
         return;
       }
-      const valPayload = parseResult.data as any;
+      const valPayload = parseResult.data as Record<string, unknown>;
       const strategy = definition.strategy || {};
 
       // 3. User Resolution
-      const userId =
-        valPayload.recipientId || valPayload.userId || valPayload.actorId;
-      if (!userId) {
-        logger.warn({ type }, "No Recipient ID found");
+      const rawUserId =
+        valPayload["recipientId"] ||
+        valPayload["userId"] ||
+        valPayload["actorId"];
+
+      if (typeof rawUserId !== "string" || !rawUserId) {
+        logger.warn({ type, rawUserId }, "No valid Recipient ID found");
         return;
       }
+      const userId: string = rawUserId;
 
       // 4. Guards: Rate Limit & Access
       if (!(await Guards.checkRateLimit(userId, type))) return;
@@ -113,7 +119,7 @@ export const createDeciderWorker = () => {
           }
 
           // Transform & Dispatch
-          // @ts-ignore - Generic complexity
+          // @ts-expect-error - Generic complexity
           const content = transformer(valPayload);
 
           await queue.add(type, {

@@ -6,7 +6,7 @@ export class NotificationError extends AppError {
     message: string,
     code: ErrorCode = "INTERNAL_SERVER_ERROR",
     statusCode = 500,
-    public safeContext?: Record<string, any>
+    public safeContext?: Record<string, unknown>
   ) {
     super(message, code, statusCode, true, safeContext);
     this.name = "NotificationError";
@@ -22,14 +22,17 @@ export class RateLimitExceededError extends NotificationError {
 }
 
 export class ProviderError extends NotificationError {
-  constructor(provider: string, originalError: any) {
+  constructor(provider: string, originalError: unknown) {
     super(
       `Failed to send via ${provider}`,
       "NOTIFICATION_PROVIDER_ERROR",
       502,
       {
         provider,
-        originalError: originalError?.message,
+        originalError:
+          originalError instanceof Error
+            ? originalError.message
+            : String(originalError),
       }
     );
   }

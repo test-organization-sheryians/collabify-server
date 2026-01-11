@@ -23,7 +23,7 @@ interface GraphQLLogPayload {
 const app = new Hono();
 
 // Check DB connection on startup
-checkConnection();
+void checkConnection();
 // Start Notification Engine (Poller + Workers)
 NotificationModule.startEngine().catch((err) => {
   logger.error({ err }, "Failed to start Notification Engine");

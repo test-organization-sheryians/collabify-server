@@ -26,8 +26,8 @@ export const createEmailWorker = () => {
       try {
         await emailProvider.send(to, subject, html);
         logger.info({ eventId, to }, "Email Delivered");
-      } catch (err: any) {
-        throw new ProviderError("EMAIL", err);
+      } catch (err: unknown) {
+        throw new ProviderError("EMAIL", err as Error);
       }
     }
   );

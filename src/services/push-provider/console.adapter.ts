@@ -1,6 +1,6 @@
 import { logger } from "@/shared/logger";
 
-export const sendToConsole = async (
+export const sendToConsole = (
   to: string[],
   title: string,
   body: string,
@@ -16,4 +16,5 @@ export const sendToConsole = async (
     },
     "📱 Mock Push Notification Sent"
   );
+  return Promise.resolve();
 };

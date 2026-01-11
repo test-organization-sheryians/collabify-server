@@ -1,4 +1,4 @@
-import { createQueue, Job } from "@/services/bullmq";
+import { createQueue, createWorker } from "@/services/bullmq";
 import { logger } from "@/shared/logger";
 import { db } from "@/infra/db";
 
@@ -8,7 +8,7 @@ export const createRecoveryCron = () => {
   const queue = createQueue(RECOVERY_QUEUE_NAME);
 
   // Add the repeatable job (runs every Minute)
-  queue.add(
+  void queue.add(
     "recover-zombies",
     {},
     {
@@ -18,14 +18,11 @@ export const createRecoveryCron = () => {
     }
   );
 
-  // We need a worker to process this "tick" and run the DB cleanup
-  const { createWorker } = require("@/services/bullmq"); // Lazy import to avoid cycle if any
-
-  createWorker(RECOVERY_QUEUE_NAME, async (job: Job) => {
+  createWorker(RECOVERY_QUEUE_NAME, async () => {
     logger.debug("🧟 Running Zombie Job Recovery...");
 
     // Reset stuck jobs older than 5 minutes
-    const result = await db.$queryRawUnsafe<any[]>(`
+    const result = await db.$queryRawUnsafe<{ id: string }[]>(`
         UPDATE "notification_outbox" 
         SET status = 'PENDING', "processed_at" = NULL 
         WHERE status = 'PROCESSING' 

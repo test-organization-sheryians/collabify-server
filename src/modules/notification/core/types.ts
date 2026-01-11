@@ -37,7 +37,7 @@ export type NotificationEvent = {
 export interface DeciderJobData {
   eventId: string; // Outbox ID
   type: string;
-  payload: any;
+  payload: Record<string, unknown>;
   createdAt: Date;
 }
 
@@ -60,7 +60,7 @@ export interface PushJobData {
   userId: string;
   title: string;
   body: string;
-  data?: Record<string, any>;
+  data?: Record<string, unknown>;
   image?: string;
 
   // Tracking

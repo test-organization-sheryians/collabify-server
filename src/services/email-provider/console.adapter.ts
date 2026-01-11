@@ -1,6 +1,6 @@
 import { logger } from "@/shared/logger";
 
-export const sendToConsole = async (
+export const sendToConsole = (
   to: string,
   subject: string,
   html: string
@@ -14,4 +14,5 @@ export const sendToConsole = async (
     },
     "📧 Mock Email Sent"
   );
+  return Promise.resolve();
 };

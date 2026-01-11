@@ -12,8 +12,8 @@ const fanOutQueue = createQueue(QUEUE_NAMES.FANOUT);
 
 interface FanOutJobData {
   type: string;
-  payload: any;
-  query?: any;
+  payload: Record<string, unknown>;
+  query?: Record<string, unknown>;
   offset?: number;
 }
 

@@ -1,14 +1,21 @@
 import { db } from "@/infra/db";
 import { NotificationChannel } from "../../core/types";
-import { logger } from "@/shared/logger";
 import { NotificationPreference } from "@prisma/client";
+
+interface Strategy {
+  batching?: {
+    enabled?: boolean;
+    windowMs?: number;
+  };
+  skipPreferences?: boolean;
+}
 
 // -----------------------------------------------------------------------------
 // BATCHING DECISION
 // -----------------------------------------------------------------------------
 export const shouldBatch = (
   type: string,
-  strategy: any // Strategy definition
+  strategy: Strategy
 ): { enabled: boolean; delay?: number } => {
   if (strategy.batching?.enabled) {
     // If it's ALREADY a summary event, skip batching
@@ -27,7 +34,7 @@ export const shouldBatch = (
 // -----------------------------------------------------------------------------
 export const getPreferences = async (
   userId: string,
-  strategy: any
+  strategy: Strategy
 ): Promise<NotificationPreference | null> => {
   if (strategy.skipPreferences) return null;
 
@@ -42,7 +49,7 @@ export const getPreferences = async (
 export const isChannelEnabled = (
   channel: NotificationChannel,
   preferences: NotificationPreference | null,
-  strategy: any
+  strategy: Strategy
 ): boolean => {
   if (strategy.skipPreferences) return true;
   if (!preferences) return true; // Default to TRUE if no prefs
@@ -54,6 +61,8 @@ export const isChannelEnabled = (
       return preferences.pushEnabled;
     case NotificationChannel.IN_APP:
       return preferences.inAppEnabled;
+    case NotificationChannel.SMS:
+      return false; // SMS not supported yet
     default:
       return true;
   }

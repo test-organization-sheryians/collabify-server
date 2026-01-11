@@ -28,7 +28,7 @@ EventRegistry.register({
     }),
 
     // 2. In-App Transformer
-    [NotificationChannel.IN_APP]: (payload) => ({
+    [NotificationChannel.IN_APP]: (_payload) => ({
       message: `Welcome to Collabify! Let's get you set up.`,
       link: `/onboarding`,
     }),

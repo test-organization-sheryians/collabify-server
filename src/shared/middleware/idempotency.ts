@@ -28,7 +28,9 @@ export const idempotencyMiddleware = async (c: Context, next: Next) => {
     return next();
   }
 
-  const idempotencyKey = c.req.header("x-idempotency-key");
+  const idempotencyKey = c.req.header("x-idempotency-key") as
+    | string
+    | undefined;
   if (!idempotencyKey) {
     return next();
   }

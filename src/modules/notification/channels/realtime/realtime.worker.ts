@@ -1,6 +1,6 @@
 import { Job } from "bullmq";
 import { createWorker } from "@/services/bullmq";
-import { QUEUE_NAMES, REDIS_KEYS } from "../../core/constants";
+import { QUEUE_NAMES } from "../../core/constants";
 import { logger } from "@/shared/logger";
 import { redis } from "@/infra/redis";
 
@@ -8,7 +8,7 @@ interface RealTimeJobData {
   eventId: string;
   userId: string;
   type: string;
-  payload: any;
+  payload: Record<string, unknown>;
 }
 
 export const createRealTimeWorker = () => {

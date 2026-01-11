@@ -5,7 +5,7 @@ import { PushJobData } from "../../core/types";
 import { logger } from "@/shared/logger";
 import { redis } from "@/infra/redis";
 import { pushProvider } from "@/services/push-provider";
-// import { pushProvider } from "@/services/push"; // Future integration
+import { ProviderError } from "../../core/errors";
 
 export const createPushWorker = () => {
   return createWorker<PushJobData>(
@@ -28,12 +28,17 @@ export const createPushWorker = () => {
 
       try {
         // TODO: Integrate actual Push Provider (FCM/APNS)
-        await pushProvider.send([userId], title, body, job.data.data);
+        const stringData = job.data.data
+          ? Object.fromEntries(
+              Object.entries(job.data.data).map(([k, v]) => [k, String(v)])
+            )
+          : undefined;
+
+        await pushProvider.send([userId], title, body, stringData);
 
         logger.info({ eventId, userId }, "Push Notification Sent (Simulated)");
-      } catch (err: any) {
-        logger.error({ err, userId }, "Failed to send Push Notification");
-        // throw err; // Retry logic relies on this
+      } catch (err: unknown) {
+        throw new ProviderError("PUSH", err as Error);
       } finally {
         await redis.del(lockKey);
       }

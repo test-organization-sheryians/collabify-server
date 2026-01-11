@@ -10,7 +10,7 @@ export const createInAppWorker = () => {
   return createWorker<InAppJobData>(
     QUEUE_NAMES.IN_APP,
     async (job: Job<InAppJobData>) => {
-      const { userId, eventId, message } = job.data;
+      const { userId, eventId } = job.data;
       const eventType = job.name; // "workspace.invite"
 
       // 0. Idempotency Check

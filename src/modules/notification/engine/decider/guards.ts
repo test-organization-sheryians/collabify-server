@@ -53,11 +53,13 @@ export const checkRateLimit = async (
 export const checkAccess = async (
   userId: string,
   type: string,
-  strategy: any, // Typed as Strategy config in real world
-  payload: any
+  strategy: Record<string, unknown>,
+  payload: Record<string, unknown>
 ): Promise<boolean> => {
   if (strategy.requiresAccess === "workspace_member") {
-    const workspaceId = payload.workspaceId || payload.tenantId;
+    const workspaceId = (payload.workspaceId || payload.tenantId) as
+      | string
+      | undefined;
     if (workspaceId) {
       const member = await db.workspaceMember.findUnique({
         where: { workspaceId_userId: { workspaceId, userId } },

@@ -5,7 +5,8 @@ import { ClerkWebhookEvent } from "./types";
 
 export const ClerkWebhookService = {
   // Logic 1: Verify and Parse (Purely Infrastructure)
-  async verifyWebhook(
+  // Logic 1: Verify and Parse (Purely Infrastructure)
+  verifyWebhook(
     payload: string,
     headers: {
       "svix-id"?: string;
@@ -23,11 +24,13 @@ export const ClerkWebhookService = {
 
     try {
       // Cast strict types for svix
-      return wh.verify(payload, {
+      const verified = wh.verify(payload, {
         "svix-id": headers["svix-id"]!,
         "svix-timestamp": headers["svix-timestamp"]!,
         "svix-signature": headers["svix-signature"]!,
       }) as ClerkWebhookEvent;
+
+      return Promise.resolve(verified);
     } catch (err: unknown) {
       logger.error({ err }, "Webhook verification failed");
       throw new Error("Verification Failed");

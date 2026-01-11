@@ -54,7 +54,14 @@ export const OutboxPoller = {
 
     try {
       // Process pending events with SKIP LOCKED for concurrency safety
-      const events = await db.$queryRawUnsafe<any[]>(`
+      const events = await db.$queryRawUnsafe<
+        {
+          id: bigint;
+          event_type: string;
+          payload: Record<string, unknown>;
+          created_at: Date;
+        }[]
+      >(`
         UPDATE "notification_outbox"
         SET status = 'PROCESSING', "processed_at" = NOW()
         WHERE id IN (

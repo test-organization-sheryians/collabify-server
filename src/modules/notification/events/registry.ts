@@ -52,7 +52,7 @@ export interface EventDefinition<T extends EventType> {
   };
 }
 
-const registry = new Map<EventType, EventDefinition<any>>();
+const registry = new Map<EventType, EventDefinition<EventType>>();
 
 export const EventRegistry = {
   // Generic Register Function - Enforces Type Safety
@@ -60,13 +60,13 @@ export const EventRegistry = {
     registry.set(definition.type, definition);
   },
 
-  get: (type: string): EventDefinition<any> | undefined => {
+  get: (type: string): EventDefinition<EventType> | undefined => {
     return registry.get(type as EventType);
   },
 
   // Runtime Schema Lookup
   getSchema: (type: string): z.ZodTypeAny | undefined => {
-    // @ts-ignore - Index signature
+    // @ts-expect-error - Index signature mismatch with string type
     return EventSchemas[type];
   },
 };
