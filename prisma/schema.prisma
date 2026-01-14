@@ -1,6 +1,3 @@
-// This is your Prisma schema file.
-// V5: STRICT SINGLE ROLE & OPTIMIZED INDEXES
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,31 +6,22 @@ datasource db {
   provider = "postgresql"
 }
 
-// -----------------------------------------------------------------------------
-// 0. SHARED ENUMS
-// -----------------------------------------------------------------------------
-
 enum UserStatus {
   ACTIVE
   SUSPENDED
   DELETED
 }
 
-// Structural Role (Hard-coded logic)
 enum RoleType {
-  OWNER // Cannot be removed, pays the bills
-  MEMBER // Standard user (uses CustomRole for permissions)
-  GUEST // Restricted access
+  OWNER
+  MEMBER
+  GUEST
 }
 
 enum PolicyEffect {
   ALLOW
   DENY
 }
-
-// -----------------------------------------------------------------------------
-// 1. IDENTITY (GLOBAL)
-// -----------------------------------------------------------------------------
 
 model User {
   id           String     @id @default(cuid())
@@ -48,21 +36,17 @@ model User {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  // Relations
   sessions         UserSession[]
   keys             UserKey[]
   workspaceMembers WorkspaceMember[]
   auditLogs        AuditLog[]
 
-  // Direct Resource Interactions (The "Hybrid" Fix)
   projectMembers   ProjectMember[]
   resourcePolicies ResourcePolicy[]
 
-  // 13. SUBSCRIPTIONS & QUOTAS
   subscription Subscription?
   usageRecords UsageRecord[]
 
-  // Activity
   assignedTasks    Task[]            @relation("TaskAssignee")
   reportedTasks    Task[]            @relation("TaskReporter")
   chatMembers      ChatMember[]
@@ -89,7 +73,6 @@ model UserSession {
   expiresAt DateTime @map("expires_at")
   createdAt DateTime @default(now()) @map("created_at")
 
-  // Optional metadata
   deviceInfo String? @map("device_info")
   ipAddress  String? @map("ip_address")
 
@@ -111,10 +94,6 @@ model UserKey {
   @@map("user_keys")
 }
 
-// -----------------------------------------------------------------------------
-// 2. WORKSPACE (CONTAINER)
-// -----------------------------------------------------------------------------
-
 model Workspace {
   id              String  @id @default(cuid())
   slug            String  @unique
@@ -132,7 +111,6 @@ model Workspace {
   customRoles CustomRole[]
   projects    Project[]
 
-  // Denormalized relations for "Delete Workspace" cascades
   pages       Page[]
   vaultFiles  VaultFile[]
   whiteboards Whiteboard[]
@@ -152,11 +130,8 @@ model WorkspaceMember {
   workspaceId String @map("workspace_id")
   userId      String @map("user_id")
 
-  // 1. Structural Role (Billing/Ownership)
   role RoleType @default(MEMBER)
 
-  // 2. Permission Role (RBAC) - STRICT SINGLE ROLE ENFORCEMENT
-  // We removed the 'MemberRole' join table. Now it is a direct link.
   customRoleId String? @map("custom_role_id")
 
   joinedAt DateTime @default(now()) @map("joined_at")
@@ -167,7 +142,7 @@ model WorkspaceMember {
   customRole CustomRole? @relation(fields: [customRoleId], references: [id])
 
   @@unique([workspaceId, userId])
-  @@index([userId]) // Optimized for "List My Workspaces"
+  @@index([userId])
   @@map("workspace_members")
 }
 
@@ -176,7 +151,7 @@ model WorkspaceInvite {
   workspaceId String   @map("workspace_id")
   email       String
   token       String   @unique
-  role        RoleType @default(MEMBER) // Structural
+  role        RoleType @default(MEMBER)
   inviterId   String   @map("inviter_id")
   expiresAt   DateTime @map("expires_at")
   createdAt   DateTime @default(now()) @map("created_at")
@@ -186,10 +161,6 @@ model WorkspaceInvite {
   @@index([email])
   @@map("workspace_invites")
 }
-
-// -----------------------------------------------------------------------------
-// 3. ENTERPRISE PERMISSIONS (HYBRID)
-// -----------------------------------------------------------------------------
 
 model SystemPermission {
   id          String @id
@@ -214,12 +185,11 @@ model CustomRole {
 
   permissions RolePermission[]
 
-  // Inverse Relations for the STRICT SINGLE ROLE model
   workspaceMembers WorkspaceMember[]
   projectMembers   ProjectMember[]
 
   @@unique([workspaceId, name])
-  @@unique([id, workspaceId]) // LOCK: Allows ProjectMember to verify Workspace scope
+  @@unique([id, workspaceId])
   @@map("custom_roles")
 }
 
@@ -234,14 +204,12 @@ model RolePermission {
   @@map("role_permissions")
 }
 
-// REMOVED: MemberRole (Table Deleted - Redundant)
-
 model ResourcePolicy {
   id     String @id @default(cuid())
   userId String @map("user_id")
 
   resourceId   String @map("resource_id")
-  resourceType String @map("resource_type") // "PROJECT", "PAGE", "BOARD"
+  resourceType String @map("resource_type")
 
   permissionId String       @map("permission_id")
   effect       PolicyEffect
@@ -249,16 +217,11 @@ model ResourcePolicy {
   createdAt DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  // REMOVED: workspaceMemberId (Redundant)
 
   @@unique([userId, resourceId, permissionId])
   @@index([resourceId, resourceType])
   @@map("resource_policies")
 }
-
-// -----------------------------------------------------------------------------
-// 4. PROJECT (ISOLATION UNIT)
-// -----------------------------------------------------------------------------
 
 model Project {
   id          String  @id @default(cuid())
@@ -291,7 +254,7 @@ model Project {
   notifications           Notification[]
 
   @@unique([workspaceId, key])
-  @@unique([id, workspaceId]) // LOCK: Allows ProjectMember to verify Workspace scope
+  @@unique([id, workspaceId])
   @@index([workspaceId])
   @@map("projects")
 }
@@ -310,37 +273,23 @@ model ProjectCounter {
 model ProjectMember {
   id String @id @default(cuid())
 
-  // LOCK: Explicit Workspace ID to act as the "Bridge" regarding scope
-  workspaceId String @map("workspace_id")
-  projectId   String @map("project_id")
-  userId      String @map("user_id")
-
-  // STRICT SINGLE ROLE ENFORCEMENT
-  // This is the ONLY place a role lives for a project member.
+  workspaceId   String  @map("workspace_id")
+  projectId     String  @map("project_id")
+  userId        String  @map("user_id")
   projectRoleId String? @map("project_role_id")
 
   joinedAt DateTime @default(now()) @map("joined_at")
 
-  // LOCK 1: The Project must match this Workspace
   project Project @relation(fields: [projectId, workspaceId], references: [id, workspaceId], onDelete: Cascade)
 
-  // LOCK 2: The Role must match THIS SAME Workspace
   projectRole CustomRole? @relation(fields: [projectRoleId, workspaceId], references: [id, workspaceId])
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // REMOVED: workspaceMemberId (Optional relation removed for cleaner userId-based queries)
 
   @@unique([projectId, userId])
   @@index([userId])
   @@map("project_members")
 }
-
-// REMOVED: ProjectMemberRole (Table Deleted - Redundant)
-
-// -----------------------------------------------------------------------------
-// 5. PAGES (DOCS)
-// -----------------------------------------------------------------------------
 
 model Page {
   id            String  @id @default(cuid())
@@ -355,7 +304,7 @@ model Page {
   contentS3Key   String? @map("content_s3_key")
   contentVersion Int     @default(1) @map("content_version")
 
-  authorUserId String? @map("author_user_id") // FIX: Optional for SetNull
+  authorUserId String? @map("author_user_id")
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -363,17 +312,13 @@ model Page {
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  author    User?     @relation(fields: [authorUserId], references: [id], onDelete: SetNull) // FIX
+  author    User?     @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
 
   parentPage Page?  @relation("PageHierarchy", fields: [parentPageId], references: [id])
   childPages Page[] @relation("PageHierarchy")
 
   @@map("pages")
 }
-
-// -----------------------------------------------------------------------------
-// 6. VAULT (FILES)
-// -----------------------------------------------------------------------------
 
 model VaultFolder {
   id             String  @id @default(cuid())
@@ -410,15 +355,11 @@ model VaultFile {
   workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   folder    VaultFolder? @relation(fields: [folderId], references: [id])
-  uploader  User?        @relation(fields: [uploaderUserId], references: [id], onDelete: SetNull) // FIX
+  uploader  User?        @relation(fields: [uploaderUserId], references: [id], onDelete: SetNull)
 
   @@index([projectId, folderId])
   @@map("vault_files")
 }
-
-// -----------------------------------------------------------------------------
-// 7. WHITEBOARD (CANVAS)
-// -----------------------------------------------------------------------------
 
 model Whiteboard {
   id            String  @id @default(cuid())
@@ -439,10 +380,6 @@ model Whiteboard {
 
   @@map("whiteboards")
 }
-
-// -----------------------------------------------------------------------------
-// 8. BOARDS & TASKS
-// -----------------------------------------------------------------------------
 
 enum BoardType {
   KANBAN
@@ -492,7 +429,7 @@ model Task {
   priority    TaskPriority @default(MEDIUM)
 
   assigneeUserId String? @map("assignee_user_id")
-  reporterUserId String? @map("reporter_user_id") // FIX: Optional for SetNull
+  reporterUserId String? @map("reporter_user_id")
   parentTaskId   String? @map("parent_task_id")
 
   startDate DateTime? @map("start_date")
@@ -506,21 +443,17 @@ model Task {
   project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   board     Board     @relation(fields: [boardId], references: [id], onDelete: Cascade)
 
-  assignee User? @relation("TaskAssignee", fields: [assigneeUserId], references: [id], onDelete: SetNull) // FIX
-  reporter User? @relation("TaskReporter", fields: [reporterUserId], references: [id], onDelete: SetNull) // FIX
+  assignee User? @relation("TaskAssignee", fields: [assigneeUserId], references: [id], onDelete: SetNull)
+  reporter User? @relation("TaskReporter", fields: [reporterUserId], references: [id], onDelete: SetNull)
 
   parentTask Task?  @relation("Subtasks", fields: [parentTaskId], references: [id])
   subtasks   Task[] @relation("Subtasks")
 
   @@unique([projectId, seqId])
-  @@index([projectId, boardId]) // OPTIMIZED: Kanban Load
-  @@index([projectId, assigneeUserId]) // OPTIMIZED: "My Tasks"
+  @@index([projectId, boardId])
+  @@index([projectId, assigneeUserId])
   @@map("tasks")
 }
-
-// -----------------------------------------------------------------------------
-// 9. CHAT
-// -----------------------------------------------------------------------------
 
 enum ChannelType {
   PUBLIC
@@ -577,7 +510,7 @@ model ChatMessage {
   deletedAt DateTime? @map("deleted_at")
 
   channel ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  sender  User?       @relation(fields: [senderUserId], references: [id], onDelete: SetNull) // FIX
+  sender  User?       @relation(fields: [senderUserId], references: [id], onDelete: SetNull)
 
   reactions MessageReaction[]
 
@@ -598,10 +531,6 @@ model MessageReaction {
   @@unique([messageId, userId, emoji])
   @@map("message_reactions")
 }
-
-// -----------------------------------------------------------------------------
-// 10. MEET (CALLS)
-// -----------------------------------------------------------------------------
 
 enum MeetStatus {
   SCHEDULED
@@ -636,14 +565,8 @@ model MeetParticipant {
   meet Meet @relation(fields: [meetId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // REMOVED: workspaceMemberId (Redundant)
-
   @@map("meet_participants")
 }
-
-// -----------------------------------------------------------------------------
-// 11. COLLABIFY AI
-// -----------------------------------------------------------------------------
 
 model CollabifyAiConversation {
   id        String   @id @default(cuid())
@@ -673,11 +596,6 @@ model CollabifyAiMessage {
   @@map("collabify_ai_messages")
 }
 
-// -----------------------------------------------------------------------------
-// -----------------------------------------------------------------------------
-// 12. NOTIFICATIONS (v2 - ARCHITECTURE ALIGNED)
-// -----------------------------------------------------------------------------
-
 enum NotificationStatus {
   PENDING
   PROCESSING
@@ -686,48 +604,31 @@ enum NotificationStatus {
 }
 
 model NotificationOutbox {
-  id        BigInt @id @default(autoincrement()) // BigInt for infinite scale
-  eventType String @map("event_type") // e.g. "workspace.invite", "task.assigned"
+  id              BigInt             @id @default(autoincrement())
+  eventType       String             @map("event_type")
+  payload         Json
+  status          NotificationStatus @default(PENDING)
+  deduplicationId String?            @unique @map("deduplication_id")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  processedAt     DateTime?          @map("processed_at")
+  errorLog        Json?              @map("error_log")
 
-  // The Payload contains EVERYTHING needed to reconstruct the event.
-  // schema: { actorId, entityId, title, diff: {}, etc. }
-  payload Json
-
-  status NotificationStatus @default(PENDING)
-
-  // For Deduplication/Idempotency
-  deduplicationId String? @unique @map("deduplication_id")
-
-  // For "Hybrid Poller" performance, we index status + createdAt
-  createdAt   DateTime  @default(now()) @map("created_at")
-  processedAt DateTime? @map("processed_at")
-  errorLog    Json?     @map("error_log")
-
-  @@index([status, createdAt]) // The Poller's bread and butter
+  @@index([status, createdAt])
   @@map("notification_outbox")
 }
 
 model NotificationPreference {
-  id     String @id @default(cuid())
-  userId String @map("user_id")
-
-  // Scope: Minimalist approach. 
-  // If workspaceId is NULL and projectId is NULL -> Global Preference
-  workspaceId String? @map("workspace_id")
-  projectId   String? @map("project_id")
-
-  // The category key, e.g., "chat_mentions", "task_updates", "marketing"
-  categoryKey String @map("category_key")
-
-  // Channels
-  emailEnabled Boolean @default(true) @map("email_enabled")
-  pushEnabled  Boolean @default(true) @map("push_enabled")
-  inAppEnabled Boolean @default(true) @map("in_app_enabled")
-
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  workspaceId  String?  @map("workspace_id")
+  projectId    String?  @map("project_id")
+  categoryKey  String   @map("category_key")
+  emailEnabled Boolean  @default(true) @map("email_enabled")
+  pushEnabled  Boolean  @default(true) @map("push_enabled")
+  inAppEnabled Boolean  @default(true) @map("in_app_enabled")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  // Optional relations for cascade deletes
   workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   project   Project?   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
@@ -738,20 +639,11 @@ model NotificationPreference {
 model Notification {
   id              String  @id @default(cuid())
   recipientUserId String  @map("recipient_user_id")
-  actorId         String? @map("actor_id") // Who triggered it?
+  actorId         String? @map("actor_id")
+  entityType      String  @map("entity_type")
+  entityId        String  @map("entity_id")
+  category        String  @default("general")
 
-  // 1. POLYMORPHIC / GENERIC REFERENCES (Replaces taskId, pageId, etc.)
-  // Allows frontend to route to /<entityType>/<entityId>
-  entityType String @map("entity_type") // "TASK", "PAGE", "WORKSPACE"
-  entityId   String @map("entity_id")
-
-  // 2. GROUPING & BATCHING
-  // Used for "Digest" generation or UI grouping ("System", "Social")
-  category String @default("general")
-
-  // 3. RICH CONTENT MODEL (JSON)
-  // Contains pre-computed strings for fast read: { title: "Draft", subtitle: "X assigned Y" }
-  // Also contains 'actions': [{ label: "Approve", url: "..." }]
   data Json
 
   isRead     Boolean @default(false) @map("is_read")
@@ -767,9 +659,7 @@ model Notification {
   project     Project?   @relation(fields: [projectId], references: [id])
   projectId   String?
 
-  // 1. "My Unread Notifications" (Most common query)
   @@index([recipientUserId, isRead, createdAt(sort: Desc)])
-  // 2. "Cursor Pagination" for full history
   @@index([recipientUserId, createdAt(sort: Desc)])
   @@map("notifications")
 }
@@ -791,23 +681,19 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-// -----------------------------------------------------------------------------
-// 13. SUBSCRIPTIONS & QUOTAS
-// -----------------------------------------------------------------------------
-
 model Plan {
   id          String  @id @default(cuid())
-  slug        String  @unique // "free", "pro_user"
+  slug        String  @unique
   name        String
   description String?
-  isActive    Boolean @default(true) // Soft delete for plans
+  isActive    Boolean @default(true)
 
   // Normalized Limits
   limits        PlanLimit[]
   subscriptions Subscription[]
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt // Critical for cache invalidation
+  updatedAt DateTime @updatedAt
 
   @@map("plans")
 }
@@ -816,9 +702,8 @@ model PlanLimit {
   id     String @id @default(cuid())
   planId String @map("plan_id")
 
-  // "max_workspaces", "max_members_per_workspace", "storage_limit_mb"
   resourceKey String @map("resource_key")
-  limitValue  Int    @map("limit_value") // -1 = Unlimited
+  limitValue  Int    @map("limit_value")
 
   plan Plan @relation(fields: [planId], references: [id], onDelete: Cascade)
 
@@ -829,15 +714,14 @@ model PlanLimit {
 
 model Subscription {
   id     String @id @default(cuid())
-  userId String @unique @map("user_id") // ONE active subscription per user
+  userId String @unique @map("user_id")
 
   planId String @map("plan_id")
-  status String @default("ACTIVE") // ACTIVE, CANCELED, PAST_DUE
+  status String @default("ACTIVE")
 
   startDate DateTime  @map("start_date")
   endDate   DateTime? @map("end_date")
 
-  // Custom overrides for specific users (Sales/Support enabled)
   overrides SubscriptionOverride[]
 
   user User @relation(fields: [userId], references: [id])
@@ -860,24 +744,17 @@ model SubscriptionOverride {
 }
 
 model UsageRecord {
-  id String @id @default(cuid())
-
-  // We track usage per SCOPE.
-  // Some limits are User-scoped (e.g. Created Workspaces)
-  // Some are Workspace-scoped (e.g. Storage Used, Members)
+  id          String  @id @default(cuid())
   userId      String? @map("user_id")
   workspaceId String? @map("workspace_id")
 
-  resourceKey String @map("resource_key")
-  currentVal  Int    @default(0) @map("current_val")
-
-  // Lazy Reset Logic: Checked on READ. If now > resetAt, value = 0.
-  resetAt DateTime? @map("reset_at")
+  resourceKey String    @map("resource_key")
+  currentVal  Int       @default(0) @map("current_val")
+  resetAt     DateTime? @map("reset_at")
 
   user      User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
   workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
-  // INDEXING: The most critical index.
   @@unique([userId, resourceKey])
   @@unique([workspaceId, resourceKey])
   @@map("usage_records")

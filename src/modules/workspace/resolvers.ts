@@ -43,6 +43,34 @@ export const resolvers = {
         slug: args.slug,
       });
     },
+
+    getWorkspaceInviteInfo: async (
+      _root: unknown,
+      args: { token: string },
+      ctx: ServiceContext
+    ) => {
+      const user = await requireUser(ctx).catch(() => null); // Optional user
+
+      return WorkspaceService.getInviteInfo({
+        token: args.token,
+        userId: user?.id,
+        userEmail: user?.email,
+      });
+    },
+
+    workspaceMembers: async (
+      _root: unknown,
+      args: { workspaceId: string },
+      ctx: ServiceContext
+    ) => {
+      // User is required (but workspaceId comes from args now)
+      const user = await requireUser(ctx);
+
+      return WorkspaceService.getWorkspaceMembers(ctx, {
+        workspaceId: args.workspaceId,
+        actorUserId: user.id,
+      });
+    },
   },
   Mutation: {
     createOnboardingWorkspace: async (
@@ -80,6 +108,63 @@ export const resolvers = {
         userId: user.id,
         slug: args.slug,
         name: args.name,
+      });
+    },
+
+    inviteToWorkspace: async (
+      _root: unknown,
+      args: { input: { workspaceId: string; emails: string[] } },
+      ctx: ServiceContext
+    ) => {
+      const user = await requireUser(ctx);
+
+      return WorkspaceService.inviteToWorkspace({
+        workspaceId: args.input.workspaceId,
+        emails: args.input.emails,
+        actorUserId: user.id,
+      });
+    },
+
+    acceptWorkspaceInvite: async (
+      _root: unknown,
+      args: { input: { token: string; userId?: string; userEmail?: string } },
+      ctx: ServiceContext
+    ) => {
+      const user = await requireUser(ctx);
+
+      return WorkspaceService.acceptInvite({
+        token: args.input.token,
+        userId: user.id,
+        userEmail: user.email,
+      });
+    },
+
+    updateWorkspaceMemberRole: async (
+      _root: unknown,
+      args: { workspaceId: string; memberId: string; role: any }, // RoleType needs casting or proper typing
+      ctx: ServiceContext
+    ) => {
+      const user = await requireUser(ctx);
+
+      return WorkspaceService.updateMemberRole({
+        workspaceId: args.workspaceId,
+        memberId: args.memberId,
+        role: args.role,
+        actorUserId: user.id,
+      });
+    },
+
+    removeWorkspaceMember: async (
+      _root: unknown,
+      args: { workspaceId: string; memberId: string },
+      ctx: ServiceContext
+    ) => {
+      const user = await requireUser(ctx);
+
+      return WorkspaceService.removeMember({
+        workspaceId: args.workspaceId,
+        memberId: args.memberId,
+        actorUserId: user.id,
       });
     },
   },

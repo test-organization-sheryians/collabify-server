@@ -23,10 +23,38 @@ export const typeDefs = `
     reservationId: String
   }
 
+  type InviteResponse {
+    success: Boolean!
+    message: String!
+    invitedCount: Int!
+  }
+
+  type WorkspaceInviteInfo {
+    workspaceName: String!
+    workspaceLogoUrl: String
+    inviterName: String
+  }
+
+  type JoinResponse {
+    success: Boolean!
+    message: String!
+    workspaceSlug: String!
+  }
+
+
+  type WorkspaceMember {
+    id: ID!
+    role: String!
+    joinedAt: String!
+    user: User!
+  }
+
   extend type Query {
     myWorkspaces: [Workspace!]!
     onboardingStatus: OnboardingStatus!
     workspaceBySlug(slug: String!): Workspace!
+    getWorkspaceInviteInfo(token: String!): WorkspaceInviteInfo!
+    workspaceMembers(workspaceId: ID!): [WorkspaceMember!]!
   }
 
   extend type Mutation {
@@ -38,5 +66,22 @@ export const typeDefs = `
       slug: String!
       name: String!
     ): Workspace!
+
+    inviteToWorkspace(input: InviteToWorkspaceInput!): InviteResponse!
+    acceptWorkspaceInvite(input: AcceptInviteInput!): JoinResponse!
+
+    updateWorkspaceMemberRole(workspaceId: ID!, memberId: ID!, role: String!): WorkspaceMember!
+    removeWorkspaceMember(workspaceId: ID!, memberId: ID!): InviteResponse!
+  }
+
+  input InviteToWorkspaceInput {
+    workspaceId: ID!
+    emails: [String!]!
+  }
+
+  input AcceptInviteInput {
+    token: String!
+    userId: String
+    userEmail: String
   }
 `;

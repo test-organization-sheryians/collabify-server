@@ -58,4 +58,25 @@ export const WorkspaceBySlugSchema = z.object({
   slug: z.string().min(8),
 });
 
+export const InviteToWorkspaceSchema = z.object({
+  workspaceId: z.string().min(1),
+  emails: z
+    .array(z.string().email().toLowerCase())
+    .min(1)
+    .max(10, "Cannot invite more than 10 users at once"),
+  actorUserId: z.string().min(1),
+});
+
+export const AcceptInviteSchema = z.object({
+  token: z.string().min(1),
+  userId: z.string().min(1),
+  userEmail: z.string().email().toLowerCase(), // Crucial for verification
+});
+
+export const GetInviteInfoSchema = z.object({
+  token: z.string().min(1),
+  userId: z.string().optional(), // Can be anonymous
+  userEmail: z.string().email().optional(), // For checking match
+});
+
 export type CreateWorkspaceInput = z.infer<typeof CreateWorkspaceSchema>;
