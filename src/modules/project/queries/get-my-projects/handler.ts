@@ -1,7 +1,5 @@
 import { db } from "@/infra/db";
-import { ServiceContext } from "@/graphql/types"; // Keeping strict dependency on ServiceContext for DataLoaders?
-// Ideally specific modules should not depend on global GQL types if possible, but for Dataloaders it's convenient.
-// Plan said "handler.ts: Logic from logic/retrieval.ts"
+import { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
 import { Project } from "@prisma/client";
 import { GetMyProjectsInput } from "./types";
@@ -16,40 +14,24 @@ export const getMyProjects = async (
     throw AppError.unauthorized("User not authenticated");
   }
 
-  // 1. Get Member Records
-  const members = await db.projectMember.findMany({
+  // 1. Check Workspace Membership
+  const workspaceMember = await db.workspaceMember.findFirst({
     where: {
       userId: userId,
       workspaceId: workspaceId,
     },
-    select: {
-      projectId: true,
-    },
-    orderBy: { joinedAt: "desc" },
   });
 
-  if (members.length === 0) {
-    return [];
+  if (!workspaceMember) {
+    throw AppError.forbidden("User is not a member of this workspace");
   }
 
-  // 2. Extract IDs
-  const projectIds = members.map((m) => m.projectId);
-
-  // 3. Batch Fetch via DataLoader
-  // We assume loaders are available on ctx.dataloaders.project
-  if (!ctx.dataloaders.project?.projectById) {
-    throw new Error("Project DataLoaders not initialized");
-  }
-
-  const results =
-    await ctx.dataloaders.project.projectById.loadMany(projectIds);
-
-  const projects: Project[] = [];
-  for (const result of results) {
-    if (result && !(result instanceof Error)) {
-      projects.push(result);
-    }
-  }
+  const projects = await db.project.findMany({
+    where: {
+      workspaceId: workspaceId,
+    },
+    orderBy: { createdAt: "desc" },
+  });
 
   return projects;
 };
