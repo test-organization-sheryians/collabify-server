@@ -1,3 +1,4 @@
+import { ProjectLoaders } from "./../modules/project/dataloaders";
 import { Context as HonoContext } from "hono";
 import { UserLoaders } from "../modules/user/dataloaders";
 import { WorkspaceLoaders } from "../modules/workspace/dataloaders";
@@ -14,6 +15,7 @@ export interface ApplicationContext {
     user: UserLoaders;
     workspace: WorkspaceLoaders;
     notification: NotificationLoaders;
+    project: ProjectLoaders;
   };
 }
 

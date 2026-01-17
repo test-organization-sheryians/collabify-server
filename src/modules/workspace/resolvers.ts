@@ -1,4 +1,5 @@
 import { ServiceContext } from "@/graphql/types";
+import { RoleType } from "@prisma/client";
 
 import { WorkspaceService } from "./service";
 import { requireUser } from "@/shared/utils/graphql-helpers";
@@ -141,7 +142,7 @@ export const resolvers = {
 
     updateWorkspaceMemberRole: async (
       _root: unknown,
-      args: { workspaceId: string; memberId: string; role: any }, // RoleType needs casting or proper typing
+      args: { workspaceId: string; memberId: string; role: RoleType },
       ctx: ServiceContext
     ) => {
       const user = await requireUser(ctx);
