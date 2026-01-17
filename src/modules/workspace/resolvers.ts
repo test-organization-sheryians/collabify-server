@@ -3,6 +3,7 @@ import { RoleType } from "@prisma/client";
 
 import { WorkspaceService } from "./service";
 import { requireUser } from "@/shared/utils/graphql-helpers";
+import { AppError } from "@/shared/errors";
 
 export const resolvers = {
   Query: {
@@ -11,17 +12,18 @@ export const resolvers = {
       _args: unknown,
       ctx: ServiceContext
     ) => {
-      const user = await requireUser(ctx);
-      return WorkspaceService.getWorkspacesForUser({ userId: user.id });
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      return WorkspaceService.getWorkspacesForUser({ userId: ctx.auth.userId });
     },
     onboardingStatus: async (
       _root: unknown,
       _args: unknown,
       ctx: ServiceContext
     ) => {
-      const user = await requireUser(ctx).catch(() => null); // Allow missing user for onboarding status check logic check below
+      // Allow missing user for onboarding status check logic check below
+      const userId = ctx.auth.userId;
 
-      if (!user) {
+      if (!userId) {
         return {
           hasUser: false,
           hasWorkspace: false,
@@ -30,17 +32,17 @@ export const resolvers = {
         };
       }
 
-      return WorkspaceService.getOnboardingStatus({ userId: user.id });
+      return WorkspaceService.getOnboardingStatus({ userId });
     },
     workspaceBySlug: async (
       _root: unknown,
       args: { slug: string },
       ctx: ServiceContext
     ) => {
-      const user = await requireUser(ctx);
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
 
       return WorkspaceService.getWorkspaceBySlug({
-        userId: user.id,
+        userId: ctx.auth.userId,
         slug: args.slug,
       });
     },
@@ -65,11 +67,11 @@ export const resolvers = {
       ctx: ServiceContext
     ) => {
       // User is required (but workspaceId comes from args now)
-      const user = await requireUser(ctx);
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
 
       return WorkspaceService.getWorkspaceMembers(ctx, {
         workspaceId: args.workspaceId,
-        actorUserId: user.id,
+        actorUserId: ctx.auth.userId,
       });
     },
   },
@@ -91,11 +93,11 @@ export const resolvers = {
       args: { slug: string },
       ctx: ServiceContext
     ) => {
-      const user = await requireUser(ctx);
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
 
       return WorkspaceService.checkSlugAvailability({
         slug: args.slug,
-        userId: user.id,
+        userId: ctx.auth.userId,
       });
     },
     createWorkspace: async (
@@ -103,10 +105,10 @@ export const resolvers = {
       args: { slug: string; name: string },
       ctx: ServiceContext
     ) => {
-      const user = await requireUser(ctx);
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
 
       return WorkspaceService.createWorkspace({
-        userId: user.id,
+        userId: ctx.auth.userId,
         slug: args.slug,
         name: args.name,
       });
@@ -117,12 +119,12 @@ export const resolvers = {
       args: { input: { workspaceId: string; emails: string[] } },
       ctx: ServiceContext
     ) => {
-      const user = await requireUser(ctx);
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
 
       return WorkspaceService.inviteToWorkspace({
         workspaceId: args.input.workspaceId,
         emails: args.input.emails,
-        actorUserId: user.id,
+        actorUserId: ctx.auth.userId,
       });
     },
 
@@ -145,13 +147,13 @@ export const resolvers = {
       args: { workspaceId: string; memberId: string; role: RoleType },
       ctx: ServiceContext
     ) => {
-      const user = await requireUser(ctx);
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
 
       return WorkspaceService.updateMemberRole({
         workspaceId: args.workspaceId,
         memberId: args.memberId,
         role: args.role,
-        actorUserId: user.id,
+        actorUserId: ctx.auth.userId,
       });
     },
 
@@ -160,12 +162,12 @@ export const resolvers = {
       args: { workspaceId: string; memberId: string },
       ctx: ServiceContext
     ) => {
-      const user = await requireUser(ctx);
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
 
       return WorkspaceService.removeMember({
         workspaceId: args.workspaceId,
         memberId: args.memberId,
-        actorUserId: user.id,
+        actorUserId: ctx.auth.userId,
       });
     },
   },

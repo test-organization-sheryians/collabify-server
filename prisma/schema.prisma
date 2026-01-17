@@ -24,8 +24,7 @@ enum PolicyEffect {
 }
 
 model User {
-  id           String     @id @default(cuid())
-  clerkId      String     @unique @map("clerk_id")
+  id           String     @id @unique
   email        String     @unique
   passwordHash String?    @map("password_hash")
   fullName     String?    @map("full_name")

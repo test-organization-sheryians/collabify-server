@@ -23,19 +23,8 @@ export const creationLogic = {
     if (!ctx.auth.userId) {
       throw AppError.unauthorized("User not authenticated");
     }
-    const clerkId = ctx.auth.userId;
-
-    // Resolve Internal User ID
-    const user = await db.user.findUnique({
-      where: { clerkId },
-      select: { id: true },
-    });
-
-    if (!user) {
-      throw AppError.unauthorized("User account not found");
-    }
-
-    const userId = user.id;
+    // Optimized: Clerk ID IS the User ID. No DB lookup needed.
+    const userId = ctx.auth.userId;
 
     if (!workspaceId) {
       throw AppError.badRequest("Workspace ID is required");

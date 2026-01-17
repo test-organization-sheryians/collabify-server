@@ -10,7 +10,7 @@ export async function requireUser(ctx: ServiceContext) {
     throw AppError.unauthorized("Unauthorized");
   }
 
-  const user = await ctx.dataloaders.user.userByClerkId.load(ctx.auth.userId);
+  const user = await ctx.dataloaders.user.userById.load(ctx.auth.userId);
 
   if (!user) {
     throw AppError.unauthorized("User not found");

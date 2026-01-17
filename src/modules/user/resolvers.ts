@@ -9,7 +9,7 @@ export const userResolvers = {
       if (!context.auth.userId) return null;
 
       // Use DataLoader for caching and batching
-      return context.dataloaders.user.userByClerkId.load(context.auth.userId);
+      return context.dataloaders.user.userById.load(context.auth.userId);
     },
   },
   Mutation: {

@@ -8,29 +8,16 @@ import { OutboxWriter } from "../notification/lib/outbox.writer";
 // const prisma = db; // Removed alias
 
 export const UserService = {
-  async findUserByClerkId(clerkId: string) {
-    const cacheKey = `user:clerkId:${clerkId}`;
-    const cached = await redis.get(cacheKey);
-    if (cached) return JSON.parse(cached);
-
-    const user = await db.user.findUnique({
-      where: { clerkId, deletedAt: null },
-    });
-
-    if (user) {
-      await redis.set(cacheKey, JSON.stringify(user), "EX", 300); // 5 min TTL
-    }
-
-    return user;
-  },
+  // Removed findUserByClerkId as User.id IS the Clerk ID now.
+  // Use findUserById instead.
 
   async syncUserFromClerk(rawInput: unknown) {
     const data = SyncUserSchema.parse(rawInput);
 
     const user = await db.$transaction(async (tx) => {
-      // 1. Try to find by Clerk ID
+      // 1. Try to find by Clerk ID (which is now the PK: id)
       const existingUser = await tx.user.findUnique({
-        where: { clerkId: data.clerkId },
+        where: { id: data.clerkId },
       });
 
       if (existingUser) {
@@ -60,23 +47,38 @@ export const UserService = {
           );
         }
 
-        // Link the existing user to this Clerk ID
-        return tx.user.update({
-          where: { id: existingByEmail.id },
-          data: {
-            clerkId: data.clerkId,
-            fullName: data.fullName ?? existingByEmail.fullName,
-            avatarUrl: data.avatarUrl ?? existingByEmail.avatarUrl,
-            status: "ACTIVE",
-            deletedAt: null, // Ensure target is alive
-          },
-        });
+        // Link the existing user to this Clerk ID?
+        // PROBLEM: We cannot easily "change" the Primary Key ID of an existing record in Prisma/Postgres
+        // without cascading updates to ALL foreign keys.
+        // Since we are refactoring, we have two options:
+        // A) Migration script to rewrite IDs (Complex)
+        // B) Logic here: If email exists but ID differs, we might fail or (since we assume fresh start) we might delete old and re-create?
+
+        // Given the instructions imply a refactor, we should assume the ability to migrate.
+        // However, Prisma `update` cannot change the `@id` field easily.
+        // For now, if we find by email, we'll try to DELETE and RE-CREATE with the new ID if it's a "User" table only change,
+        // BUT invalidating FKs is dangerous.
+
+        // BETTER APPROACH for "Single Source of Truth" transition:
+        // If email exists, it means we have a legacy user.
+        // We really should have migrated them already.
+        // But if this runs live, we might get an error if we try to create a new user with same email.
+
+        // DECISION: For this task, we will assume we can't easily merge legacy users here without migration.
+        // We will throw if email exists but ID doesn't match, OR we will assume clean slate.
+        // However, to be robust:
+        // If existingByEmail found, we check if its ID matches. If not, it's a conflict.
+
+        throw AppError.conflict(
+          "User with this email exists but has a different ID. Manual migration required."
+        );
       }
 
-      // 3. Create new user
+      // 3. Create new user with Clerk ID as the PK
       return tx.user.create({
         data: {
-          clerkId: data.clerkId,
+          id: data.clerkId, // Explicitly set ID to Clerk ID
+          // clerkId: data.clerkId, // REMOVED
           email: data.email,
           fullName: data.fullName,
           avatarUrl: data.avatarUrl,
@@ -86,8 +88,17 @@ export const UserService = {
     });
 
     // Cache Invalidation / Update
-    const cacheKey = `user:clerkId:${data.clerkId}`;
-    await redis.set(cacheKey, JSON.stringify(user), "EX", 300);
+    // Cache Invalidation / Update
+    const cacheKey = `user:clerkId:${data.clerkId}`; // Legacy key support or new key?
+    // Let's use `user:${id}` moving forward, but for now we might keep the old pattern or switch.
+    // Since findUserByClerkId is gone, we don't need that specific key, but findUserById might use `user:{id}`.
+    // Let's stick to `user:clerkId:{id}` if we want to be safe, or cleaner `user:{id}`.
+    // But wait, UserService.findUserByClerkId used `user:clerkId:${clerkId}`.
+    // UserService.findUserById uses... (checking below). It doesn't use cache currently!
+    // We should ADD cache to findUserById.
+
+    // Let's standardise on `user:${id}`.
+    await redis.set(`user:${user.id}`, JSON.stringify(user), "EX", 300);
 
     // -------------------------------------------------------------------------
     // Phase 13: Welcome Event (At-Most-Once)
@@ -120,8 +131,18 @@ export const UserService = {
   },
 
   async findUserById(id: string) {
-    return db.user.findUnique({
+    const cacheKey = `user:${id}`; // Standard key
+    const cached = await redis.get(cacheKey);
+    if (cached) return JSON.parse(cached);
+
+    const user = await db.user.findUnique({
       where: { id, deletedAt: null },
     });
+
+    if (user) {
+      await redis.set(cacheKey, JSON.stringify(user), "EX", 300); // 5 min
+    }
+
+    return user;
   },
 };

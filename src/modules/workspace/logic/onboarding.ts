@@ -6,10 +6,23 @@ import { RetrievalLogic } from "./retrieval";
 import { creationLogic } from "./creation";
 import { SlugLogic } from "./slug";
 import { SlugUtil } from "@/shared/utils/slug.util";
+import { db } from "@/infra/db";
 
 export const OnboardingLogic = {
   async getOnboardingStatus(input: { userId: string }) {
     const { userId } = UserIdSchema.parse(input);
+
+    // 1. Check User Existence (Strict)
+    const user = await db.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return {
+        hasUser: false,
+        hasWorkspace: false,
+        hasProject: false,
+        workspaceSlug: null,
+      };
+    }
+
     const workspaces = await RetrievalLogic.getWorkspacesForUser({ userId });
 
     if (workspaces.length === 0) {
@@ -25,7 +38,7 @@ export const OnboardingLogic = {
     return {
       hasUser: true,
       hasWorkspace: true,
-      hasProject: false, // Legacy check refined to simple existence
+      hasProject: false,
       workspaceSlug: firstWorkspace.slug,
     };
   },

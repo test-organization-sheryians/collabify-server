@@ -14,18 +14,6 @@ export const createUserLoaders = () => ({
     const userMap = new Map(users.map((u) => [u.id, u]));
     return ids.map((id) => userMap.get(id) || null);
   }),
-
-  userByClerkId: new DataLoader<string, User | null>(async (clerkIds) => {
-    const users = await db.user.findMany({
-      where: {
-        clerkId: { in: [...clerkIds] },
-        deletedAt: null,
-      },
-    });
-
-    const userMap = new Map(users.map((u) => [u.clerkId, u]));
-    return clerkIds.map((id) => userMap.get(id) || null);
-  }),
 });
 
 export type UserLoaders = ReturnType<typeof createUserLoaders>;

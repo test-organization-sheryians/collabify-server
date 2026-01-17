@@ -13,12 +13,8 @@ export const retrievalLogic = {
     if (!ctx.auth.userId) {
       throw AppError.unauthorized("User not authenticated");
     }
-    // Resolve Internal User ID
-    const user = await ctx.dataloaders.user.userByClerkId.load(ctx.auth.userId);
-    if (!user) {
-      throw AppError.unauthorized("User account not found");
-    }
-    const userId = user.id;
+    // Optimized: Clerk ID IS the User ID.
+    const userId = ctx.auth.userId;
 
     // 1. Get Member Records
     const members = await db.projectMember.findMany({
@@ -64,12 +60,8 @@ export const retrievalLogic = {
     if (!ctx.auth.userId) {
       throw AppError.unauthorized("User not authenticated");
     }
-    // Resolve Internal User ID
-    const user = await ctx.dataloaders.user.userByClerkId.load(ctx.auth.userId);
-    if (!user) {
-      throw AppError.unauthorized("User account not found");
-    }
-    const userId = user.id;
+    // Optimized: Clerk ID IS the User ID.
+    const userId = ctx.auth.userId;
 
     const normalizedSlug = SlugUtil.sanitize(slug).toLowerCase();
 

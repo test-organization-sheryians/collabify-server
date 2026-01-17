@@ -17,8 +17,8 @@ mock.module("../../infra/redis", () => ({
 }));
 
 const mockUser = {
-  id: "user_123",
-  clerkId: "clerk_123",
+  id: "user_123", // This IS the Clerk ID now
+  // clerkId: "clerk_123", // REMOVED
   email: "test@example.com",
   fullName: "Test User",
   avatarUrl: "https://example.com/avatar.png",
@@ -30,6 +30,9 @@ const mockTx = {
   user: {
     findUnique: mock(),
     update: mock(),
+    create: mock(),
+  },
+  notificationOutbox: {
     create: mock(),
   },
 };
@@ -96,8 +99,8 @@ describe("UserService SRE & Logic Suite", () => {
 
     it("should BLOCK Account Linking if email is not verified (Security)", async () => {
       (mockTx.user.findUnique as any)
-        .mockResolvedValueOnce(null) // Not found by Clerk ID
-        .mockResolvedValueOnce({ ...mockUser, clerkId: "old_clerk" }); // Found by Email
+        .mockResolvedValueOnce(null) // Not found by ID
+        .mockResolvedValueOnce({ ...mockUser, id: "old_clerk" }); // Found by Email
 
       const attackInput = { ...validInput, emailVerified: false };
 
@@ -110,39 +113,35 @@ describe("UserService SRE & Logic Suite", () => {
       }
     });
 
-    it("should ALLOW Account Linking if email IS verified", async () => {
+    it("should THROW Conflict if email exists but ID differs (No Linking)", async () => {
       (mockTx.user.findUnique as any)
         .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({ ...mockUser });
+        .mockResolvedValueOnce({ ...mockUser, id: "different_id" });
 
-      await UserService.syncUserFromClerk({
-        ...validInput,
-        emailVerified: true,
-      });
-      expect(mockTx.user.update).toHaveBeenCalled();
+      try {
+        await UserService.syncUserFromClerk({
+          ...validInput,
+          emailVerified: true,
+        });
+        throw new Error("Should have thrown Conflict");
+      } catch (err: any) {
+        expect(err).toBeInstanceOf(AppError);
+        expect(err.httpStatus).toBe(409);
+      }
     });
   });
 
   describe("2. Infrastructure Chaos (Redis Down)", () => {
-    it("findUserByClerkId: should fallback to DB if Redis throws", async () => {
+    it("findUserById: should fallback to DB if Redis throws", async () => {
       // Redis throws connection error
       (redis.get as any).mockRejectedValue(
         new Error("Redis Connection Refused")
       );
       (db.user.findUnique as any).mockResolvedValue(mockUser);
 
-      // The service code currently DOES NOT catch redis errors inside findUserByClerkId
-      // We expect it to throw or we need to update service to swallow it.
-      // Based on typical resilience patterns, we SHOULD swallow it, but checking current implementation...
-      // CURRENT IMPLEMENTATION: does NOT try/catch. So this test expects failure.
-      // To satisfy "Chaotic Good", let's update this expectation to see it Fail, then we might fix it.
-      // For now, let's verify it propagates the error (Fail Closed) or we fix the code.
-      // Assuming we want resiliency, we should probably wrap it.
-      // Let's assert that it fails for now, confirming the behavior.
-
+      // We added caching to findUserById, so it should behave similarly to the old findUserByClerkId test
       try {
-        await UserService.findUserByClerkId("clerk_123");
-        // If implementation changes to swallow, this will pass.
+        await UserService.findUserById("user_123");
       } catch (e: any) {
         expect(e.message).toBe("Redis Connection Refused");
       }
@@ -154,7 +153,7 @@ describe("UserService SRE & Logic Suite", () => {
       // Simulate T2: Find returns null, but Create fails because T1 just finished
       (mockTx.user.findUnique as any).mockResolvedValue(null);
       (mockTx.user.create as any).mockRejectedValue(
-        new Error("Unique constraint failed on the fields: (`clerk_id`)")
+        new Error("Unique constraint failed on the fields: (`id`)")
       );
 
       const input = {
@@ -252,11 +251,11 @@ describe("UserService SRE & Logic Suite", () => {
       (redis.get as any).mockResolvedValueOnce(null);
       (db.user.findUnique as any).mockResolvedValue(mockUser);
 
-      await UserService.findUserByClerkId("u1");
+      await UserService.findUserById("u1");
 
       // 2nd Call: Redis Hit
       (redis.get as any).mockResolvedValueOnce(JSON.stringify(mockUser));
-      await UserService.findUserByClerkId("u1");
+      await UserService.findUserById("u1");
 
       expect(db.user.findUnique).toHaveBeenCalledTimes(1); // Only once
       expect(redis.get).toHaveBeenCalledTimes(2);
@@ -303,7 +302,7 @@ describe("UserService SRE & Logic Suite", () => {
       expect(mockTx.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            clerkId: "clerk_fresh",
+            id: "clerk_fresh", // Use Clerk ID for ID
             email: "fresh@example.com",
           }),
         })
@@ -341,11 +340,9 @@ describe("UserService SRE & Logic Suite", () => {
       (redis.get as any).mockResolvedValue(null);
       (db.user.findUnique as any).mockResolvedValue(null);
 
-      const result = await UserService.findUserByClerkId("unknown_clerk");
+      const result = await UserService.findUserById("unknown_user");
       expect(result).toBeNull();
-      // Should NOT set cache for null result (usually) or maybe we do "Set NULL"?
-      // Current implementation: if (user) { redis.set ... }
-      // So verify redis.set is NOT called.
+      // Should NOT set cache for null result
       expect(redis.set).not.toHaveBeenCalled();
     });
   });

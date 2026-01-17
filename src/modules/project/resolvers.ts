@@ -2,6 +2,7 @@ import { ServiceContext } from "@/graphql/types";
 import { requireUser } from "@/shared/utils/graphql-helpers";
 import { ProjectService } from "./service";
 import { CreateProjectInput } from "./types";
+import { AppError } from "@/shared/errors";
 
 export const resolvers = {
   Project: {
@@ -49,11 +50,12 @@ export const resolvers = {
       args: { workspaceId: string; slug: string },
       ctx: ServiceContext
     ) => {
-      const user = await requireUser(ctx);
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+
       return await ProjectService.checkSlugAvailability({
         workspaceId: args.workspaceId,
         slug: args.slug,
-        userId: user.id,
+        userId: ctx.auth.userId,
       });
     },
     createProject: async (
