@@ -5,7 +5,15 @@ import globals from "globals";
 import boundaries from "eslint-plugin-boundaries";
 
 export default tseslint.config(
-  { ignores: ["dist", "node_modules", ".agent", "**/*.test.ts"] },
+  {
+    ignores: [
+      "dist",
+      "node_modules",
+      ".agent",
+      "**/*.test.ts",
+      "src/graphql/generated.ts",
+    ],
+  },
   {
     extends: [
       js.configs.recommended,

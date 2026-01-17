@@ -4,8 +4,9 @@
     "dev": "bun run --hot src/app/server.ts",
     "build": "bun build ./src/app/server.ts --outdir ./dist --target bun",
     "format": "prettier --write .",
-    "lint": "eslint .",
-    "schema:sync": "bun run scripts/sync-schema.ts",
+    "lint": "eslint . --ext .ts",
+    "gen": "bun src/scripts/generate-schema.ts && graphql-codegen",
+    "sync": "bun run scripts/sync-schema.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -18,6 +19,7 @@
     "bullmq": "^5.66.4",
     "dataloader": "^2.2.3",
     "graphql": "^16.12.0",
+    "graphql-scalars": "^1.25.0",
     "graphql-yoga": "^5.18.0",
     "hono": "^4.11.3",
     "hono-pino": "^0.10.3",

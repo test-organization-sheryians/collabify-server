@@ -1,9 +1,11 @@
-import { ProjectLoaders } from "./../modules/project/dataloaders";
+import { ProjectLoaders } from "./../modules/project";
 import { Context as HonoContext } from "hono";
-import { UserLoaders } from "../modules/user/dataloaders";
-import { WorkspaceLoaders } from "../modules/workspace/dataloaders";
+import { UserLoaders } from "../modules/user";
+import { WorkspaceLoaders } from "../modules/workspace";
 import { NotificationLoaders } from "../modules/notification/dataloaders";
 import { YogaInitialContext } from "graphql-yoga";
+import { PrismaClient } from "@prisma/client";
+import { Redis } from "ioredis";
 
 export interface ApplicationContext {
   c: HonoContext;
@@ -11,6 +13,8 @@ export interface ApplicationContext {
     userId: string | null;
     sessionId: string | null;
   };
+  db: PrismaClient;
+  redis: Redis;
   dataloaders: {
     user: UserLoaders;
     workspace: WorkspaceLoaders;
