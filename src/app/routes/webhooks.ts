@@ -1,6 +1,6 @@
 import { Hono, Context } from "hono";
 import { ClerkWebhookService } from "../../services/clerk/webhook";
-import { UserService } from "../../modules/user/service";
+import { syncUser } from "../../modules/user";
 import { logger } from "../../shared/logger";
 
 const webhookRouter = new Hono();
@@ -37,11 +37,12 @@ webhookRouter.post("/api/webhooks/clerk", async (c: Context) => {
         }
 
         // 3. Module Layer: Execute Business Logic
-        await UserService.syncUserFromClerk({
+        await syncUser({
           clerkId: id,
           email: primaryEmail.email_address,
           fullName: `${first_name || ""} ${last_name || ""}`.trim(),
           avatarUrl: image_url,
+          emailVerified: primaryEmail.verification?.status === "verified",
         });
 
         logger.info({ userId: id }, "Successfully synced user");
