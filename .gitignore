@@ -2,7 +2,7 @@
 node_modules/
 
 /src/generated/prisma
-.env
 .gitignore
 test/
 scripts/
+config.bat
