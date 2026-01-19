@@ -7,7 +7,7 @@ export * from "./engine/bootstrap";
 
 export const NotificationModule = {
   startEngine: async () => {
-    const { startEngine } = await import("./engine/bootstrap");
+    const { startEngine } = await import("./engine/bootstrap.js");
     return startEngine();
   },
 };
