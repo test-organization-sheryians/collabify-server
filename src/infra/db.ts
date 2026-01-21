@@ -60,17 +60,26 @@ db.$on("warn", (e: Prisma.LogEvent) => {
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;
 
-export const checkConnection = async () => {
-  try {
-    await db.$connect();
-    // Execute a real query to verify the connection is actually alive
-    await db.$executeRaw`SELECT 1`;
-    logger.info("✅ Database connected successfully");
-  } catch (error) {
-    logger.error({
-      msg: "❌ Database connection failed",
-      error,
-    });
-    process.exit(1);
+export const checkConnection = async (retries = 10, delay = 2000) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      await db.$connect();
+      // Execute a real query to verify the connection is actually alive
+      await db.$executeRaw`SELECT 1`;
+      logger.info("✅ Database connected successfully");
+      return;
+    } catch (error) {
+      if (i === retries - 1) {
+        logger.error({
+          msg: "❌ Database connection failed after retries",
+          error,
+        });
+        process.exit(1);
+      }
+      logger.warn(
+        `Database connection failed, retrying in ${delay}ms... (${i + 1}/${retries})`
+      );
+      await new Promise((res) => setTimeout(res, delay));
+    }
   }
 };

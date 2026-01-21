@@ -5,6 +5,7 @@ const envSchema = z.object({
     .enum(["development", "production", "test"])
     .default("development"),
   PORT: z.coerce.number().default(3001),
+  HOST: z.string().default("0.0.0.0"),
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
@@ -32,6 +33,15 @@ const envSchema = z.object({
   AWS_ACCESS_KEY_ID: z.string().optional(),
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
   AWS_REGION: z.string().default("us-east-1"),
+
+  // Chat Debug / Chaos
+  DEBUG_CHAT: z.enum(["true", "false"]).default("false"),
+  DEBUG_CHAT_DROP_RATE: z.string().optional(),
+  DEBUG_CHAT_DELAY_MS: z.string().optional(),
+
+  // General
+  API_URL: z.string().url().default("http://localhost:3000"), // Default for dev
+  ASSIGNMENT_SERVER_HOST: z.string().default("172.17.0.1:3001"),
 });
 
 const parsed = envSchema.safeParse(process.env);
