@@ -53,8 +53,5 @@ export const getNotificationsTypeDefs = `
     title: String!
   }
 
-  type ChatMessage {
-    id: ID!
-    content: String!
-  }
+
 `;

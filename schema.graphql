@@ -41,6 +41,33 @@ type Query {
   myProjects(workspaceId: ID!): [Project!]!
   projectBySlug(workspaceId: ID!, slug: String!): Project
   project(id: ID!): Project
+  getChannelMessages(
+    channelId: ID!
+    limit: Int
+    beforeCursor: ID
+  ): [ChatMessage!]!
+  getThreadMessages(
+    parentMessageId: ID!
+    limit: Int
+    beforeCursor: ID
+  ): [ChatMessage!]!
+  getMessageById(messageId: ID!): ChatMessage
+  getMessagesAfterCursor(
+    channelId: ID!
+    afterCursor: ID!
+    limit: Int
+  ): [ChatMessage!]!
+  getMissingMessages(
+    channelId: ID!
+    rangeStart: ID!
+    rangeEnd: ID!
+  ): [ChatMessage!]!
+  getUserChannels(userId: ID!): [ChatChannel!]!
+  getChannelMembers(channelId: ID!): [ChatMember!]!
+  getChannelUnreadCount(channelId: ID!): Int!
+  getSubscribedChannels: [ID!]!
+  getLastReadMessage(channelId: ID!): ID
+  getPresenceMap(userIds: [ID!]!): [UserPresence!]!
 }
 
 type Mutation {
@@ -78,6 +105,10 @@ type Mutation {
     workspaceId: ID!
     slug: String!
   ): AvailabilityResponse!
+  createChannel(input: CreateChannelInput!): ChatChannel!
+  archiveChannel(input: ArchiveChannelInput!): ChatChannel!
+  renameChannel(input: RenameChannelInput!): ChatChannel!
+  createThread(input: CreateThreadInput!): ChatMessage!
 }
 
 type User {
@@ -190,11 +221,6 @@ type Page {
   title: String!
 }
 
-type ChatMessage {
-  id: ID!
-  content: String!
-}
-
 type ProjectMember {
   id: ID!
   user: User!
@@ -220,4 +246,80 @@ input CreateProjectInput {
   name: String!
   slug: String
   description: String
+}
+
+type ChatChannel {
+  id: ID!
+  workspaceId: ID!
+  projectId: ID
+  type: ChannelType!
+  name: String
+  topic: String
+  isArchived: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  deletedAt: DateTime
+  members: [ChatMember!]
+  lastMessage: ChatMessage
+  memberCount: Int!
+}
+
+enum ChannelType {
+  PUBLIC
+  PRIVATE
+  DM
+}
+
+type ChatMember {
+  id: ID!
+  channelId: ID!
+  userId: ID!
+  lastReadMsgId: ID
+  lastDeliveredMsgId: ID
+  role: String!
+  isMuted: Boolean!
+  joinedAt: DateTime!
+}
+
+type ChatMessage {
+  id: ID!
+  channelId: ID!
+  authorUserId: ID!
+  content: JSON!
+  type: String!
+  createdAt: DateTime!
+}
+
+type UserPresence {
+  userId: ID!
+  status: PresenceStatus!
+  lastActiveAt: DateTime
+}
+
+enum PresenceStatus {
+  ONLINE
+  AWAY
+  OFFLINE
+}
+
+input CreateChannelInput {
+  workspaceId: ID!
+  projectId: ID
+  name: String
+  topic: String
+  type: ChannelType
+  memberUserIds: [ID!]
+}
+
+input ArchiveChannelInput {
+  channelId: ID!
+}
+
+input RenameChannelInput {
+  channelId: ID!
+  name: String!
+}
+
+input CreateThreadInput {
+  parentMessageId: ID!
 }

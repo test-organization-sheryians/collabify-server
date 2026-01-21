@@ -65,17 +65,17 @@ export const createWorkspace = async (
       });
 
       // 2.1 Trigger Notification (Producer Wiring)
-      await NotificationModule.notify(tx, {
-        type: "workspace.created",
-        actorId: userId,
-        tenantId: ws.id,
-        payload: {
-          workspaceId: ws.id,
-          name: ws.name,
-          slug: ws.slug,
-          ownerId: userId,
-        },
-      });
+      // await NotificationModule.notify(tx, {
+      //   type: "workspace.created",
+      //   actorId: userId,
+      //   tenantId: ws.id,
+      //   payload: {
+      //     workspaceId: ws.id,
+      //     name: ws.name,
+      //     slug: ws.slug,
+      //     ownerId: userId,
+      //   },
+      // });
 
       return ws;
     });

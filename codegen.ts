@@ -2,7 +2,7 @@ import type { CodegenConfig } from "@graphql-codegen/cli";
 
 const config: CodegenConfig = {
   overwrite: true,
-  schema: "schema.graphql",
+  schema: "../schema.graphql",
   generates: {
     "src/graphql/generated.ts": {
       plugins: ["typescript", "typescript-resolvers"],
@@ -18,6 +18,10 @@ const config: CodegenConfig = {
           WorkspaceMember:
             "@prisma/client#WorkspaceMember as PrismaWorkspaceMember",
           Notification: "@prisma/client#Notification as PrismaNotification",
+          ChatChannel: "@prisma/client#ChatChannel as PrismaChatChannel",
+          ChatMember: "@prisma/client#ChatMember as PrismaChatMember",
+          ChatMessage: "@prisma/client#ChatMessage as PrismaChatMessage",
+          UserPresence: "@prisma/client#UserPresence as PrismaUserPresence",
         },
       },
     },

@@ -8,9 +8,12 @@ import {
   resolvers as notificationResolvers,
 } from "../modules/notification";
 import { projectTypeDefs, projectResolvers } from "../modules/project";
+import {
+  chatTypeDefs,
+  chatResolvers,
+} from "../modules/chat";
 
 import { ServiceContext } from "./types";
-
 export const schema = createSchema<ServiceContext>({
   typeDefs: [
     /* GraphQL */ `
@@ -33,6 +36,7 @@ export const schema = createSchema<ServiceContext>({
     workspaceTypeDefs,
     notificationTypeDefs,
     projectTypeDefs,
+    chatTypeDefs,
   ],
   resolvers: [
     {
@@ -46,5 +50,6 @@ export const schema = createSchema<ServiceContext>({
     workspaceResolvers,
     notificationResolvers,
     projectResolvers,
+    chatResolvers,
   ],
 });
