@@ -3,7 +3,7 @@ import { db } from "@/infra/db";
 import { AppError } from "@/shared/errors";
 import { SlugUtil } from "@/shared/utils/slug.util";
 import { CheckSlugAvailabilityInput, AvailabilityResponse } from "./types";
-import { LockingService } from "@/services/locking";
+import { LockingService, createLockKeys } from "@/services/locking";
 
 export const checkSlugAvailability = async (
   input: CheckSlugAvailabilityInput
@@ -11,8 +11,13 @@ export const checkSlugAvailability = async (
   const { workspaceId, slug, userId } = input;
   const normalizedSlug = SlugUtil.sanitize(slug).toLowerCase();
 
+  const keys = createLockKeys("project", {
+    type: "workspace",
+    id: workspaceId,
+  });
+
   // 1. Check Rate Limit (Hard Limit: 5 checks / 1 minute)
-  const rateLimitKey = `ratelimit:check_slug:${userId}`;
+  const rateLimitKey = keys.rateLimit(userId);
   const currentUsage = await redis.incr(rateLimitKey);
 
   // Set expiry on first use

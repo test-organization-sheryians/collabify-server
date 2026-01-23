@@ -4,7 +4,7 @@ import { AppError } from "@/shared/errors";
 import { SlugUtil } from "@/shared/utils/slug.util";
 import { Prisma, Project } from "@prisma/client";
 import { CreateProjectInput } from "./types";
-import { LockingService } from "@/services/locking";
+import { LockingService, createLockKeys } from "@/services/locking";
 
 const RESERVED_PROJECT_KEYS = [
   "settings",
@@ -56,7 +56,11 @@ export const createProject = async (input: {
     );
   }
 
-  const lockKey = `lock:workspace:${workspaceId}:project:${slug}`;
+  const keys = createLockKeys("project", {
+    type: "workspace",
+    id: workspaceId,
+  });
+  const lockKey = keys.resource(slug);
   const reservedBy = await redis.get(lockKey);
 
   if (reservedBy && reservedBy !== userId) {
@@ -101,8 +105,8 @@ export const createProject = async (input: {
 
     // 3. Finalize: Convert Lock -> "Exists" Cache (Atomic)
     // Matches Workspace Logic for parity
-    const existsKey = `project:exists:${workspaceId}:${slug}`;
-    const userResKey = `user:reservation:${userId}:workspace:${workspaceId}`;
+    const existsKey = keys.exists(slug);
+    const userResKey = keys.userReservation(userId);
 
     try {
       await LockingService.finalize(

@@ -6,7 +6,7 @@ import { checkRateLimit } from "@/shared/utils/rate-limiter";
 import { CheckAvailabilitySchema } from "./schema";
 import { z } from "zod";
 import { ServiceContext } from "@/graphql/types";
-import { LockingService } from "@/services/locking";
+import { LockingService, createLockKeys } from "@/services/locking";
 
 type CheckAvailabilityInput = z.infer<typeof CheckAvailabilitySchema>;
 
@@ -17,9 +17,11 @@ export const checkSlugAvailability = async (
   const { slug, userId } = input;
   const { db, redis } = ctx;
 
+  const keys = createLockKeys("workspace");
+
   // 0. Rate Limit
   const allowed = await checkRateLimit(
-    `ratelimit:check_slug:${userId}`,
+    keys.rateLimit(userId),
     WORKSPACE_LIMITS.CHECK_AVAILABILITY_RATE_LIMIT.MAX_REQUESTS,
     WORKSPACE_LIMITS.CHECK_AVAILABILITY_RATE_LIMIT.WINDOW_SECONDS
   );
@@ -36,7 +38,7 @@ export const checkSlugAvailability = async (
 
   // 1. Check Permanent Cache (Soft)
   try {
-    const existsCache = await redis.get(`workspace:exists:${normalizedSlug}`);
+    const existsCache = await redis.get(keys.exists(normalizedSlug));
     if (existsCache) {
       return {
         available: false,
@@ -50,7 +52,7 @@ export const checkSlugAvailability = async (
   }
 
   // 2. Check Lock (Soft)
-  const lockKey = `reserve:slug:${normalizedSlug}`;
+  const lockKey = keys.resource(normalizedSlug);
   try {
     const reservedBy = await redis.get(lockKey);
     if (reservedBy && reservedBy !== userId) {
@@ -79,11 +81,11 @@ export const checkSlugAvailability = async (
 
   // 3. Attempt Reservation via LockingService (Rolling Reservation)
   // We need to know our PREVIOUS reservation to release it.
-  const userResKey = `user:reservation:${userId}`;
+  const userResKey = keys.userReservation(userId);
   const previousSlug = await redis.get(userResKey);
 
   const oldLockKey = previousSlug
-    ? `reserve:slug:${previousSlug}`
+    ? keys.resource(previousSlug)
     : `dummy:lock:${userId}`; // Non-existent key for first-time alloc
 
   try {

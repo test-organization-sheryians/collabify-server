@@ -6,7 +6,7 @@ import { Prisma } from "@prisma/client";
 import { CreateWorkspaceInput } from "./types";
 import { NotificationModule } from "@/modules/notification";
 import { ServiceContext } from "@/graphql/types";
-import { LockingService } from "@/services/locking";
+import { LockingService, createLockKeys } from "@/services/locking";
 
 export const createWorkspace = async (
   input: CreateWorkspaceInput,
@@ -23,8 +23,10 @@ export const createWorkspace = async (
   // 0. Quota Check
   await QuotaService.enforceQuota(userId, "MAX_OWNED_WORKSPACES");
 
+  const keys = createLockKeys("workspace");
+
   // 1. Strict Lock Validation
-  const lockKey = `reserve:slug:${normalizedSlug}`;
+  const lockKey = keys.resource(normalizedSlug);
   try {
     const reservedBy = await redis.get(lockKey);
 
@@ -75,8 +77,8 @@ export const createWorkspace = async (
     });
 
     // 3. Cleanup & Cache (Atomic Transition)
-    const userResKey = `user:reservation:${userId}`;
-    const existsKey = `workspace:exists:${normalizedSlug}`;
+    const userResKey = keys.userReservation(userId);
+    const existsKey = keys.exists(normalizedSlug);
 
     try {
       await LockingService.finalize(

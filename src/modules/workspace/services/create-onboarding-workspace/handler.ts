@@ -6,7 +6,7 @@ import { getMyWorkspaces } from "../../queries/get-my-workspaces";
 import { checkSlugAvailability } from "../check-slug-availability";
 import { createWorkspace } from "../create-workspace";
 import { ServiceContext } from "@/graphql/types";
-import { LockingService } from "@/services/locking";
+import { LockingService, createLockKeys } from "@/services/locking";
 
 export const createOnboardingWorkspace = async (
   input: CreateOnboardingWorkspaceInput,
@@ -14,10 +14,11 @@ export const createOnboardingWorkspace = async (
 ) => {
   const { userId, userFullName, slug } = input;
   const { redis } = ctx;
+  const keys = createLockKeys("workspace");
 
   // 0. User Mutex (The "Turnstile")
   // Prevents concurrent requests from same user creating double workspaces.
-  const userLockKey = `lock:onboarding:${userId}`;
+  const userLockKey = keys.resource(`onboarding:${userId}`);
   const acquired = await LockingService.acquire(userLockKey, "1", 10);
 
   if (!acquired) {

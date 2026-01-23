@@ -65,18 +65,46 @@ await LockingService.switch(
 ## Usage Example (Workspace Creation)
 
 ```typescript
-// 1. Reserve
-await LockingService.switch(oldSlugLock, newSlugLock, userId, 180);
+// 1. Initialize Keys
+const keys = createLockKeys("workspace");
 
-// 2. DB Transaction
+// 2. Reserve / Switch
+await LockingService.switch(
+  keys.resource("apple"),
+  keys.resource("apricot"),
+  userId,
+  180,
+  keys.userReservation(userId),
+  "apricot"
+);
+
+// 3. DB Transaction
 const workspace = await db.workspace.create(...);
 
-// 3. Finalize (Cleanup)
+// 4. Finalize (Cleanup)
 await LockingService.finalize(
-  newSlugLock,
-  `workspace:exists:${slug}`,
+  keys.resource("apricot"),
+  keys.exists("apricot"),
   "1",
   3600,
   userId
 );
+```
+
+## Key Factory
+
+We use a functional factory `createLockKeys(entity, scope?)` to generate standardized Redis keys.
+
+### Global Scope
+
+```typescript
+const keys = createLockKeys("workspace");
+// keys.resource("slug") -> lock:workspace:slug
+```
+
+### Scoped Scope
+
+```typescript
+const keys = createLockKeys("project", { type: "workspace", id: "ws_123" });
+// keys.resource("slug") -> lock:workspace:ws_123:project:slug
 ```
