@@ -6,13 +6,7 @@ import { Prisma } from "@prisma/client";
 import { CreateWorkspaceInput } from "./types";
 import { NotificationModule } from "@/modules/notification";
 import { ServiceContext } from "@/graphql/types";
-
-const FINALIZE_CREATION_SCRIPT = `
-  redis.call("DEL", KEYS[1])
-  redis.call("DEL", KEYS[2])
-  redis.call("SET", KEYS[3], "1", "EX", ARGV[1])
-  return 1
-`;
+import { LockingService } from "@/services/locking";
 
 export const createWorkspace = async (
   input: CreateWorkspaceInput,
@@ -85,13 +79,13 @@ export const createWorkspace = async (
     const existsKey = `workspace:exists:${normalizedSlug}`;
 
     try {
-      await redis.eval(
-        FINALIZE_CREATION_SCRIPT,
-        3,
+      await LockingService.finalize(
         lockKey,
-        userResKey,
         existsKey,
-        "3600" // ARGV[1]: Cache TTL
+        "1",
+        3600,
+        userId,
+        userResKey
       );
     } catch (error) {
       logger.error(

@@ -3,30 +3,7 @@ import { db } from "@/infra/db";
 import { AppError } from "@/shared/errors";
 import { SlugUtil } from "@/shared/utils/slug.util";
 import { CheckSlugAvailabilityInput, AvailabilityResponse } from "./types";
-
-const ACQUIRE_LOCK_SCRIPT = `
-  -- 1. Check if target slug is taken by SOMEONE ELSE
-  local owner = redis.call("GET", KEYS[2])
-  if owner and owner ~= ARGV[1] then
-      return 0 -- Taken
-  end
-
-  -- 2. Rolling Release: Handle previous reservation (optional cleanup for sequential checks)
-  local oldSlug = redis.call("GET", KEYS[1])
-  if oldSlug and oldSlug ~= ARGV[2] then
-      local oldLockKey = "lock:workspace:" .. ARGV[3] .. ":project:" .. oldSlug
-      local oldOwner = redis.call("GET", oldLockKey)
-      if oldOwner == ARGV[1] then
-          redis.call("DEL", oldLockKey) -- Release old lock
-      end
-  end
-
-  -- 3. Acquire New Lock
-  redis.call("SET", KEYS[2], ARGV[1], "EX", ARGV[4])
-  redis.call("SET", KEYS[1], ARGV[2], "EX", ARGV[4])
-
-  return 1 -- Success
-`;
+import { LockingService } from "@/services/locking";
 
 export const checkSlugAvailability = async (
   input: CheckSlugAvailabilityInput
@@ -64,31 +41,39 @@ export const checkSlugAvailability = async (
     };
   }
 
-  // 3. Attempt Reservation via Redis Lua Script
+  // 3. Attempt Reservation via LockingService (Rolling Reservation)
+  // We need to know our PREVIOUS reservation to release it.
   const userResKey = `user:reservation:${userId}:workspace:${workspaceId}`;
+
+  // Note: userResKey in Project context stores the SLUG, not the full lock key.
+  const previousSlug = await redis.get(userResKey);
   const lockKey = `lock:workspace:${workspaceId}:project:${normalizedSlug}`;
-  const ttl = 180; // 3 minutes reservation
+  const ttl = 180;
+
+  const oldLockKey = previousSlug
+    ? `lock:workspace:${workspaceId}:project:${previousSlug}`
+    : `dummy:lock:${userId}`; // Non-existent for first-time alloc
 
   try {
-    const result = await redis.eval(
-      ACQUIRE_LOCK_SCRIPT,
-      2,
-      userResKey,
+    const reserved = await LockingService.switch(
+      oldLockKey,
       lockKey,
       userId,
-      normalizedSlug,
-      workspaceId,
-      ttl.toString()
+      ttl,
+      userResKey,
+      normalizedSlug
     );
 
-    if (result === 0) {
-      // Lock held by someone else
+    if (!reserved) {
       return {
         available: false,
         message: "Project key is currently reserved by another user",
         reason: "PROJECT_SLUG_RESERVATION_FAILED",
       };
     }
+
+    // Pointer updated atomically in service
+    // await redis.set(userResKey, normalizedSlug, "EX", ttl);
 
     return {
       available: true,

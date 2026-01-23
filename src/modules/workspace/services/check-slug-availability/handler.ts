@@ -6,6 +6,7 @@ import { checkRateLimit } from "@/shared/utils/rate-limiter";
 import { CheckAvailabilitySchema } from "./schema";
 import { z } from "zod";
 import { ServiceContext } from "@/graphql/types";
+import { LockingService } from "@/services/locking";
 
 type CheckAvailabilityInput = z.infer<typeof CheckAvailabilitySchema>;
 
@@ -76,49 +77,35 @@ export const checkSlugAvailability = async (
     };
   }
 
-  const ACQUIRE_LOCK_SCRIPT = `
-      -- 1. Check if target slug is taken by SOMEONE ELSE
-      local owner = redis.call("GET", KEYS[2])
-      if owner and owner ~= ARGV[1] then
-          return 0 -- Taken
-      end
+  // 3. Attempt Reservation via LockingService (Rolling Reservation)
+  // We need to know our PREVIOUS reservation to release it.
+  const userResKey = `user:reservation:${userId}`;
+  const previousSlug = await redis.get(userResKey);
 
-      -- 2. Rolling Release: Handle previous reservation
-      local oldSlug = redis.call("GET", KEYS[1])
-      if oldSlug and oldSlug ~= ARGV[2] then
-          local oldLockKey = "reserve:slug:" .. oldSlug
-          local oldOwner = redis.call("GET", oldLockKey)
-          if oldOwner == ARGV[1] then
-              redis.call("DEL", oldLockKey) -- Release old lock
-          end
-      end
-
-      -- 3. Acquire New Lock
-      redis.call("SET", KEYS[2], ARGV[1], "EX", ARGV[3])
-      redis.call("SET", KEYS[1], ARGV[2], "EX", ARGV[3])
-
-      return 1 -- Success
-    `;
+  const oldLockKey = previousSlug
+    ? `reserve:slug:${previousSlug}`
+    : `dummy:lock:${userId}`; // Non-existent key for first-time alloc
 
   try {
-    const userResKey = `user:reservation:${userId}`;
-    const result = await redis.eval(
-      ACQUIRE_LOCK_SCRIPT,
-      2,
-      userResKey,
+    const reserved = await LockingService.switch(
+      oldLockKey,
       lockKey,
       userId,
-      normalizedSlug,
-      "180" // TTL
+      180,
+      userResKey,
+      normalizedSlug
     );
 
-    if (result === 0) {
+    if (!reserved) {
       return {
         available: false,
         message: "Slug is currently reserved",
         reason: "WORKSPACE_SLUG_RESERVATION_FAILED",
       };
     }
+
+    // Pointer updated atomically in service
+    // await redis.set(userResKey, normalizedSlug, "EX", 180);
 
     return {
       available: true,

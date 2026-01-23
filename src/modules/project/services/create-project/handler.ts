@@ -4,6 +4,7 @@ import { AppError } from "@/shared/errors";
 import { SlugUtil } from "@/shared/utils/slug.util";
 import { Prisma, Project } from "@prisma/client";
 import { CreateProjectInput } from "./types";
+import { LockingService } from "@/services/locking";
 
 const RESERVED_PROJECT_KEYS = [
   "settings",
@@ -98,7 +99,26 @@ export const createProject = async (input: {
       return project;
     });
 
-    await redis.del(lockKey);
+    // 3. Finalize: Convert Lock -> "Exists" Cache (Atomic)
+    // Matches Workspace Logic for parity
+    const existsKey = `project:exists:${workspaceId}:${slug}`;
+    const userResKey = `user:reservation:${userId}:workspace:${workspaceId}`;
+
+    try {
+      await LockingService.finalize(
+        lockKey,
+        existsKey,
+        "1",
+        3600, // 1 hour soft cache
+        userId,
+        userResKey
+      );
+    } catch (error) {
+      if (error instanceof AppError) {
+        // Log but don't fail the request since DB is committed
+        console.warn("Project Lock Finalize Error:", error.message);
+      }
+    }
 
     return newProject;
   } catch (error: unknown) {
