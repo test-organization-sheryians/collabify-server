@@ -41,6 +41,14 @@ export type AvailabilityResponse = {
   reservationId?: Maybe<Scalars['String']['output']>;
 };
 
+export type ChannelAvailabilityResponse = {
+  __typename?: 'ChannelAvailabilityResponse';
+  available: Scalars['Boolean']['output'];
+  message?: Maybe<Scalars['String']['output']>;
+  reason?: Maybe<Scalars['String']['output']>;
+  reservationId?: Maybe<Scalars['String']['output']>;
+};
+
 export enum ChannelType {
   Dm = 'DM',
   Private = 'PRIVATE',
@@ -84,6 +92,11 @@ export type ChatMessage = {
   createdAt: Scalars['DateTime']['output'];
   id: Scalars['ID']['output'];
   type: Scalars['String']['output'];
+};
+
+export type CheckChannelAvailabilityInput = {
+  projectId: Scalars['ID']['input'];
+  slug: Scalars['String']['input'];
 };
 
 export type CreateChannelInput = {
@@ -132,6 +145,7 @@ export type Mutation = {
   _health?: Maybe<Scalars['String']['output']>;
   acceptWorkspaceInvite: JoinResponse;
   archiveChannel: ChatChannel;
+  checkChannelAvailability: ChannelAvailabilityResponse;
   checkProjectSlugAvailability: AvailabilityResponse;
   checkSlugAvailability: AvailabilityResponse;
   createChannel: ChatChannel;
@@ -158,6 +172,11 @@ export type MutationAcceptWorkspaceInviteArgs = {
 
 export type MutationArchiveChannelArgs = {
   input: ArchiveChannelInput;
+};
+
+
+export type MutationCheckChannelAvailabilityArgs = {
+  input: CheckChannelAvailabilityInput;
 };
 
 
@@ -574,10 +593,12 @@ export type ResolversTypes = ResolversObject<{
   ArchiveChannelInput: ArchiveChannelInput;
   AvailabilityResponse: ResolverTypeWrapper<AvailabilityResponse>;
   Boolean: ResolverTypeWrapper<Scalars['Boolean']['output']>;
+  ChannelAvailabilityResponse: ResolverTypeWrapper<ChannelAvailabilityResponse>;
   ChannelType: ChannelType;
   ChatChannel: ResolverTypeWrapper<PrismaChatChannel>;
   ChatMember: ResolverTypeWrapper<PrismaChatMember>;
   ChatMessage: ResolverTypeWrapper<PrismaChatMessage>;
+  CheckChannelAvailabilityInput: CheckChannelAvailabilityInput;
   CreateChannelInput: CreateChannelInput;
   CreateProjectInput: CreateProjectInput;
   CreateThreadInput: CreateThreadInput;
@@ -615,9 +636,11 @@ export type ResolversParentTypes = ResolversObject<{
   ArchiveChannelInput: ArchiveChannelInput;
   AvailabilityResponse: AvailabilityResponse;
   Boolean: Scalars['Boolean']['output'];
+  ChannelAvailabilityResponse: ChannelAvailabilityResponse;
   ChatChannel: PrismaChatChannel;
   ChatMember: PrismaChatMember;
   ChatMessage: PrismaChatMessage;
+  CheckChannelAvailabilityInput: CheckChannelAvailabilityInput;
   CreateChannelInput: CreateChannelInput;
   CreateProjectInput: CreateProjectInput;
   CreateThreadInput: CreateThreadInput;
@@ -649,6 +672,13 @@ export type ResolversParentTypes = ResolversObject<{
 }>;
 
 export type AvailabilityResponseResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['AvailabilityResponse'] = ResolversParentTypes['AvailabilityResponse']> = ResolversObject<{
+  available?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  message?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  reason?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  reservationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+}>;
+
+export type ChannelAvailabilityResponseResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ChannelAvailabilityResponse'] = ResolversParentTypes['ChannelAvailabilityResponse']> = ResolversObject<{
   available?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   message?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   reason?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
@@ -715,6 +745,7 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   _health?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   acceptWorkspaceInvite?: Resolver<ResolversTypes['JoinResponse'], ParentType, ContextType, RequireFields<MutationAcceptWorkspaceInviteArgs, 'input'>>;
   archiveChannel?: Resolver<ResolversTypes['ChatChannel'], ParentType, ContextType, RequireFields<MutationArchiveChannelArgs, 'input'>>;
+  checkChannelAvailability?: Resolver<ResolversTypes['ChannelAvailabilityResponse'], ParentType, ContextType, RequireFields<MutationCheckChannelAvailabilityArgs, 'input'>>;
   checkProjectSlugAvailability?: Resolver<ResolversTypes['AvailabilityResponse'], ParentType, ContextType, RequireFields<MutationCheckProjectSlugAvailabilityArgs, 'slug' | 'workspaceId'>>;
   checkSlugAvailability?: Resolver<ResolversTypes['AvailabilityResponse'], ParentType, ContextType, RequireFields<MutationCheckSlugAvailabilityArgs, 'slug'>>;
   createChannel?: Resolver<ResolversTypes['ChatChannel'], ParentType, ContextType, RequireFields<MutationCreateChannelArgs, 'input'>>;
@@ -871,6 +902,7 @@ export type WorkspaceMemberResolvers<ContextType = ServiceContext, ParentType ex
 
 export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   AvailabilityResponse?: AvailabilityResponseResolvers<ContextType>;
+  ChannelAvailabilityResponse?: ChannelAvailabilityResponseResolvers<ContextType>;
   ChatChannel?: ChatChannelResolvers<ContextType>;
   ChatMember?: ChatMemberResolvers<ContextType>;
   ChatMessage?: ChatMessageResolvers<ContextType>;

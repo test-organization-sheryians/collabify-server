@@ -2,6 +2,7 @@ import { typeDefs as createChannelTypeDefs } from "../services/create-channel";
 import { typeDefs as archiveChannelTypeDefs } from "../services/archive-channel";
 import { typeDefs as renameChannelTypeDefs } from "../services/rename-channel";
 import { typeDefs as createThreadTypeDefs } from "../services/create-thread";
+import { typeDefs as checkChannelAvailabilityTypeDefs } from "../services/check-channel-availability";
 
 import { typeDefs as getChannelMessagesTypeDefs } from "../queries/get-channel-messages";
 import { typeDefs as getThreadMessagesTypeDefs } from "../queries/get-thread-messages";
@@ -80,6 +81,7 @@ export const typeDefs = [
   archiveChannelTypeDefs,
   renameChannelTypeDefs,
   createThreadTypeDefs,
+  checkChannelAvailabilityTypeDefs,
 
   // Queries (Reads)
   getChannelMessagesTypeDefs,

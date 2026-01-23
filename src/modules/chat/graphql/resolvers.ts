@@ -96,6 +96,14 @@ export const resolvers: Resolvers = {
       const input = services.createThread.createThreadSchema.parse(args.input);
       return services.createThread.handler(input, ctx);
     },
+    checkChannelAvailability: async (_, args, ctx) => {
+      await requireUser(ctx);
+      const input =
+        services.checkChannelAvailability.CheckChannelAvailabilitySchema.parse(
+          args.input
+        );
+      return services.checkChannelAvailability.handler(input, ctx);
+    },
   },
   ChatChannel: {
     members: (parent, _args, ctx) => {

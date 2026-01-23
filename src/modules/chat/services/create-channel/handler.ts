@@ -2,6 +2,8 @@ import { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
 import { Prisma } from "@prisma/client";
 import { CreateChannelInput } from "./types";
+import { LockingService, createLockKeys } from "@/services/locking";
+import { SlugUtil } from "@/shared/utils/slug.util";
 
 export const handler = async (
   input: CreateChannelInput,
@@ -11,6 +13,34 @@ export const handler = async (
   if (!userId) throw AppError.unauthorized("User not authenticated");
 
   try {
+    const needsLocking =
+      input.projectId &&
+      input.name &&
+      ["PUBLIC", "PRIVATE"].includes(input.type);
+
+    let lockKey: string | null = null;
+    let keys: ReturnType<typeof createLockKeys> | null = null;
+    let normalizedSlug = "";
+
+    if (needsLocking && input.projectId && input.name) {
+      normalizedSlug = SlugUtil.sanitize(input.name).toLowerCase();
+      keys = createLockKeys("channel", {
+        type: "project",
+        id: input.projectId,
+      });
+      lockKey = keys.resource(normalizedSlug);
+
+      // Verify Lock
+      const reservedBy = await ctx.redis.get(lockKey);
+
+      if (reservedBy && reservedBy !== userId) {
+        throw AppError.conflict(
+          "Channel Name reserved by another user",
+          "CHANNEL_NAME_RESERVATION_STOLEN"
+        );
+      }
+    }
+
     // 1. Authorization: User must be a member of the workspace
     const membership = await ctx.db.workspaceMember.findUnique({
       where: {
@@ -55,30 +85,50 @@ export const handler = async (
     }
 
     // 4. Create Channel
-    const channel = await ctx.db.chatChannel.create({
-      data: {
-        workspaceId: input.workspaceId,
-        projectId: input.projectId,
-        name: input.name,
-        topic: input.topic,
-        type: input.type,
-        members: {
-          createMany: {
-            data: [
-              // Always add the creator as OWNER
-              { userId, role: "OWNER" },
-              // Add other invited members as MEMBER
-              ...(input.memberUserIds
-                ?.filter((id) => id !== userId)
-                .map((id) => ({
-                  userId: id,
-                  role: "MEMBER",
-                })) || []),
-            ],
+    const channel = await ctx.db.$transaction(async (tx) => {
+      const ch = await tx.chatChannel.create({
+        data: {
+          workspaceId: input.workspaceId,
+          projectId: input.projectId,
+          name: input.name,
+          topic: input.topic,
+          type: input.type,
+          members: {
+            createMany: {
+              data: [
+                // Always add the creator as OWNER
+                { userId, role: "OWNER" },
+                // Add other invited members as MEMBER
+                ...(input.memberUserIds
+                  ?.filter((id) => id !== userId)
+                  .map((id) => ({
+                    userId: id,
+                    role: "MEMBER",
+                  })) || []),
+              ],
+            },
           },
         },
-      },
+      });
+      return ch;
     });
+
+    // 5. Finalize Lock (if applicable)
+    if (lockKey && keys) {
+      try {
+        await LockingService.finalize(
+          lockKey,
+          keys.exists(normalizedSlug),
+          "1",
+          3600,
+          userId,
+          keys.userReservation(userId)
+        );
+      } catch (err) {
+        // Log error but don't fail request
+        console.error("Failed to finalize channel lock", err);
+      }
+    }
 
     return channel;
   } catch (error: any) {
