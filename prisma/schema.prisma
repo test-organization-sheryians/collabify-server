@@ -490,9 +490,9 @@ model ChatChannel {
   name        String?
   topic       String?
   isArchived  Boolean     @default(false) @map("is_archived")
-
-  createdAt DateTime  @default(now()) @map("created_at")
-  deletedAt DateTime? @map("deleted_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  deletedAt   DateTime?   @map("deleted_at")
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   project   Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)

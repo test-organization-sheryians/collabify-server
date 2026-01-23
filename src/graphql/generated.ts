@@ -418,6 +418,7 @@ export type QueryGetThreadMessagesArgs = {
 export type QueryGetUserChannelsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
+  projectId: Scalars['ID']['input'];
   workspaceId: Scalars['ID']['input'];
 };
 
@@ -840,7 +841,7 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   getPresenceMap?: Resolver<Array<ResolversTypes['UserPresence']>, ParentType, ContextType, RequireFields<QueryGetPresenceMapArgs, 'userIds'>>;
   getSubscribedChannels?: Resolver<Array<ResolversTypes['ID']>, ParentType, ContextType>;
   getThreadMessages?: Resolver<Array<ResolversTypes['ChatMessage']>, ParentType, ContextType, RequireFields<QueryGetThreadMessagesArgs, 'parentMessageId'>>;
-  getUserChannels?: Resolver<Array<ResolversTypes['ChatChannel']>, ParentType, ContextType, RequireFields<QueryGetUserChannelsArgs, 'workspaceId'>>;
+  getUserChannels?: Resolver<Array<ResolversTypes['ChatChannel']>, ParentType, ContextType, RequireFields<QueryGetUserChannelsArgs, 'projectId' | 'workspaceId'>>;
   getWorkspaceInviteInfo?: Resolver<ResolversTypes['WorkspaceInviteInfo'], ParentType, ContextType, RequireFields<QueryGetWorkspaceInviteInfoArgs, 'token'>>;
   health?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   me?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;

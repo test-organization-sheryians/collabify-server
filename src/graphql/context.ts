@@ -4,6 +4,7 @@ import { createUserLoaders } from "../modules/user";
 import { createWorkspaceLoaders } from "../modules/workspace";
 import { createNotificationLoaders } from "../modules/notification/dataloaders";
 import { createProjectLoaders } from "../modules/project";
+import { createChatLoaders } from "../modules/chat";
 import { ApplicationContext } from "./types";
 import { db } from "@/infra/db";
 import { redis } from "@/infra/redis";
@@ -24,6 +25,7 @@ export const createContext = (c: Context): ApplicationContext => {
       workspace: createWorkspaceLoaders(),
       notification: createNotificationLoaders(),
       project: createProjectLoaders(),
+      chat: createChatLoaders(),
     },
   };
 };
