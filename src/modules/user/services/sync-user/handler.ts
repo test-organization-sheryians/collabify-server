@@ -4,7 +4,10 @@ import { logger } from "@/shared/logger";
 import { OutboxWriter } from "@/modules/notification/lib/outbox.writer";
 import { SyncUserInput } from "./types";
 
-export const syncUser = async (input: SyncUserInput, ctx: ServiceContext) => {
+export const syncUser = async (
+  input: SyncUserInput,
+  ctx: Pick<ServiceContext, "db" | "redis">
+) => {
   const data = input;
   const { db, redis } = ctx;
 

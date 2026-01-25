@@ -11,7 +11,7 @@ import { createConnection } from "./connection";
 export const createWorker = <T = unknown>(
   name: string,
   processor: Processor<T>,
-  options?: WorkerOptions
+  options?: Omit<WorkerOptions, "connection">
 ) => {
   logger.info({ worker: name }, "Worker initializing...");
 

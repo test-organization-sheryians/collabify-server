@@ -113,7 +113,7 @@ model Workspace {
   pages       Page[]
   vaultFiles  VaultFile[]
   whiteboards Whiteboard[]
-  chats       ChatChannel[]
+  chats       ChatConversation[]
   tasks       Task[]
 
   usageRecords            UsageRecord[]
@@ -242,7 +242,7 @@ model Project {
   vaultFolders VaultFolder[]
   vaultFiles   VaultFile[]
   whiteboards  Whiteboard[]
-  chats        ChatChannel[]
+  chats        ChatConversation[]
   boards       Board[]
   meets        Meet[]
   aiChats      CollabifyAiConversation[]
@@ -454,10 +454,11 @@ model Task {
   @@map("tasks")
 }
 
-enum ChannelType {
-  PUBLIC
-  PRIVATE
+enum ConversationType {
+  CHANNEL
   DM
+  GROUP_DM
+  THREAD
 }
 
 enum OutboxStatus {
@@ -468,31 +469,33 @@ enum OutboxStatus {
 }
 
 model OutboxMessage {
-  id          BigInt       @id @default(autoincrement())
-  messageId   String       @unique @map("message_id")
-  channelId   String       @map("channel_id")
-  payload     Json
-  status      OutboxStatus @default(PENDING)
-  errorLog    Json?        @map("error_log")
-  retryCount  Int          @default(0) @map("retry_count")
-  createdAt   DateTime     @default(now()) @map("created_at")
-  processedAt DateTime?    @map("processed_at")
+  id               BigInt           @id @default(autoincrement())
+  messageId        String           @unique @map("message_id")
+  conversationId   String           @map("conversation_id")
+  conversationType ConversationType @default(CHANNEL) @map("conversation_type")
+  payload          Json
+  status           OutboxStatus     @default(PENDING)
+  errorLog         Json?            @map("error_log")
+  retryCount       Int              @default(0) @map("retry_count")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  processedAt      DateTime?        @map("processed_at")
 
+  @@unique([conversationId, messageId]) // Validated Idempotency Constraint
   @@index([status, createdAt])
   @@map("chat_outbox_messages")
 }
 
-model ChatChannel {
-  id          String      @id @default(cuid())
-  workspaceId String      @map("workspace_id")
-  projectId   String?     @map("project_id")
-  type        ChannelType @default(PUBLIC)
+model ChatConversation {
+  id          String           @id @default(cuid())
+  workspaceId String           @map("workspace_id")
+  projectId   String?          @map("project_id")
+  type        ConversationType @default(CHANNEL)
   name        String?
   topic       String?
-  isArchived  Boolean     @default(false) @map("is_archived")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
-  createdAt   DateTime    @default(now()) @map("created_at")
-  deletedAt   DateTime?   @map("deleted_at")
+  isArchived  Boolean          @default(false) @map("is_archived")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  deletedAt   DateTime?        @map("deleted_at")
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   project   Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -501,13 +504,13 @@ model ChatChannel {
   messages ChatMessage[]
 
   @@unique([projectId, name])
-  @@map("chat_channels")
+  @@map("chat_conversations")
 }
 
 model ChatMember {
-  id        String @id @default(cuid())
-  channelId String @map("channel_id")
-  userId    String @map("user_id")
+  id             String @id @default(cuid())
+  conversationId String @map("conversation_id")
+  userId         String @map("user_id")
 
   // Read State
   lastReadMsgId      String?  @map("last_read_msg_id") // Blue Tick
@@ -519,17 +522,17 @@ model ChatMember {
   role     String   @default("MEMBER")
   isMuted  Boolean  @default(false) @map("is_muted")
 
-  channel ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([channelId, userId])
+  @@unique([conversationId, userId])
   @@map("chat_members")
 }
 
 model ChatMessage {
-  id           String @id // ULID
-  channelId    String @map("channel_id")
-  authorUserId String @map("author_user_id")
+  id             String @id // ULID
+  conversationId String @map("conversation_id")
+  authorUserId   String @map("author_user_id")
 
   // Sequencing (The Hybrid Link)
   streamId String @map("stream_id")
@@ -550,14 +553,14 @@ model ChatMessage {
   createdAt DateTime  @default(now()) @map("created_at")
 
   // Relations
-  channel       ChatChannel       @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  conversation  ChatConversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   author        User              @relation(fields: [authorUserId], references: [id], onDelete: Cascade)
   parentMessage ChatMessage?      @relation("ThreadReplies", fields: [parentMessageId], references: [id])
   replies       ChatMessage[]     @relation("ThreadReplies")
   reactions     MessageReaction[]
 
-  @@unique([channelId, streamId]) // STRICT ORDERING CONSTRAINT
-  @@index([channelId, createdAt(sort: Desc)])
+  @@unique([conversationId, streamId]) // STRICT ORDERING CONSTRAINT
+  @@index([conversationId, createdAt(sort: Desc)])
   @@index([parentMessageId, createdAt(sort: Asc)])
   @@map("chat_messages")
 }

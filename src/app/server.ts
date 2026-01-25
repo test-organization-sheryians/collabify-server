@@ -1,24 +1,37 @@
-import { Hono, Context } from "hono";
-import webhookRoutes from "./routes/webhooks";
-import { checkConnection } from "../infra/db";
-import { NotificationModule } from "../modules/notification";
-import { createWSGateway } from "../infra/ws-gateway";
+import { Context, Hono } from "hono";
 import { registerGlobalMiddleware } from "../app/middlewares/index";
+import { checkConnection } from "../infra/db";
+import { createWSGateway } from "../infra/ws/gateway";
+import { registerGlobalWSRoutes } from "../infra/ws/ws-routes";
 import { internalRoutes } from "../modules/internal/internal.controller";
-import { createGraphQLApp } from "./graphql/yoga";
+import { NotificationModule } from "../modules/notification";
 import { env } from "../shared/config/env";
 import { logger } from "../shared/logger";
+import { createGraphQLApp } from "./graphql/yoga";
+import webhookRoutes from "./routes/webhooks";
+import { ChatModule } from "../modules/chat";
+import { wsRegistry } from "../infra/ws/subscription-registry";
 
 const app = new Hono();
 
 // 1. Bootstrapping
 void checkConnection(); // Check DB
-NotificationModule.startEngine().catch((err) => {
-  logger.error({ err }, "Failed to start Notification Engine");
+// NotificationModule.startEngine().catch((err) => {
+//   logger.error({ err }, "Failed to start Notification Engine");
+// });
+
+ChatModule.startEngine().catch((err) => {
+  logger.error({ err }, "Failed to start Chat Engine");
 });
 
-// 2. Global Middleware
+// Start Subscription Janitor
+wsRegistry.init();
+
+// Initialize Global Middleware
 registerGlobalMiddleware(app);
+
+// Register WebSocket Routes
+registerGlobalWSRoutes();
 
 // 3. Routes
 app.get("/", (c: Context) => c.text("Collabify Server is running!"));

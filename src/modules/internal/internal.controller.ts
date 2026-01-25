@@ -1,6 +1,6 @@
 import { Hono, Context } from "hono";
-import { getWSMetrics } from "../../infra/ws-gateway";
 import { assignWorkspace } from "./services/assign-workspace/handler";
+import { getWSMetrics } from "@/infra/ws/gateway";
 
 const app = new Hono();
 
