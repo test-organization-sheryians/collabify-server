@@ -8,6 +8,8 @@ import {
 } from "./types";
 import { env } from "../../shared/config/env";
 
+import { ping } from "./events/ping";
+
 /**
  * The Central WebSocket Router
  *
@@ -20,7 +22,9 @@ import { env } from "../../shared/config/env";
  * 5. Catch Errors
  */
 export class WSRouter {
-  private routes: RouteMap = {};
+  private routes: RouteMap = {
+    ping,
+  };
 
   /**
    * Register a module's routes

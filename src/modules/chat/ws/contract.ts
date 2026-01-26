@@ -6,7 +6,7 @@ import { z } from "zod";
  */
 
 export const SendMessagePayloadSchema = z.object({
-  conversationId: z.string().uuid(),
+  conversationId: z.string().min(1),
   // Deduplication logic relies on client-gen UUID
   dedupeId: z.string().uuid(),
   content: z.string().min(1).max(4000),
@@ -24,13 +24,13 @@ export const NewMessageSchema = z.object({
   type: z.literal("chat:new-message"),
   data: z.object({
     streamId: z.string(), // The authoritative ID
-    conversationId: z.string().uuid(),
-    messageId: z.string().uuid().optional(), // If persisted immediately (Optional in stream phase)
-    authorId: z.string().uuid(),
+    conversationId: z.string().min(1),
+    messageId: z.string().min(1).optional(), // If persisted immediately (Optional in stream phase)
+    authorId: z.string().min(1),
     content: z.string(),
     createdAt: z.string().datetime(),
     // dedupeId is useful for client to double-check their own optimistically rendered message
-    dedupeId: z.string().uuid().optional(),
+    dedupeId: z.string().min(1).optional(),
   }),
 });
 

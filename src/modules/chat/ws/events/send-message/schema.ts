@@ -1,10 +1,10 @@
 import { z } from "zod";
 
 export const sendMessageSchema = z.object({
-  conversationId: z.string().uuid(),
+  conversationId: z.string().min(1),
   content: z.string().min(1).max(4000),
   dedupeId: z.string().uuid(), // Client-generated UUID for idempotency
-  threadId: z.string().uuid().optional(), // Parent message ID if replying
+  threadId: z.string().min(1).optional(), // Parent message ID if replying
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
