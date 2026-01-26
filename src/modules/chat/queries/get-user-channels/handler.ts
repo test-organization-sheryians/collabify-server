@@ -46,10 +46,11 @@ export const handler = async (
     throw AppError.forbidden("You are not a member of this project");
   }
 
-  return ctx.db.chatChannel.findMany({
+  return ctx.db.chatConversation.findMany({
     where: {
       workspaceId: input.workspaceId,
       projectId: input.projectId,
+      type: "CHANNEL",
       deletedAt: null,
       members: {
         some: {

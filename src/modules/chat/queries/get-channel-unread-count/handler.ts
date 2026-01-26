@@ -8,8 +8,8 @@ export const handler = async (
   // 1. Get user's membership to find lastReadAt
   const member = await ctx.db.chatMember.findUnique({
     where: {
-      channelId_userId: {
-        channelId: input.channelId,
+      conversationId_userId: {
+        conversationId: input.channelId,
         userId: ctx.auth.userId || "", // Provided by auth middleware
       },
     },
@@ -22,7 +22,7 @@ export const handler = async (
   // 2. Count messages created after lastReadAt
   return await ctx.db.chatMessage.count({
     where: {
-      channelId: input.channelId,
+      conversationId: input.channelId,
       createdAt: {
         gt: member.lastReadAt,
       },

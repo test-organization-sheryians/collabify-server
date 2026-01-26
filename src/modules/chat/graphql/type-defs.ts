@@ -17,11 +17,11 @@ import { typeDefs as getLastReadMessageTypeDefs } from "../queries/get-last-read
 import { typeDefs as getPresenceMapTypeDefs } from "../queries/get-presence-map";
 
 const sharedTypeDefs = /* GraphQL */ `
-  type ChatChannel {
+  type Conversation {
     id: ID!
     workspaceId: ID!
     projectId: ID
-    type: ChannelType!
+    type: ConversationType!
     name: String
     topic: String
     isArchived: Boolean!
@@ -34,15 +34,15 @@ const sharedTypeDefs = /* GraphQL */ `
     memberCount: Int!
   }
 
-  enum ChannelType {
-    PUBLIC
-    PRIVATE
+  enum ConversationType {
+    CHANNEL
     DM
+    GROUP_DM
   }
 
   type ChatMember {
     id: ID!
-    channelId: ID!
+    conversationId: ID!
     userId: ID!
     lastReadMsgId: ID
     lastDeliveredMsgId: ID
@@ -53,7 +53,7 @@ const sharedTypeDefs = /* GraphQL */ `
 
   type ChatMessage {
     id: ID!
-    channelId: ID!
+    conversationId: ID!
     authorUserId: ID!
     content: JSON!
     type: String!

@@ -7,7 +7,7 @@ export const handler = async (
 ) => {
   return await ctx.db.chatMessage.findMany({
     where: {
-      channelId: input.channelId,
+      conversationId: input.channelId,
       // Lexicographical string comparison for ULIDs works for range
       id: {
         gte: input.rangeStart,

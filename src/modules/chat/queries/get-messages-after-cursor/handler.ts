@@ -7,7 +7,7 @@ export const handler = async (
 ) => {
   return await ctx.db.chatMessage.findMany({
     where: {
-      channelId: input.channelId,
+      conversationId: input.channelId,
     },
     take: input.limit,
     skip: 1, // Skip the cursor itself

@@ -11,7 +11,7 @@ export const handler = async (
 
   try {
     // 1. Fetch Channel to get Workspace context
-    const channel = await ctx.db.chatChannel.findUnique({
+    const channel = await ctx.db.chatConversation.findUnique({
       where: { id: input.channelId },
       select: { id: true, workspaceId: true },
     });
@@ -33,7 +33,7 @@ export const handler = async (
     }
 
     // 3. Action: Archive
-    return await ctx.db.chatChannel.update({
+    return await ctx.db.chatConversation.update({
       where: { id: input.channelId },
       data: { isArchived: true },
       // Optional: We can select specific fields to return, but default is generic ChatChannel

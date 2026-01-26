@@ -9,7 +9,7 @@ export const createMembersByChannelIdLoader = () =>
     const results = await Promise.all(
       channelIds.map(async (id) => {
         return db.chatMember.findMany({
-          where: { channelId: id },
+          where: { conversationId: id },
           take: HARD_LIMIT_PER_CHANNEL,
           orderBy: { joinedAt: "asc" }, // Predictable order
         });

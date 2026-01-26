@@ -20,7 +20,12 @@ export const registerGlobalMiddleware = (app: Hono) => {
         env.FRONTEND_URL,
       ],
       allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-      allowHeaders: ["Content-Type", "Authorization", "Upgrade"],
+      allowHeaders: [
+        "Content-Type",
+        "Authorization",
+        "Upgrade",
+        "x-idempotency-key",
+      ],
       credentials: true,
     })(c, next);
   });

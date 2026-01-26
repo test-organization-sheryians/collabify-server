@@ -5,9 +5,9 @@ export const createMemberCountByChannelIdLoader = () =>
   new DataLoader<string, number>(async (channelIds) => {
     // Optimization: Use count grouping
     const counts = await db.chatMember.groupBy({
-      by: ["channelId"],
+      by: ["conversationId"],
       where: {
-        channelId: { in: [...channelIds] },
+        conversationId: { in: [...channelIds] },
         // Assuming we count active members
       },
       _count: {
@@ -15,6 +15,8 @@ export const createMemberCountByChannelIdLoader = () =>
       },
     });
 
-    const countMap = new Map(counts.map((c) => [c.channelId, c._count.userId]));
+    const countMap = new Map(
+      counts.map((c) => [c.conversationId, c._count.userId])
+    );
     return channelIds.map((id) => countMap.get(id) || 0);
   });

@@ -6,9 +6,9 @@ export const createLastMessageByChannelIdLoader = () =>
   new DataLoader<string, ChatMessage | null>(async (channelIds) => {
     // Optimization: Use count grouping
     const latestIds = await db.chatMessage.groupBy({
-      by: ["channelId"],
+      by: ["conversationId"],
       where: {
-        channelId: { in: [...channelIds] },
+        conversationId: { in: [...channelIds] },
         deletedAt: null,
       },
       _max: {
@@ -28,6 +28,6 @@ export const createLastMessageByChannelIdLoader = () =>
       where: { id: { in: messageIds } },
     });
 
-    const messageMap = new Map(messages.map((m) => [m.channelId, m]));
+    const messageMap = new Map(messages.map((m) => [m.conversationId, m]));
     return channelIds.map((id) => messageMap.get(id) || null);
   });

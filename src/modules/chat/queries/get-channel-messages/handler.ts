@@ -7,7 +7,7 @@ export const handler = async (
 ) => {
   return await ctx.db.chatMessage.findMany({
     where: {
-      channelId: input.channelId,
+      conversationId: input.channelId,
       parentMessageId: null, // Only top-level messages
     },
     take: input.limit,

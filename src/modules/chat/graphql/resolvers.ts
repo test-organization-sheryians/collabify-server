@@ -105,7 +105,7 @@ export const resolvers: Resolvers = {
       return services.checkChannelAvailability.handler(input, ctx);
     },
   },
-  ChatChannel: {
+  Conversation: {
     members: (parent, _args, ctx) => {
       if (!ctx.dataloaders.chat)
         throw new Error("Chat dataloaders not initialized");

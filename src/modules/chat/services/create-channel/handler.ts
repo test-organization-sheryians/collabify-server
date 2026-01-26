@@ -86,13 +86,13 @@ export const handler = async (
 
     // 4. Create Channel
     const channel = await ctx.db.$transaction(async (tx) => {
-      const ch = await tx.chatChannel.create({
+      const ch = await tx.chatConversation.create({
         data: {
           workspaceId: input.workspaceId,
           projectId: input.projectId,
           name: input.name,
           topic: input.topic,
-          type: input.type,
+          type: "CHANNEL",
           members: {
             createMany: {
               data: [

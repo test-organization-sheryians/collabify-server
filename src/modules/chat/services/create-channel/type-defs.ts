@@ -4,11 +4,11 @@ export const typeDefs = /* GraphQL */ `
     projectId: ID
     name: String
     topic: String
-    type: ChannelType
+    type: ConversationType
     memberUserIds: [ID!]
   }
 
   extend type Mutation {
-    createChannel(input: CreateChannelInput!): ChatChannel!
+    createChannel(input: CreateChannelInput!): Conversation!
   }
 `;

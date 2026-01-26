@@ -14,14 +14,14 @@ export const handler = async (
   // 1. Validate Parent Message Integrity
   const parentMessage = await ctx.db.chatMessage.findUnique({
     where: { id: input.parentMessageId },
-    select: { id: true, channelId: true, parentMessageId: true },
+    select: { id: true, conversationId: true, parentMessageId: true },
   });
 
   if (!parentMessage) {
     throw AppError.notFound("Parent message not found");
   }
 
-  if (parentMessage.channelId !== input.channelId) {
+  if (parentMessage.conversationId !== input.channelId) {
     throw AppError.badRequest("Parent message belongs to a different channel");
   }
 
@@ -32,8 +32,8 @@ export const handler = async (
   // 2. Authorization: Check Channel Membership
   const membership = await ctx.db.chatMember.findUnique({
     where: {
-      channelId_userId: {
-        channelId: input.channelId,
+      conversationId_userId: {
+        conversationId: input.channelId,
         userId,
       },
     },
@@ -51,7 +51,7 @@ export const handler = async (
     ctx.db.chatMessage.create({
       data: {
         id: replyId,
-        channelId: input.channelId,
+        conversationId: input.channelId,
         authorUserId: userId,
         parentMessageId: input.parentMessageId,
         streamId: replyId, // Using own ID as stream ID for simple ordering or fallback

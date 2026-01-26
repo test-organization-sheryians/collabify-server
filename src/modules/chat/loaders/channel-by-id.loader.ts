@@ -1,12 +1,13 @@
 import DataLoader from "dataloader";
 import { db } from "@/infra/db";
-import { ChatChannel } from "@prisma/client";
+import { ChatConversation } from "@prisma/client";
 
 export const createChannelByIdLoader = () =>
-  new DataLoader<string, ChatChannel | null>(async (ids) => {
-    const channels = await db.chatChannel.findMany({
+  new DataLoader<string, ChatConversation | null>(async (ids) => {
+    const channels = await db.chatConversation.findMany({
       where: {
         id: { in: [...ids] },
+        type: "CHANNEL",
       },
     });
 

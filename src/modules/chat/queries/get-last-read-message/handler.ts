@@ -7,8 +7,8 @@ export const handler = async (
 ) => {
   const member = await ctx.db.chatMember.findUnique({
     where: {
-      channelId_userId: {
-        channelId: input.channelId,
+      conversationId_userId: {
+        conversationId: input.channelId,
         userId: ctx.auth.userId || "",
       },
     },

@@ -5,6 +5,6 @@ export const typeDefs = /* GraphQL */ `
       projectId: ID!
       limit: Int
       offset: Int
-    ): [ChatChannel!]!
+    ): [Conversation!]!
   }
 `;

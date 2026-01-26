@@ -33,9 +33,10 @@ export const handler = async (
 
   // 2. Check Permanent DB (Hard Source of Truth)
   // Channels are unique per Project
-  const existingDB = await db.chatChannel.findFirst({
+  const existingDB = await db.chatConversation.findFirst({
     where: {
       projectId,
+      type: "CHANNEL",
       name: { equals: normalizedSlug, mode: "insensitive" }, // Assuming name is the slug or unique identifier
     },
   });

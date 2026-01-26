@@ -5,6 +5,6 @@ export const typeDefs = /* GraphQL */ `
   }
 
   extend type Mutation {
-    renameChannel(input: RenameChannelInput!): ChatChannel!
+    renameChannel(input: RenameChannelInput!): Conversation!
   }
 `;

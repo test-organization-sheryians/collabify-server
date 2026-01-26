@@ -4,6 +4,6 @@ export const typeDefs = /* GraphQL */ `
   }
 
   extend type Mutation {
-    archiveChannel(input: ArchiveChannelInput!): ChatChannel!
+    archiveChannel(input: ArchiveChannelInput!): Conversation!
   }
 `;

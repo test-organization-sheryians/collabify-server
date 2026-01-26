@@ -13,8 +13,8 @@ export const handler = async (
   // 1. Authorization: Requester must be a member of the channel
   const membership = await ctx.db.chatMember.findUnique({
     where: {
-      channelId_userId: {
-        channelId: input.channelId,
+      conversationId_userId: {
+        conversationId: input.channelId,
         userId,
       },
     },
@@ -27,7 +27,7 @@ export const handler = async (
   // 2. Fetch Members with Pagination
   return ctx.db.chatMember.findMany({
     where: {
-      channelId: input.channelId,
+      conversationId: input.channelId,
     },
     take: input.limit,
     skip: input.offset,

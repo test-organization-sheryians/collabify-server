@@ -1,5 +1,5 @@
 import { GraphQLResolveInfo, GraphQLScalarType, GraphQLScalarTypeConfig } from 'graphql';
-import { Project as PrismaProject, ProjectMember as PrismaProjectMember, User as PrismaUser, Workspace as PrismaWorkspace, WorkspaceMember as PrismaWorkspaceMember, Notification as PrismaNotification, ChatChannel as PrismaChatChannel, ChatMember as PrismaChatMember, ChatMessage as PrismaChatMessage, UserPresence as PrismaUserPresence } from '@prisma/client';
+import { Project as PrismaProject, ProjectMember as PrismaProjectMember, User as PrismaUser, Workspace as PrismaWorkspace, WorkspaceMember as PrismaWorkspaceMember, Notification as PrismaNotification, ChatConversation as PrismaConversation, ChatMember as PrismaChatMember, ChatMessage as PrismaChatMessage, UserPresence as PrismaUserPresence } from '@prisma/client';
 import { ServiceContext } from './types';
 export type Maybe<T> = T | null;
 export type InputMaybe<T> = Maybe<T>;
@@ -49,32 +49,9 @@ export type ChannelAvailabilityResponse = {
   reservationId?: Maybe<Scalars['String']['output']>;
 };
 
-export enum ChannelType {
-  Dm = 'DM',
-  Private = 'PRIVATE',
-  Public = 'PUBLIC'
-}
-
-export type ChatChannel = {
-  __typename?: 'ChatChannel';
-  createdAt: Scalars['DateTime']['output'];
-  deletedAt?: Maybe<Scalars['DateTime']['output']>;
-  id: Scalars['ID']['output'];
-  isArchived: Scalars['Boolean']['output'];
-  lastMessage?: Maybe<ChatMessage>;
-  memberCount: Scalars['Int']['output'];
-  members?: Maybe<Array<ChatMember>>;
-  name?: Maybe<Scalars['String']['output']>;
-  projectId?: Maybe<Scalars['ID']['output']>;
-  topic?: Maybe<Scalars['String']['output']>;
-  type: ChannelType;
-  updatedAt: Scalars['DateTime']['output'];
-  workspaceId: Scalars['ID']['output'];
-};
-
 export type ChatMember = {
   __typename?: 'ChatMember';
-  channelId: Scalars['ID']['output'];
+  conversationId: Scalars['ID']['output'];
   id: Scalars['ID']['output'];
   isMuted: Scalars['Boolean']['output'];
   joinedAt: Scalars['DateTime']['output'];
@@ -87,8 +64,8 @@ export type ChatMember = {
 export type ChatMessage = {
   __typename?: 'ChatMessage';
   authorUserId: Scalars['ID']['output'];
-  channelId: Scalars['ID']['output'];
   content: Scalars['JSON']['output'];
+  conversationId: Scalars['ID']['output'];
   createdAt: Scalars['DateTime']['output'];
   id: Scalars['ID']['output'];
   type: Scalars['String']['output'];
@@ -99,12 +76,35 @@ export type CheckChannelAvailabilityInput = {
   slug: Scalars['String']['input'];
 };
 
+export type Conversation = {
+  __typename?: 'Conversation';
+  createdAt: Scalars['DateTime']['output'];
+  deletedAt?: Maybe<Scalars['DateTime']['output']>;
+  id: Scalars['ID']['output'];
+  isArchived: Scalars['Boolean']['output'];
+  lastMessage?: Maybe<ChatMessage>;
+  memberCount: Scalars['Int']['output'];
+  members?: Maybe<Array<ChatMember>>;
+  name?: Maybe<Scalars['String']['output']>;
+  projectId?: Maybe<Scalars['ID']['output']>;
+  topic?: Maybe<Scalars['String']['output']>;
+  type: ConversationType;
+  updatedAt: Scalars['DateTime']['output'];
+  workspaceId: Scalars['ID']['output'];
+};
+
+export enum ConversationType {
+  Channel = 'CHANNEL',
+  Dm = 'DM',
+  GroupDm = 'GROUP_DM'
+}
+
 export type CreateChannelInput = {
   memberUserIds?: InputMaybe<Array<Scalars['ID']['input']>>;
   name?: InputMaybe<Scalars['String']['input']>;
   projectId?: InputMaybe<Scalars['ID']['input']>;
   topic?: InputMaybe<Scalars['String']['input']>;
-  type?: InputMaybe<ChannelType>;
+  type?: InputMaybe<ConversationType>;
   workspaceId: Scalars['ID']['input'];
 };
 
@@ -144,11 +144,11 @@ export type Mutation = {
   __typename?: 'Mutation';
   _health?: Maybe<Scalars['String']['output']>;
   acceptWorkspaceInvite: JoinResponse;
-  archiveChannel: ChatChannel;
+  archiveChannel: Conversation;
   checkChannelAvailability: ChannelAvailabilityResponse;
   checkProjectSlugAvailability: AvailabilityResponse;
   checkSlugAvailability: AvailabilityResponse;
-  createChannel: ChatChannel;
+  createChannel: Conversation;
   createOnboardingWorkspace: Workspace;
   createProject: Project;
   createThread: ChatMessage;
@@ -159,7 +159,7 @@ export type Mutation = {
   /** Mark specific notifications as read. */
   markNotificationRead: Scalars['Boolean']['output'];
   removeWorkspaceMember: InviteResponse;
-  renameChannel: ChatChannel;
+  renameChannel: Conversation;
   syncUser: User;
   updateWorkspaceMemberRole: WorkspaceMember;
 };
@@ -342,7 +342,7 @@ export type Query = {
   getPresenceMap: Array<UserPresence>;
   getSubscribedChannels: Array<Scalars['ID']['output']>;
   getThreadMessages: Array<ChatMessage>;
-  getUserChannels: Array<ChatChannel>;
+  getUserChannels: Array<Conversation>;
   getWorkspaceInviteInfo: WorkspaceInviteInfo;
   health: Scalars['String']['output'];
   me?: Maybe<User>;
@@ -595,11 +595,11 @@ export type ResolversTypes = ResolversObject<{
   AvailabilityResponse: ResolverTypeWrapper<AvailabilityResponse>;
   Boolean: ResolverTypeWrapper<Scalars['Boolean']['output']>;
   ChannelAvailabilityResponse: ResolverTypeWrapper<ChannelAvailabilityResponse>;
-  ChannelType: ChannelType;
-  ChatChannel: ResolverTypeWrapper<PrismaChatChannel>;
   ChatMember: ResolverTypeWrapper<PrismaChatMember>;
   ChatMessage: ResolverTypeWrapper<PrismaChatMessage>;
   CheckChannelAvailabilityInput: CheckChannelAvailabilityInput;
+  Conversation: ResolverTypeWrapper<PrismaConversation>;
+  ConversationType: ConversationType;
   CreateChannelInput: CreateChannelInput;
   CreateProjectInput: CreateProjectInput;
   CreateThreadInput: CreateThreadInput;
@@ -638,10 +638,10 @@ export type ResolversParentTypes = ResolversObject<{
   AvailabilityResponse: AvailabilityResponse;
   Boolean: Scalars['Boolean']['output'];
   ChannelAvailabilityResponse: ChannelAvailabilityResponse;
-  ChatChannel: PrismaChatChannel;
   ChatMember: PrismaChatMember;
   ChatMessage: PrismaChatMessage;
   CheckChannelAvailabilityInput: CheckChannelAvailabilityInput;
+  Conversation: PrismaConversation;
   CreateChannelInput: CreateChannelInput;
   CreateProjectInput: CreateProjectInput;
   CreateThreadInput: CreateThreadInput;
@@ -686,24 +686,8 @@ export type ChannelAvailabilityResponseResolvers<ContextType = ServiceContext, P
   reservationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
 }>;
 
-export type ChatChannelResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ChatChannel'] = ResolversParentTypes['ChatChannel']> = ResolversObject<{
-  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
-  deletedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
-  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
-  isArchived?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
-  lastMessage?: Resolver<Maybe<ResolversTypes['ChatMessage']>, ParentType, ContextType>;
-  memberCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-  members?: Resolver<Maybe<Array<ResolversTypes['ChatMember']>>, ParentType, ContextType>;
-  name?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
-  projectId?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
-  topic?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
-  type?: Resolver<ResolversTypes['ChannelType'], ParentType, ContextType>;
-  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
-  workspaceId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
-}>;
-
 export type ChatMemberResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ChatMember'] = ResolversParentTypes['ChatMember']> = ResolversObject<{
-  channelId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  conversationId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   isMuted?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   joinedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
@@ -715,11 +699,27 @@ export type ChatMemberResolvers<ContextType = ServiceContext, ParentType extends
 
 export type ChatMessageResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ChatMessage'] = ResolversParentTypes['ChatMessage']> = ResolversObject<{
   authorUserId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
-  channelId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   content?: Resolver<ResolversTypes['JSON'], ParentType, ContextType>;
+  conversationId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   type?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+}>;
+
+export type ConversationResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Conversation'] = ResolversParentTypes['Conversation']> = ResolversObject<{
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  deletedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  isArchived?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  lastMessage?: Resolver<Maybe<ResolversTypes['ChatMessage']>, ParentType, ContextType>;
+  memberCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  members?: Resolver<Maybe<Array<ResolversTypes['ChatMember']>>, ParentType, ContextType>;
+  name?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  projectId?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
+  topic?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  type?: Resolver<ResolversTypes['ConversationType'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  workspaceId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
 }>;
 
 export interface DateTimeScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes['DateTime'], any> {
@@ -745,11 +745,11 @@ export type JoinResponseResolvers<ContextType = ServiceContext, ParentType exten
 export type MutationResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Mutation'] = ResolversParentTypes['Mutation']> = ResolversObject<{
   _health?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   acceptWorkspaceInvite?: Resolver<ResolversTypes['JoinResponse'], ParentType, ContextType, RequireFields<MutationAcceptWorkspaceInviteArgs, 'input'>>;
-  archiveChannel?: Resolver<ResolversTypes['ChatChannel'], ParentType, ContextType, RequireFields<MutationArchiveChannelArgs, 'input'>>;
+  archiveChannel?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<MutationArchiveChannelArgs, 'input'>>;
   checkChannelAvailability?: Resolver<ResolversTypes['ChannelAvailabilityResponse'], ParentType, ContextType, RequireFields<MutationCheckChannelAvailabilityArgs, 'input'>>;
   checkProjectSlugAvailability?: Resolver<ResolversTypes['AvailabilityResponse'], ParentType, ContextType, RequireFields<MutationCheckProjectSlugAvailabilityArgs, 'slug' | 'workspaceId'>>;
   checkSlugAvailability?: Resolver<ResolversTypes['AvailabilityResponse'], ParentType, ContextType, RequireFields<MutationCheckSlugAvailabilityArgs, 'slug'>>;
-  createChannel?: Resolver<ResolversTypes['ChatChannel'], ParentType, ContextType, RequireFields<MutationCreateChannelArgs, 'input'>>;
+  createChannel?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<MutationCreateChannelArgs, 'input'>>;
   createOnboardingWorkspace?: Resolver<ResolversTypes['Workspace'], ParentType, ContextType>;
   createProject?: Resolver<ResolversTypes['Project'], ParentType, ContextType, RequireFields<MutationCreateProjectArgs, 'input' | 'workspaceId'>>;
   createThread?: Resolver<ResolversTypes['ChatMessage'], ParentType, ContextType, RequireFields<MutationCreateThreadArgs, 'input'>>;
@@ -758,7 +758,7 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   markAllNotificationsRead?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   markNotificationRead?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationMarkNotificationReadArgs, 'ids'>>;
   removeWorkspaceMember?: Resolver<ResolversTypes['InviteResponse'], ParentType, ContextType, RequireFields<MutationRemoveWorkspaceMemberArgs, 'memberId' | 'workspaceId'>>;
-  renameChannel?: Resolver<ResolversTypes['ChatChannel'], ParentType, ContextType, RequireFields<MutationRenameChannelArgs, 'input'>>;
+  renameChannel?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<MutationRenameChannelArgs, 'input'>>;
   syncUser?: Resolver<ResolversTypes['User'], ParentType, ContextType, RequireFields<MutationSyncUserArgs, 'clerkId' | 'email'>>;
   updateWorkspaceMemberRole?: Resolver<ResolversTypes['WorkspaceMember'], ParentType, ContextType, RequireFields<MutationUpdateWorkspaceMemberRoleArgs, 'memberId' | 'role' | 'workspaceId'>>;
 }>;
@@ -841,7 +841,7 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   getPresenceMap?: Resolver<Array<ResolversTypes['UserPresence']>, ParentType, ContextType, RequireFields<QueryGetPresenceMapArgs, 'userIds'>>;
   getSubscribedChannels?: Resolver<Array<ResolversTypes['ID']>, ParentType, ContextType>;
   getThreadMessages?: Resolver<Array<ResolversTypes['ChatMessage']>, ParentType, ContextType, RequireFields<QueryGetThreadMessagesArgs, 'parentMessageId'>>;
-  getUserChannels?: Resolver<Array<ResolversTypes['ChatChannel']>, ParentType, ContextType, RequireFields<QueryGetUserChannelsArgs, 'projectId' | 'workspaceId'>>;
+  getUserChannels?: Resolver<Array<ResolversTypes['Conversation']>, ParentType, ContextType, RequireFields<QueryGetUserChannelsArgs, 'projectId' | 'workspaceId'>>;
   getWorkspaceInviteInfo?: Resolver<ResolversTypes['WorkspaceInviteInfo'], ParentType, ContextType, RequireFields<QueryGetWorkspaceInviteInfoArgs, 'token'>>;
   health?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   me?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
@@ -904,9 +904,9 @@ export type WorkspaceMemberResolvers<ContextType = ServiceContext, ParentType ex
 export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   AvailabilityResponse?: AvailabilityResponseResolvers<ContextType>;
   ChannelAvailabilityResponse?: ChannelAvailabilityResponseResolvers<ContextType>;
-  ChatChannel?: ChatChannelResolvers<ContextType>;
   ChatMember?: ChatMemberResolvers<ContextType>;
   ChatMessage?: ChatMessageResolvers<ContextType>;
+  Conversation?: ConversationResolvers<ContextType>;
   DateTime?: GraphQLScalarType;
   InviteResponse?: InviteResponseResolvers<ContextType>;
   JSON?: GraphQLScalarType;
