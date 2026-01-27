@@ -61,6 +61,39 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
         );
       }
 
+      // 1.5 Verify Author Existence (Prevent FK Violation for Zombies)
+      // SYSTEM DESIGN NOTE:
+      // In a distributed system, the User might be deleted between the time the message was sent (Socket)
+      // and the time it is processed (Worker). We must handle this "Eventual Consistency" gap.
+      const author = await tx.user.findUnique({
+        where: { id: authorId },
+        select: { id: true },
+      });
+
+      if (!author) {
+        logger.warn(
+          { authorId, outboxId },
+          "Message persistence failed: Author not found (Zombie User). Marking as FAILED."
+        );
+
+        // TODO: Implement a "Dead Letter Queue" or "Audit Log" for these failures if stricter compliance is needed.
+
+        await tx.outboxMessage.update({
+          where: { id: BigInt(outboxId) },
+          data: {
+            status: OutboxStatus.FAILED,
+            processedAt: new Date(),
+            errorLog: {
+              message: "Author not found",
+              code: "USER_NOT_FOUND",
+              details:
+                "User likely deleted after message was sent but before persistence.",
+            } as any,
+          },
+        });
+        return;
+      }
+
       // 2. Create Final Message (Archive)
       // Check if already exists (Idempotency via dedupeId as ID)
       const existing = await tx.chatMessage.findUnique({
@@ -71,9 +104,11 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
         return;
       }
 
+      // TODO: Performance Optimization
+      // If throughput exceeds 1000 msg/sec, switch to `createMany` with a buffered Batch Processor.
       await tx.chatMessage.create({
         data: {
-          // TODO: @Optimization Switch 'id' to Server-Generated ULID (Phase M)
+          // TODO: Switch to Server-Side ULID generation if client clock drift becomes an issue.
           id: dedupeId,
           conversationId,
           authorUserId: authorId,
@@ -89,9 +124,7 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
         },
       });
 
-      // 2. Mark Intent as Done
-      // We search by ID (BigInt) or messageId (String).
-      // job.data.outboxId is String (from BigInt).
+      // 3. Mark Intent as Done
       await tx.outboxMessage.update({
         where: { id: BigInt(outboxId) },
         data: {

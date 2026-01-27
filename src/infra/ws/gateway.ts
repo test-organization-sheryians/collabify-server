@@ -10,11 +10,31 @@ import { db } from "../db";
  * Validates the connection request (Clerk Token)
  * TODO: Move to shared/auth later
  */
-function authenticate(c: Context): { userId: string } | null {
+import { verifyToken } from "@clerk/backend";
+import { env } from "../../shared/config/env";
+
+/**
+ * Validates the connection request (Clerk Token)
+ * TODO: Move to shared/auth later
+ */
+async function authenticate(c: Context): Promise<{ userId: string } | null> {
   const token = c.req.query("token") || c.req.header("Authorization");
+
   if (!token) return null;
-  // MOCK: Accept any non-empty token for dev
-  return { userId: "user_" + token.slice(0, 5) };
+
+  try {
+    // Clean token if Bearer prefix exists (though usually WS query param is raw)
+    const rawToken = token.startsWith("Bearer ") ? token.slice(7) : token;
+
+    const payload = await verifyToken(rawToken, {
+      secretKey: env.CLERK_SECRET_KEY,
+    });
+
+    return { userId: payload.sub };
+  } catch (err) {
+    logger.error({ err }, "WS Auth Failed");
+    return null;
+  }
 }
 
 /**
@@ -23,7 +43,7 @@ function authenticate(c: Context): { userId: string } | null {
 export const createWSGateway = () => {
   return {
     // Hono Route Handler for /ws
-    upgradeHandler: (c: Context) => {
+    upgradeHandler: async (c: Context) => {
       const workspaceId = c.req.query("workspaceId");
 
       // 1. Validate Input
@@ -32,7 +52,7 @@ export const createWSGateway = () => {
       }
 
       // 2. Authenticate
-      const auth = authenticate(c);
+      const auth = await authenticate(c);
       if (!auth) {
         return c.text("Unauthorized", 401);
       }

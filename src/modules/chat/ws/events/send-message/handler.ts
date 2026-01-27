@@ -43,7 +43,7 @@ export const sendMessageHandler = async (
     const signalKey = KeyFactory.ActiveConversations;
     const epochKey = KeyFactory.EpochConversations;
 
-    await appRedis
+    const results = await appRedis
       .pipeline()
       .xadd(
         streamKey,
@@ -71,12 +71,19 @@ export const sendMessageHandler = async (
       )
       .exec();
 
-    // 4. Ack: Return Optimistic Success
+    // 4. Capture Stream ID (Zero-Latency)
+    // results[0] is [error, result] for XADD.
+    // XADD returns the string ID.
+    const xaddResult = results![0];
+    const streamId = xaddResult[1] as string;
+
+    // 5. Ack: Return Optimistic Success with Stream ID
     socket.send(
       createSuccessFrame(undefined, "chat:ack-message", {
         dedupeId,
-        status: "pending",
-        message: "Message accepted for sequencing",
+        status: "sent",
+        message: "Message sequenced",
+        streamId, // <--- FAST PATH
       })
     );
   } catch (err: any) {

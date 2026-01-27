@@ -14,11 +14,11 @@ export const getProjectBySlug = async (
     where: {
       workspaceId,
       key: normalizedSlug,
-      members: {
-        some: {
-          userId,
-        },
-      },
+      // members: {
+      //   some: {
+      //     userId,
+      //   },
+      // },
     },
   });
 

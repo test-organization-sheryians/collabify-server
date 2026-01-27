@@ -42,9 +42,9 @@ export const handler = async (
     throw AppError.notFound("Project not found");
   }
 
-  if (project.members.length === 0) {
-    throw AppError.forbidden("You are not a member of this project");
-  }
+  // if (project.members.length === 0) {
+  //   throw AppError.forbidden("You are not a member of this project");
+  // }
 
   return ctx.db.chatConversation.findMany({
     where: {
@@ -52,11 +52,11 @@ export const handler = async (
       projectId: input.projectId,
       type: "CHANNEL",
       deletedAt: null,
-      members: {
-        some: {
-          userId,
-        },
-      },
+      // members: {
+      //   some: {
+      //     userId,
+      //   },
+      // },
     },
     take: input.limit,
     skip: input.offset,

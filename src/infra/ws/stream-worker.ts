@@ -89,7 +89,11 @@ export const streamWorker = {
         }
 
         // Optimization: Ensure groups exist (Cached)
-        await this.ensureGroups(streams);
+        // FIX: Map ID -> Stream Key
+        const fullStreamKeys = streams.map((id) =>
+          KeyFactory.ConversationStream(id)
+        );
+        await this.ensureGroups(fullStreamKeys);
 
         // 2. Read Args
         const ids = streams.map(() => ">");
@@ -105,7 +109,7 @@ export const streamWorker = {
           "BLOCK",
           BLOCK_MS,
           "STREAMS",
-          ...streams,
+          ...fullStreamKeys,
           ...ids
         )) as any;
 
@@ -137,7 +141,8 @@ export const streamWorker = {
           KeyFactory.WorkerAssignment(CONSUMER_NAME)
         );
 
-        for (const stream of streams) {
+        for (const rawId of streams) {
+          const stream = KeyFactory.ConversationStream(rawId);
           // XAUTOCLAIM: Stream, Group, Consumer, MinIdleTime(60s), StartId(0-0), Count
           const result = (await appRedis.xautoclaim(
             stream,
