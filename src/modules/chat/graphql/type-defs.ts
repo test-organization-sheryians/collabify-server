@@ -59,6 +59,7 @@ const sharedTypeDefs = /* GraphQL */ `
     content: JSON!
     type: String!
     streamId: String!
+    sequence: Int!
     createdAt: DateTime!
     # Add other fields as needed
   }

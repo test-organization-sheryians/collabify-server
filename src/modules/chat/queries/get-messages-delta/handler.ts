@@ -5,18 +5,41 @@ export const handler = async (
   input: GetMessagesDeltaInput,
   ctx: ServiceContext
 ) => {
+  // ARCHITECTURE: Dual-Sequencing Recovery
+  // We prioritize the strictly monotonic `sequence` number for gap detection.
+  // This guarantees O(1) complexity for finding missing ranges.
 
-    
-  return await ctx.db.chatMessage.findMany({
+  const { conversationId, afterSequence, limit } = input;
+
+  // 1. Fetch Delta
+  const messages = await ctx.db.chatMessage.findMany({
     where: {
-      conversationId: input.conversationId,
-      streamId: {
-        gt: input.afterStreamId,
-      },
+      conversationId,
+      // ARCHITECTURE: Cursor Strategy
+      // If `afterSequence` is present, we are in "Version 2" (Strict Sequencing).
+      // Fallback: Default to 0 (Start of history) for legacy clients.
+      ...(afterSequence !== undefined
+        ? { sequence: { gt: afterSequence } }
+        : { sequence: { gt: 0 } }),
     },
     orderBy: {
-      streamId: "asc",
+      sequence: "asc",
     },
-    take: input.limit,
+    take: limit! + 1, // Look-ahead for pagination
   });
+
+  // 2. Pagination Logic
+  const hasMore = messages.length > limit!;
+  if (hasMore) {
+    messages.pop(); // Remove the extra item
+  }
+
+  const lastMsg = messages[messages.length - 1];
+  const lastSequence = lastMsg?.sequence || afterSequence || 0;
+
+  return {
+    messages,
+    hasMore,
+    lastSequence,
+  };
 };

@@ -249,6 +249,7 @@ export const streamWorker = {
       dedupeId,
       outboxId,
       authorId,
+      sequence: sequenceStr, // NEW
     } = data;
 
     if (!conversationId || !payloadStr) {
@@ -260,9 +261,12 @@ export const streamWorker = {
 
     // Merge Payload
     const rawPayload = JSON.parse(payloadStr);
+    const sequence = sequenceStr ? parseInt(sequenceStr) : 0; // Robust Parsing
+
     const downstreamData = {
       ...rawPayload,
       streamId: id,
+      sequence, // INJECT SEQUENCE for Client
       authorId,
       createdAt: new Date().toISOString(),
     };
@@ -279,10 +283,11 @@ export const streamWorker = {
     await persistenceQueue.add("persist-message", {
       outboxId,
       streamId: id,
+      sequence, // PASS SEQUENCE to Job
       conversationId,
       authorId,
       dedupeId,
-      ...rawPayload, // Flatten Payload for Worker Consumption
+      ...rawPayload, // Flatten Payload
     });
   },
 

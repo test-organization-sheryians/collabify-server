@@ -11,7 +11,8 @@ interface PersistMessageJob extends SendMessageInput {
   outboxId: string;
   streamId: string;
   authorId: string;
-  // conversationId, payload, dedupeId are in SendMessageInput (except conversationId is explicit here too)
+  sequence: number; // NEW
+  // conversationId, payload, dedupeId are in SendMessageInput
 }
 
 /**
@@ -22,6 +23,7 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
   const {
     outboxId,
     streamId,
+    sequence, // NEW
     conversationId,
     content,
     dedupeId,
@@ -30,13 +32,15 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
     metadata,
   } = job.data;
 
-  logger.info({ jobId: job.id, outboxId, streamId }, "Persisting Message");
+  logger.info(
+    { jobId: job.id, outboxId, streamId, sequence },
+    "Persisting Message"
+  );
 
   try {
     await db.$transaction(async (tx) => {
-      // 1. Validation Gate (Integrity & Safety)
-      // ARCHITECTURE DECISION: Check-Then-Act
-      // Prevent "Blind Updates" (Retry Loops) and "Data Corruption"
+      // 1. Validation Gate
+      // ARCHITECTURE: Check-Then-Act pattern prevents "Blind Updates" and race conditions.
       const outboxEntry = await tx.outboxMessage.findUnique({
         where: { id: BigInt(outboxId) },
       });
@@ -46,7 +50,7 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
           { outboxId },
           "Outbox row missing/cleaned. Aborting retry."
         );
-        return; // Stop Retry Loop (Idempotent success)
+        return; // Idempotent success
       }
 
       if (outboxEntry.status === "DONE") {
@@ -54,17 +58,15 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
         return;
       }
 
-      // Integrity Check
+      // Integrity Check: Ensure Job matches Outbox context
       if (outboxEntry.conversationId !== conversationId) {
         throw new Error(
           `Integrity Error: Job Channel (${conversationId}) != Outbox Channel (${outboxEntry.conversationId})`
         );
       }
 
-      // 1.5 Verify Author Existence (Prevent FK Violation for Zombies)
-      // SYSTEM DESIGN NOTE:
-      // In a distributed system, the User might be deleted between the time the message was sent (Socket)
-      // and the time it is processed (Worker). We must handle this "Eventual Consistency" gap.
+      // 1.5 Verify Author Existence (Eventual Consistency)
+      // In distributed systems, a user might be deleted while a message is in flight.
       const author = await tx.user.findUnique({
         where: { id: authorId },
         select: { id: true },
@@ -76,8 +78,7 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
           "Message persistence failed: Author not found (Zombie User). Marking as FAILED."
         );
 
-        // TODO: Implement a "Dead Letter Queue" or "Audit Log" for these failures if stricter compliance is needed.
-
+        // TODO (Compliance): Implement Dead Letter Queue / Audit Log for compliance
         await tx.outboxMessage.update({
           where: { id: BigInt(outboxId) },
           data: {
@@ -95,7 +96,7 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
       }
 
       // 2. Create Final Message (Archive)
-      // Check if already exists (Idempotency via dedupeId as ID)
+      // Idempotency Check: Prevent duplicate inserts if job retries
       const existing = await tx.chatMessage.findUnique({
         where: { id: dedupeId },
       });
@@ -104,16 +105,14 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
         return;
       }
 
-      // TODO: Performance Optimization
-      // If throughput exceeds 1000 msg/sec, switch to `createMany` with a buffered Batch Processor.
+      // TODO (Scale): Switch to `createMany` with Batch Processor if throughput > 1000 msg/sec
       await tx.chatMessage.create({
         data: {
-          // TODO: Switch to Server-Side ULID generation if client clock drift becomes an issue.
           id: dedupeId,
           conversationId,
           authorUserId: authorId,
           streamId,
-          // Wrapped Content (Schema V1)
+          sequence,
           content: {
             text: content,
             schemaVersion: 1,
@@ -123,6 +122,18 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
           metadata: (metadata || {}) as any,
         },
       });
+
+      // 2.5 Update Conversation Last Sequence (Consistency Catch-up)
+      // ARCHITECTURE: Dual-Write for Stability.
+      // We rely on Redis for real-time ordering but must sync the "Committed Truth" to Postgres
+      // to survive Redis cache evictions/crashes.
+      await tx.chatConversation.update({
+        where: { id: conversationId },
+        data: {
+          lastSequence: sequence,
+        },
+      });
+      // TODO (Correctness): Use Raw Query with GREATEST(last_sequence, ?) to prevent flapping on out-of-order jobs
 
       // 3. Mark Intent as Done
       await tx.outboxMessage.update({

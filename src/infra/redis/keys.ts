@@ -63,4 +63,13 @@ export const KeyFactory = {
    */
   ConversationTopic: (conversationId: string) =>
     `channel:topic:${conversationId}`,
+
+  // --- Sequences (Storage) ---
+
+  /**
+   * The atomic sequence counter for a conversation.
+   * Format: chat:{conversationId}:seq
+   */
+  ConversationSequence: (conversationId: string) =>
+    `chat:${conversationId}:seq`,
 };

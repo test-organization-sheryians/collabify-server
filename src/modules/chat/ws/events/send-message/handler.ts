@@ -26,72 +26,139 @@ export const sendMessageHandler = async (
   });
 
   try {
-    // 2. Intent: Insert into Outbox (Postgres)
+    // 1. Idempotency Check (Double Spend Protection)
+    const existing = await ctx.db.outboxMessage.findUnique({
+      where: { messageId: dedupeId },
+      select: { id: true, status: true },
+    });
+
+    if (existing) {
+      logger.warn({ dedupeId }, "Duplicate intent detected. Idempotent ACK.");
+      socket.send(
+        createSuccessFrame(undefined, "chat:ack-message", {
+          dedupeId,
+          status: "duplicate",
+          message: "Message already accepted",
+        })
+      );
+      return;
+    }
+
+    // 2. Persist Intent to Outbox (Postgres)
     const outboxRecord = await ctx.db.outboxMessage.create({
       data: {
         messageId: dedupeId,
         conversationId,
-        conversationType: "CHANNEL", // Default for now
-        payload: input as any, // Json type
+        conversationType: "CHANNEL",
+        payload: input as any,
         status: OutboxStatus.PENDING,
       },
       select: { id: true },
     });
-
     const outboxId = outboxRecord.id.toString();
+
+    // 3. Prepare Atomic Operation
     const streamKey = KeyFactory.ConversationStream(conversationId);
-    const signalKey = KeyFactory.ActiveConversations;
-    const epochKey = KeyFactory.EpochConversations;
+    const seqKey = KeyFactory.ConversationSequence(conversationId);
 
-    const results = await appRedis
-      .pipeline()
-      .xadd(
-        streamKey,
-        "*",
-        "conversationId",
-        conversationId,
-        "type",
-        "chat:new-message", // Downstream Type (Fact)
-        "payload",
-        JSON.stringify(input),
-        "dedupeId",
-        dedupeId,
-        "outboxId",
-        outboxId,
-        "authorId",
-        userId
-      )
-      .eval(
-        "if redis.call('ZADD', KEYS[1], ARGV[1], ARGV[2]) == 1 then redis.call('INCR', KEYS[2]) end",
+    const basePayload = {
+      conversationId,
+      type: "chat:new-message",
+      payload: JSON.stringify(input),
+      dedupeId,
+      outboxId,
+      authorId: userId,
+      createdAt: new Date().toISOString(),
+    };
+
+    // ARCHITECTURE: Cache-Aside Pattern for Atomicity
+    // We attempt to increment via Lua. If the key is missing (Cold Start / Eviction),
+    // we re-hydrate from Postgres and retry.
+    let result: { streamId: string; sequence: number } | null = null;
+    let attempts = 0;
+
+    while (attempts < 2) {
+      attempts++;
+
+      // TODO: Move this Lua script to `src/infra/redis/lua/publish_message.lua` and load at startup
+      const luaResponseStr = (await appRedis.eval(
+        `
+        local seq_key = KEYS[1]
+        local stream_key = KEYS[2]
+        local conversation_id = ARGV[1]
+        local payload = cjson.decode(ARGV[2])
+
+        if redis.call("EXISTS", seq_key) == 0 then
+            return cjson.encode({err = "LOAD_REQUIRED"})
+        end
+
+        local next_seq = redis.call("INCR", seq_key)
+        
+        -- Construct XADD args with FLAT fields (Worker Expectation)
+        local xadd_args = {
+            "XADD", stream_key, "*",
+            "conversationId", payload.conversationId,
+            "type", payload.type,
+            "payload", payload.payload,     -- Inner content JSON
+            "dedupeId", payload.dedupeId,
+            "outboxId", payload.outboxId,
+            "authorId", payload.authorId,
+            "createdAt", payload.createdAt,
+            "sequence", next_seq            -- Dual-Sequencing: The Sequence Number
+        }
+        
+        local stream_id = redis.call(unpack(xadd_args))
+        
+        return cjson.encode({ streamId = stream_id, sequence = next_seq })
+        `,
         2,
-        signalKey,
-        epochKey,
-        Date.now(),
-        conversationId
-      )
-      .exec();
+        seqKey,
+        streamKey,
+        conversationId,
+        JSON.stringify(basePayload)
+      )) as string;
 
-    // 4. Capture Stream ID (Zero-Latency)
-    // results[0] is [error, result] for XADD.
-    // XADD returns the string ID.
-    const xaddResult = results![0];
-    const streamId = xaddResult[1] as string;
+      const luaResponse = JSON.parse(luaResponseStr);
 
-    // 5. Ack: Return Optimistic Success with Stream ID
+      if (luaResponse.err === "LOAD_REQUIRED") {
+        logger.warn({ conversationId }, "Sequence Key missing. Re-hydrating.");
+
+        const conversation = await ctx.db.chatConversation.findUnique({
+          where: { id: conversationId },
+          select: { lastSequence: true },
+        });
+
+        // Re-hydrate Redis
+        const startSeq = conversation?.lastSequence || 0;
+        await appRedis.set(seqKey, startSeq.toString());
+        continue;
+      }
+
+      result = luaResponse;
+      break;
+    }
+
+    if (!result) {
+      throw new Error("Failed to publish after re-hydration attempt");
+    }
+
+    const { streamId, sequence } = result;
+
+    // 4. Optimistic Ack
     socket.send(
       createSuccessFrame(undefined, "chat:ack-message", {
         dedupeId,
         status: "sent",
         message: "Message sequenced",
-        streamId, // <--- FAST PATH
+        streamId,
+        sequence,
       })
     );
   } catch (err: any) {
     logger.error({ err, dedupeId }, "Failed to process send-message");
 
-    // Handle Duplicate Entry (Idempotency)
+    // ... Error Handling (Same as before) ...
     if (err.code === "P2002") {
-      // Prisma Unique Constraint
       socket.send(
         createSuccessFrame(undefined, "chat:ack-message", {
           dedupeId,

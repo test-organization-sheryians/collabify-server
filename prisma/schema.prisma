@@ -486,16 +486,17 @@ model OutboxMessage {
 }
 
 model ChatConversation {
-  id          String           @id @default(cuid())
-  workspaceId String           @map("workspace_id")
-  projectId   String?          @map("project_id")
-  type        ConversationType @default(CHANNEL)
-  name        String?
-  topic       String?
-  isArchived  Boolean          @default(false) @map("is_archived")
-  updatedAt   DateTime         @updatedAt @map("updated_at")
-  createdAt   DateTime         @default(now()) @map("created_at")
-  deletedAt   DateTime?        @map("deleted_at")
+  id           String           @id @default(cuid())
+  workspaceId  String           @map("workspace_id")
+  projectId    String?          @map("project_id")
+  type         ConversationType @default(CHANNEL)
+  name         String?
+  topic        String?
+  isArchived   Boolean          @default(false) @map("is_archived")
+  lastSequence Int              @default(0) @map("last_sequence")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  deletedAt    DateTime?        @map("deleted_at")
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   project   Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -536,6 +537,7 @@ model ChatMessage {
 
   // Sequencing (The Hybrid Link)
   streamId String @map("stream_id")
+  sequence Int
 
   // Threading
   parentMessageId String? @map("parent_message_id")
@@ -560,6 +562,7 @@ model ChatMessage {
   reactions     MessageReaction[]
 
   @@unique([conversationId, streamId]) // STRICT ORDERING CONSTRAINT
+  @@unique([conversationId, sequence]) // DUAL SEQUENCING CONSTRAINT
   @@index([conversationId, createdAt(sort: Desc)])
   @@index([parentMessageId, createdAt(sort: Asc)])
   @@map("chat_messages")

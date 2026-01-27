@@ -68,6 +68,7 @@ export type ChatMessage = {
   conversationId: Scalars['ID']['output'];
   createdAt: Scalars['DateTime']['output'];
   id: Scalars['ID']['output'];
+  sequence: Scalars['Int']['output'];
   streamId: Scalars['String']['output'];
   type: Scalars['String']['output'];
 };
@@ -139,6 +140,13 @@ export type JoinResponse = {
   message: Scalars['String']['output'];
   success: Scalars['Boolean']['output'];
   workspaceSlug: Scalars['String']['output'];
+};
+
+export type MessagesDelta = {
+  __typename?: 'MessagesDelta';
+  hasMore: Scalars['Boolean']['output'];
+  lastSequence: Scalars['Int']['output'];
+  messages: Array<ChatMessage>;
 };
 
 export type Mutation = {
@@ -347,7 +355,7 @@ export type Query = {
   getWorkspaceInviteInfo: WorkspaceInviteInfo;
   health: Scalars['String']['output'];
   me?: Maybe<User>;
-  messagesDelta: Array<ChatMessage>;
+  messagesDelta: MessagesDelta;
   myProjects: Array<Project>;
   myWorkspaces: Array<Workspace>;
   /** Get paginated notifications for the current user. */
@@ -431,7 +439,8 @@ export type QueryGetWorkspaceInviteInfoArgs = {
 
 
 export type QueryMessagesDeltaArgs = {
-  afterStreamId: Scalars['String']['input'];
+  afterSequence?: InputMaybe<Scalars['Int']['input']>;
+  afterStreamId?: InputMaybe<Scalars['String']['input']>;
   conversationId: Scalars['ID']['input'];
   limit?: InputMaybe<Scalars['Int']['input']>;
 };
@@ -619,6 +628,7 @@ export type ResolversTypes = ResolversObject<{
   InviteToWorkspaceInput: InviteToWorkspaceInput;
   JSON: ResolverTypeWrapper<Scalars['JSON']['output']>;
   JoinResponse: ResolverTypeWrapper<JoinResponse>;
+  MessagesDelta: ResolverTypeWrapper<Omit<MessagesDelta, 'messages'> & { messages: Array<ResolversTypes['ChatMessage']> }>;
   Mutation: ResolverTypeWrapper<Record<PropertyKey, never>>;
   Notification: ResolverTypeWrapper<PrismaNotification>;
   NotificationConnection: ResolverTypeWrapper<Omit<NotificationConnection, 'edges'> & { edges: Array<ResolversTypes['NotificationEdge']> }>;
@@ -661,6 +671,7 @@ export type ResolversParentTypes = ResolversObject<{
   InviteToWorkspaceInput: InviteToWorkspaceInput;
   JSON: Scalars['JSON']['output'];
   JoinResponse: JoinResponse;
+  MessagesDelta: Omit<MessagesDelta, 'messages'> & { messages: Array<ResolversParentTypes['ChatMessage']> };
   Mutation: Record<PropertyKey, never>;
   Notification: PrismaNotification;
   NotificationConnection: Omit<NotificationConnection, 'edges'> & { edges: Array<ResolversParentTypes['NotificationEdge']> };
@@ -712,6 +723,7 @@ export type ChatMessageResolvers<ContextType = ServiceContext, ParentType extend
   conversationId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  sequence?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   streamId?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   type?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 }>;
@@ -750,6 +762,12 @@ export type JoinResponseResolvers<ContextType = ServiceContext, ParentType exten
   message?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   success?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   workspaceSlug?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+}>;
+
+export type MessagesDeltaResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['MessagesDelta'] = ResolversParentTypes['MessagesDelta']> = ResolversObject<{
+  hasMore?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  lastSequence?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  messages?: Resolver<Array<ResolversTypes['ChatMessage']>, ParentType, ContextType>;
 }>;
 
 export type MutationResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Mutation'] = ResolversParentTypes['Mutation']> = ResolversObject<{
@@ -855,7 +873,7 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   getWorkspaceInviteInfo?: Resolver<ResolversTypes['WorkspaceInviteInfo'], ParentType, ContextType, RequireFields<QueryGetWorkspaceInviteInfoArgs, 'token'>>;
   health?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   me?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
-  messagesDelta?: Resolver<Array<ResolversTypes['ChatMessage']>, ParentType, ContextType, RequireFields<QueryMessagesDeltaArgs, 'afterStreamId' | 'conversationId'>>;
+  messagesDelta?: Resolver<ResolversTypes['MessagesDelta'], ParentType, ContextType, RequireFields<QueryMessagesDeltaArgs, 'conversationId'>>;
   myProjects?: Resolver<Array<ResolversTypes['Project']>, ParentType, ContextType, RequireFields<QueryMyProjectsArgs, 'workspaceId'>>;
   myWorkspaces?: Resolver<Array<ResolversTypes['Workspace']>, ParentType, ContextType>;
   notifications?: Resolver<ResolversTypes['NotificationConnection'], ParentType, ContextType, Partial<QueryNotificationsArgs>>;
@@ -922,6 +940,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   InviteResponse?: InviteResponseResolvers<ContextType>;
   JSON?: GraphQLScalarType;
   JoinResponse?: JoinResponseResolvers<ContextType>;
+  MessagesDelta?: MessagesDeltaResolvers<ContextType>;
   Mutation?: MutationResolvers<ContextType>;
   Notification?: NotificationResolvers<ContextType>;
   NotificationConnection?: NotificationConnectionResolvers<ContextType>;

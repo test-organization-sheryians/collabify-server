@@ -29,6 +29,7 @@ export const NewMessageSchema = z.object({
     authorId: z.string().min(1),
     content: z.string(),
     createdAt: z.string().datetime(),
+    sequence: z.number().int().min(0), // Dual-Sequencing: Logical Order
     // dedupeId is useful for client to double-check their own optimistically rendered message
     dedupeId: z.string().min(1).optional(),
   }),
