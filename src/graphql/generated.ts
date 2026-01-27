@@ -68,6 +68,7 @@ export type ChatMessage = {
   conversationId: Scalars['ID']['output'];
   createdAt: Scalars['DateTime']['output'];
   id: Scalars['ID']['output'];
+  streamId: Scalars['String']['output'];
   type: Scalars['String']['output'];
 };
 
@@ -346,6 +347,7 @@ export type Query = {
   getWorkspaceInviteInfo: WorkspaceInviteInfo;
   health: Scalars['String']['output'];
   me?: Maybe<User>;
+  messagesDelta: Array<ChatMessage>;
   myProjects: Array<Project>;
   myWorkspaces: Array<Workspace>;
   /** Get paginated notifications for the current user. */
@@ -425,6 +427,13 @@ export type QueryGetUserChannelsArgs = {
 
 export type QueryGetWorkspaceInviteInfoArgs = {
   token: Scalars['String']['input'];
+};
+
+
+export type QueryMessagesDeltaArgs = {
+  afterStreamId: Scalars['String']['input'];
+  conversationId: Scalars['ID']['input'];
+  limit?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
@@ -703,6 +712,7 @@ export type ChatMessageResolvers<ContextType = ServiceContext, ParentType extend
   conversationId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  streamId?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   type?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 }>;
 
@@ -845,6 +855,7 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   getWorkspaceInviteInfo?: Resolver<ResolversTypes['WorkspaceInviteInfo'], ParentType, ContextType, RequireFields<QueryGetWorkspaceInviteInfoArgs, 'token'>>;
   health?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   me?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
+  messagesDelta?: Resolver<Array<ResolversTypes['ChatMessage']>, ParentType, ContextType, RequireFields<QueryMessagesDeltaArgs, 'afterStreamId' | 'conversationId'>>;
   myProjects?: Resolver<Array<ResolversTypes['Project']>, ParentType, ContextType, RequireFields<QueryMyProjectsArgs, 'workspaceId'>>;
   myWorkspaces?: Resolver<Array<ResolversTypes['Workspace']>, ParentType, ContextType>;
   notifications?: Resolver<ResolversTypes['NotificationConnection'], ParentType, ContextType, Partial<QueryNotificationsArgs>>;

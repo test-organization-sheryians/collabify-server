@@ -15,6 +15,7 @@ import { typeDefs as getChannelUnreadCountTypeDefs } from "../queries/get-channe
 import { typeDefs as getSubscribedChannelsTypeDefs } from "../queries/get-subscribed-channels";
 import { typeDefs as getLastReadMessageTypeDefs } from "../queries/get-last-read-message";
 import { typeDefs as getPresenceMapTypeDefs } from "../queries/get-presence-map";
+import { typeDefs as getMessagesDeltaTypeDefs } from "../queries/get-messages-delta";
 
 const sharedTypeDefs = /* GraphQL */ `
   type Conversation {
@@ -57,6 +58,7 @@ const sharedTypeDefs = /* GraphQL */ `
     authorUserId: ID!
     content: JSON!
     type: String!
+    streamId: String!
     createdAt: DateTime!
     # Add other fields as needed
   }
@@ -95,4 +97,5 @@ export const typeDefs = [
   getSubscribedChannelsTypeDefs,
   getLastReadMessageTypeDefs,
   getPresenceMapTypeDefs,
+  getMessagesDeltaTypeDefs,
 ];

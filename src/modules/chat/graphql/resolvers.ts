@@ -68,6 +68,11 @@ export const resolvers: Resolvers = {
       const input = queries.getPresenceMap.getPresenceMapSchema.parse(args);
       return queries.getPresenceMap.handler(input, ctx);
     },
+    messagesDelta: async (_, args, ctx) => {
+      await requireUser(ctx);
+      const input = queries.getMessagesDelta.getMessagesDeltaSchema.parse(args);
+      return queries.getMessagesDelta.handler(input, ctx);
+    },
   },
   Mutation: {
     createChannel: async (_, args, ctx) => {
