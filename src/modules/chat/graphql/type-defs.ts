@@ -16,6 +16,7 @@ import { typeDefs as getSubscribedChannelsTypeDefs } from "../queries/get-subscr
 import { typeDefs as getLastReadMessageTypeDefs } from "../queries/get-last-read-message";
 import { typeDefs as getPresenceMapTypeDefs } from "../queries/get-presence-map";
 import { typeDefs as getMessagesDeltaTypeDefs } from "../queries/get-messages-delta";
+import { typeDefs as getHistoryTypeDefs } from "../queries/get-history";
 
 const sharedTypeDefs = /* GraphQL */ `
   type Conversation {
@@ -99,4 +100,5 @@ export const typeDefs = [
   getLastReadMessageTypeDefs,
   getPresenceMapTypeDefs,
   getMessagesDeltaTypeDefs,
+  getHistoryTypeDefs,
 ];

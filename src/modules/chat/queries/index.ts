@@ -10,3 +10,4 @@ export * as getSubscribedChannels from "./get-subscribed-channels";
 export * as getLastReadMessage from "./get-last-read-message";
 export * as getPresenceMap from "./get-presence-map";
 export * as getMessagesDelta from "./get-messages-delta";
+export * as getHistory from "./get-history";

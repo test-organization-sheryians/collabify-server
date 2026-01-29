@@ -73,6 +73,11 @@ export const resolvers: Resolvers = {
       const input = queries.getMessagesDelta.getMessagesDeltaSchema.parse(args);
       return queries.getMessagesDelta.handler(input, ctx);
     },
+    history: async (_, args, ctx) => {
+      await requireUser(ctx); // Ensure Auth
+      const input = queries.getHistory.GetHistoryInputSchema.parse(args);
+      return queries.getHistory.handler(input, ctx);
+    },
   },
   Mutation: {
     createChannel: async (_, args, ctx) => {

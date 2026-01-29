@@ -97,11 +97,32 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
 
       // 2. Create Final Message (Archive)
       // Idempotency Check: Prevent duplicate inserts if job retries
-      const existing = await tx.chatMessage.findUnique({
+      // CHECK 1: By messageId (dedupeId)
+      const existingById = await tx.chatMessage.findUnique({
         where: { id: dedupeId },
       });
-      if (existing) {
-        logger.info({ dedupeId }, "Message already persisted (Idempotency)");
+      if (existingById) {
+        logger.info({ dedupeId }, "Message already persisted (by ID)");
+        return;
+      }
+
+      // CHECK 2: By (conversationId, sequence) to prevent unique constraint violation
+      const existingBySequence = await tx.chatMessage.findFirst({
+        where: {
+          conversationId,
+          sequence,
+        },
+      });
+      if (existingBySequence) {
+        logger.warn(
+          {
+            conversationId,
+            sequence,
+            existingId: existingBySequence.id,
+            newId: dedupeId,
+          },
+          "Sequence already used by different message. Skipping to prevent constraint violation."
+        );
         return;
       }
 

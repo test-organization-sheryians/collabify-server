@@ -120,8 +120,15 @@ export const streamWorker = {
             }
           }
         }
-      } catch (err) {
-        logger.error({ err }, "Stream Worker Loop Error");
+      } catch (err: any) {
+        if (err?.message?.includes("NOGROUP")) {
+          logger.warn(
+            "Stream Worker encountered NOGROUP error. Clearing Group Cache to force re-creation."
+          );
+          this.knownGroups.clear();
+        } else {
+          logger.error({ err }, "Stream Worker Loop Error");
+        }
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
     }
@@ -265,6 +272,7 @@ export const streamWorker = {
 
     const downstreamData = {
       ...rawPayload,
+      messageId: dedupeId, // CRITICAL: Client validation requires messageId
       streamId: id,
       sequence, // INJECT SEQUENCE for Client
       authorId,

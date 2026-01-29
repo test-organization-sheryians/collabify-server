@@ -123,6 +123,13 @@ export type CreateThreadInput = {
   parentMessageId: Scalars['ID']['input'];
 };
 
+export type HistoryPayload = {
+  __typename?: 'HistoryPayload';
+  hasMore: Scalars['Boolean']['output'];
+  messages: Array<ChatMessage>;
+  minSequence?: Maybe<Scalars['Int']['output']>;
+};
+
 export type InviteResponse = {
   __typename?: 'InviteResponse';
   invitedCount: Scalars['Int']['output'];
@@ -354,6 +361,7 @@ export type Query = {
   getUserChannels: Array<Conversation>;
   getWorkspaceInviteInfo: WorkspaceInviteInfo;
   health: Scalars['String']['output'];
+  history: HistoryPayload;
   me?: Maybe<User>;
   messagesDelta: MessagesDelta;
   myProjects: Array<Project>;
@@ -435,6 +443,13 @@ export type QueryGetUserChannelsArgs = {
 
 export type QueryGetWorkspaceInviteInfoArgs = {
   token: Scalars['String']['input'];
+};
+
+
+export type QueryHistoryArgs = {
+  beforeSequence: Scalars['Int']['input'];
+  conversationId: Scalars['ID']['input'];
+  limit?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
@@ -622,6 +637,7 @@ export type ResolversTypes = ResolversObject<{
   CreateProjectInput: CreateProjectInput;
   CreateThreadInput: CreateThreadInput;
   DateTime: ResolverTypeWrapper<Scalars['DateTime']['output']>;
+  HistoryPayload: ResolverTypeWrapper<Omit<HistoryPayload, 'messages'> & { messages: Array<ResolversTypes['ChatMessage']> }>;
   ID: ResolverTypeWrapper<Scalars['ID']['output']>;
   Int: ResolverTypeWrapper<Scalars['Int']['output']>;
   InviteResponse: ResolverTypeWrapper<InviteResponse>;
@@ -665,6 +681,7 @@ export type ResolversParentTypes = ResolversObject<{
   CreateProjectInput: CreateProjectInput;
   CreateThreadInput: CreateThreadInput;
   DateTime: Scalars['DateTime']['output'];
+  HistoryPayload: Omit<HistoryPayload, 'messages'> & { messages: Array<ResolversParentTypes['ChatMessage']> };
   ID: Scalars['ID']['output'];
   Int: Scalars['Int']['output'];
   InviteResponse: InviteResponse;
@@ -747,6 +764,12 @@ export type ConversationResolvers<ContextType = ServiceContext, ParentType exten
 export interface DateTimeScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes['DateTime'], any> {
   name: 'DateTime';
 }
+
+export type HistoryPayloadResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['HistoryPayload'] = ResolversParentTypes['HistoryPayload']> = ResolversObject<{
+  hasMore?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  messages?: Resolver<Array<ResolversTypes['ChatMessage']>, ParentType, ContextType>;
+  minSequence?: Resolver<Maybe<ResolversTypes['Int']>, ParentType, ContextType>;
+}>;
 
 export type InviteResponseResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['InviteResponse'] = ResolversParentTypes['InviteResponse']> = ResolversObject<{
   invitedCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
@@ -872,6 +895,7 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   getUserChannels?: Resolver<Array<ResolversTypes['Conversation']>, ParentType, ContextType, RequireFields<QueryGetUserChannelsArgs, 'projectId' | 'workspaceId'>>;
   getWorkspaceInviteInfo?: Resolver<ResolversTypes['WorkspaceInviteInfo'], ParentType, ContextType, RequireFields<QueryGetWorkspaceInviteInfoArgs, 'token'>>;
   health?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  history?: Resolver<ResolversTypes['HistoryPayload'], ParentType, ContextType, RequireFields<QueryHistoryArgs, 'beforeSequence' | 'conversationId'>>;
   me?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
   messagesDelta?: Resolver<ResolversTypes['MessagesDelta'], ParentType, ContextType, RequireFields<QueryMessagesDeltaArgs, 'conversationId'>>;
   myProjects?: Resolver<Array<ResolversTypes['Project']>, ParentType, ContextType, RequireFields<QueryMyProjectsArgs, 'workspaceId'>>;
@@ -937,6 +961,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   ChatMessage?: ChatMessageResolvers<ContextType>;
   Conversation?: ConversationResolvers<ContextType>;
   DateTime?: GraphQLScalarType;
+  HistoryPayload?: HistoryPayloadResolvers<ContextType>;
   InviteResponse?: InviteResponseResolvers<ContextType>;
   JSON?: GraphQLScalarType;
   JoinResponse?: JoinResponseResolvers<ContextType>;
