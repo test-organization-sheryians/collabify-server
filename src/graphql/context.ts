@@ -12,7 +12,7 @@ import { redis } from "@/infra/redis";
 export const createContext = (c: Context): ApplicationContext => {
   const auth = getAuth(c);
 
-  return {
+  const ctx: ApplicationContext = {
     c, // Hono context
     auth: {
       userId: auth?.userId || null,
@@ -20,12 +20,17 @@ export const createContext = (c: Context): ApplicationContext => {
     },
     db,
     redis,
-    dataloaders: {
-      user: createUserLoaders(),
-      workspace: createWorkspaceLoaders(),
-      notification: createNotificationLoaders(),
-      project: createProjectLoaders(),
-      chat: createChatLoaders(),
-    },
+    dataloaders: {} as ApplicationContext["dataloaders"],
   };
+
+  // Initialize dataloaders with context
+  ctx.dataloaders = {
+    user: createUserLoaders(),
+    workspace: createWorkspaceLoaders(),
+    notification: createNotificationLoaders(),
+    project: createProjectLoaders(),
+    chat: createChatLoaders(ctx),
+  };
+
+  return ctx;
 };

@@ -1,12 +1,12 @@
 export const typeDefs = /* GraphQL */ `
   input CreateThreadInput {
-    channelId: ID!
-    parentMessageId: ID!
-    content: JSON!
-    nonce: String
+    workspaceId: ID!
+    projectId: ID!
+    conversationId: ID!
+    messageId: ID!
   }
 
   extend type Mutation {
-    createThread(input: CreateThreadInput!): ChatMessage!
+    createThread(input: CreateThreadInput!): Conversation!
   }
 `;

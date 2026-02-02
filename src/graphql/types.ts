@@ -3,7 +3,7 @@ import { Context as HonoContext } from "hono";
 import { UserLoaders } from "../modules/user";
 import { WorkspaceLoaders } from "../modules/workspace";
 import { NotificationLoaders } from "../modules/notification/dataloaders";
-import { ChatLoaders } from "../modules/chat";
+import { ChatLoaders } from "../modules/chat/loaders";
 import { YogaInitialContext } from "graphql-yoga";
 import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";

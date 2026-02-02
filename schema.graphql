@@ -68,6 +68,8 @@ type Query {
   getSubscribedChannels: [ID!]!
   getLastReadMessage(channelId: ID!): ID
   getPresenceMap(userIds: [ID!]!): [UserPresence!]!
+  getUnreadCounts(workspaceId: ID!, projectId: ID!): UnreadCountsResponse!
+  getReadReceipts(messageId: ID!): ReadReceiptsResponse!
 }
 
 type Mutation {
@@ -322,4 +324,38 @@ input RenameChannelInput {
 
 input CreateThreadInput {
   parentMessageId: ID!
+}
+
+"""
+Response type for getUnreadCounts query
+"""
+type UnreadCountsResponse {
+  conversations: [ConversationUnreadCount!]!
+}
+
+"""
+Unread count for a single conversation
+"""
+type ConversationUnreadCount {
+  conversationId: ID!
+  unreadCount: Int!
+  lastUnreadMessageId: ID
+}
+
+"""
+Response type for getReadReceipts query
+"""
+type ReadReceiptsResponse {
+  readBy: [ReadReceiptUser!]!
+  totalReads: Int!
+  totalMembers: Int!
+}
+
+"""
+User who has read a message
+"""
+type ReadReceiptUser {
+  userId: ID!
+  username: String!
+  avatarUrl: String
 }

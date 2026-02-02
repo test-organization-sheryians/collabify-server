@@ -1,8 +1,9 @@
 import { z } from "zod";
 
 export const markReadSchema = z.object({
-  channelId: z.string().min(1),
-  messageId: z.string().min(1), // The ID of the message read
+  conversationId: z.string(),
+  watermarkId: z.string(), // Watermark: All messages <= this are read
+  nonce: z.string().uuid().optional(),
 });
 
 export type MarkReadInput = z.infer<typeof markReadSchema>;

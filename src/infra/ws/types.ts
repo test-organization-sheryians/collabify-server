@@ -1,12 +1,13 @@
 import { ServerWebSocket } from "bun";
-import { Context } from "hono";
+import { PrismaClient } from "@prisma/client";
+import { Redis } from "ioredis";
 import { ZodSchema } from "zod";
 
 /**
- * The Context attached to every WebSocket connection.
+ * The Socket Data attached to every WebSocket connection.
  * Determined during the Upgrade phase.
  */
-export interface WSContext {
+export interface WSSocketData {
   workspaceId: string;
   userId: string;
   socketId: string;
@@ -16,7 +17,21 @@ export interface WSContext {
 /**
  * The Typed Bun WebSocket
  */
-export type ChatWebSocket = ServerWebSocket<WSContext>;
+export type ChatWebSocket = ServerWebSocket<WSSocketData>;
+
+/**
+ * WebSocket Handler Context
+ * Similar to GraphQL's ApplicationContext - includes db, redis, etc.
+ * This allows handlers to use ctx.db consistent with GraphQL handlers
+ */
+export interface WSHandlerContext {
+  db: PrismaClient;
+  redis: Redis;
+  auth: {
+    userId: string;
+    workspaceId: string;
+  };
+}
 
 /**
  * Narrowed Event Type (Prepare for V2 Unions)
@@ -86,9 +101,10 @@ export const createSuccessFrame = (
 
 /**
  * The Handler Definition
+ * Now uses WSHandlerContext instead of plain Hono Context
  */
 export type WSHandler<TInput = any> = (
-  ctx: Context, // Hono Context (useful for dependency injection)
+  ctx: WSHandlerContext,
   socket: ChatWebSocket,
   input: TInput
 ) => Promise<void> | void;

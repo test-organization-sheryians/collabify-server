@@ -5,8 +5,11 @@ import {
   createErrorFrame,
   InboundEnvelope,
   RouteMap,
+  WSHandlerContext,
 } from "./types";
 import { env } from "../../shared/config/env";
+import { db } from "@/infra/db";
+import { redis } from "@/infra/redis";
 
 import { ping } from "./events/ping";
 
@@ -105,9 +108,19 @@ export class WSRouter {
       return;
     }
 
-    // 4. Execute
+    // 4. Build WSHandlerContext (matches GraphQL pattern)
+    const handlerContext: WSHandlerContext = {
+      db,
+      redis,
+      auth: {
+        userId: socket.data.userId,
+        workspaceId: socket.data.workspaceId,
+      },
+    };
+
+    // 5. Execute
     try {
-      await route.handler(ctx, socket, validation.data);
+      await route.handler(handlerContext, socket, validation.data);
     } catch (err: any) {
       logger.error({ msg: "WS Handler Error", type, err });
 

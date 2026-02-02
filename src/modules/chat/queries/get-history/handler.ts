@@ -1,9 +1,9 @@
-import { Context } from 'hono';
 import { GetHistoryInput } from "./types";
 import { GetHistoryInputSchema } from "./schema";
 import { AppError } from "@/shared/errors";
+import { ServiceContext } from "@/graphql/types";
 
-export async function handler(input: GetHistoryInput, ctx: Context) {
+export async function handler(input: GetHistoryInput, ctx: ServiceContext) {
   // 1. Validation
   const { conversationId, beforeSequence, limit } =
     GetHistoryInputSchema.parse(input);
@@ -12,7 +12,7 @@ export async function handler(input: GetHistoryInput, ctx: Context) {
 
   // 2. Query
   // Fetch limit + 1 to detect hasMore
-  const messages = await ctx.db.message.findMany({
+  const messages = await ctx.db.chatMessage.findMany({
     where: {
       conversationId,
       sequence: {

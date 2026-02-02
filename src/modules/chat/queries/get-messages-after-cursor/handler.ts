@@ -15,5 +15,18 @@ export const handler = async (
     orderBy: {
       createdAt: "asc", // We want valid chronological history forward
     },
+    select: {
+      id: true,
+      conversationId: true,
+      authorUserId: true,
+      content: true,
+      type: true,
+      sequence: true,
+      streamId: true,
+      createdAt: true,
+      deletedAt: true,
+      metadata: true,
+      parentMessageId: true, // For inline replies (message-reference)
+    },
   });
 };

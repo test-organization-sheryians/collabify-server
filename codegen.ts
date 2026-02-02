@@ -21,7 +21,7 @@ const config: CodegenConfig = {
           Conversation: "@prisma/client#ChatConversation as PrismaConversation",
           ChatMember: "@prisma/client#ChatMember as PrismaChatMember",
           ChatMessage: "@prisma/client#ChatMessage as PrismaChatMessage",
-          UserPresence: "@prisma/client#UserPresence as PrismaUserPresence",
+          // UserPresence: "@prisma/client#UserPresence as PrismaUserPresence",
         },
       },
     },

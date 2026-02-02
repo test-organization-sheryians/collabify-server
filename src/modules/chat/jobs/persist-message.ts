@@ -12,7 +12,6 @@ interface PersistMessageJob extends SendMessageInput {
   streamId: string;
   authorId: string;
   sequence: number; // NEW
-  // conversationId, payload, dedupeId are in SendMessageInput
 }
 
 /**
@@ -28,8 +27,8 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
     content,
     dedupeId,
     authorId,
-    threadId,
     metadata,
+    parentMessageId, // For inline replies (message-reference)
   } = job.data;
 
   logger.info(
@@ -139,7 +138,7 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
             schemaVersion: 1,
           },
           type: "TEXT",
-          parentMessageId: threadId,
+          parentMessageId, // For inline replies (null for top-level messages)
           metadata: (metadata || {}) as any,
         },
       });

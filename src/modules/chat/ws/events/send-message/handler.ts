@@ -1,4 +1,4 @@
-import { Context } from "hono";
+import { WSHandlerContext } from "@/infra/ws/types";
 import {
   ChatWebSocket,
   createSuccessFrame,
@@ -9,13 +9,14 @@ import { logger } from "@/shared/logger";
 import { appRedis } from "@/infra/redis";
 import { OutboxStatus } from "@prisma/client";
 import { KeyFactory } from "@/infra/redis/keys";
+import { validateReplyParent } from "@/shared/validation/chat-permissions";
 
 export const sendMessageHandler = async (
-  ctx: Context,
+  ctx: WSHandlerContext,
   socket: ChatWebSocket,
   input: SendMessageInput
 ) => {
-  const { conversationId, content, dedupeId } = input;
+  const { conversationId, content, dedupeId, parentMessageId } = input;
   const { userId } = socket.data;
 
   logger.info({
@@ -44,12 +45,38 @@ export const sendMessageHandler = async (
       return;
     }
 
+    // 1.5. Validate Parent Message (if replying)
+    if (parentMessageId) {
+      const parentValidation = await validateReplyParent(
+        ctx.db,
+        parentMessageId,
+        conversationId
+      );
+
+      if (!parentValidation.valid) {
+        logger.warn({
+          msg: "Invalid parent message reference",
+          code: parentValidation.error?.code,
+          parentMessageId,
+        });
+        socket.send(
+          createErrorFrame(
+            dedupeId,
+            "chat:send-message",
+            parentValidation.error?.code || "INVALID_PARENT",
+            parentValidation.error?.message || "Invalid parent message"
+          )
+        );
+        return;
+      }
+    }
+
     // 2. Persist Intent to Outbox (Postgres)
     const outboxRecord = await ctx.db.outboxMessage.create({
       data: {
         messageId: dedupeId,
         conversationId,
-        conversationType: "CHANNEL",
+        conversationType: input.conversationType || "CHANNEL",
         payload: input as any,
         status: OutboxStatus.PENDING,
       },

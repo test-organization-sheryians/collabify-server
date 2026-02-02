@@ -485,6 +485,37 @@ model OutboxMessage {
   @@map("chat_outbox_messages")
 }
 
+model MessageEditOutbox {
+  id          String       @id @default(cuid())
+  messageId   String       @map("message_id")
+  content     String // New content (up to 4000 chars)
+  editedBy    String       @map("edited_by")
+  editedAt    DateTime     @map("edited_at")
+  nonce       String // Client-provided UUID for idempotency
+  status      OutboxStatus @default(PENDING)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  processedAt DateTime?    @map("processed_at")
+
+  @@unique([messageId, nonce]) // Prevent duplicate edits with same nonce
+  @@index([status, createdAt])
+  @@map("message_edit_outbox")
+}
+
+model MessageDeleteOutbox {
+  id          String       @id @default(cuid())
+  messageId   String       @map("message_id")
+  deletedBy   String       @map("deleted_by")
+  deletedAt   DateTime     @map("deleted_at")
+  nonce       String // Client-provided UUID
+  status      OutboxStatus @default(PENDING)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  processedAt DateTime?    @map("processed_at")
+
+  @@unique([messageId, nonce])
+  @@index([status, createdAt])
+  @@map("message_delete_outbox")
+}
+
 model ChatConversation {
   id           String           @id @default(cuid())
   workspaceId  String           @map("workspace_id")
@@ -497,14 +528,26 @@ model ChatConversation {
   updatedAt    DateTime         @updatedAt @map("updated_at")
   createdAt    DateTime         @default(now()) @map("created_at")
   deletedAt    DateTime?        @map("deleted_at")
+  closedAt     DateTime?        @map("closed_at") // Thread-specific: when thread was closed
+
+  // Thread-specific fields (nullable for non-threads)
+  parentConversationId String? @map("parent_conversation_id")
+  parentMessageId      String? @map("parent_message_id")
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   project   Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // Thread relationships
+  parentConversation ChatConversation?  @relation("ThreadParent", fields: [parentConversationId], references: [id], onDelete: Cascade)
+  childThreads       ChatConversation[] @relation("ThreadParent")
+  parentMessage      ChatMessage?       @relation("MessageThreads", fields: [parentMessageId], references: [id], onDelete: Cascade)
 
   members  ChatMember[]
   messages ChatMessage[]
 
   @@unique([projectId, name])
+  @@unique([parentMessageId])
+  @@index([parentConversationId])
   @@map("chat_conversations")
 }
 
@@ -516,6 +559,7 @@ model ChatMember {
   // Read State
   lastReadMsgId      String?  @map("last_read_msg_id") // Blue Tick
   lastDeliveredMsgId String?  @map("last_delivered_msg_id") // Double Tick
+  lastReadSeq        Int      @default(0) @map("last_read_seq") // Watermark sequence
   lastReadAt         DateTime @default(now()) @map("last_read_at")
 
   // Metadata
@@ -527,6 +571,7 @@ model ChatMember {
   user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([conversationId, userId])
+  @@index([lastReadSeq])
   @@map("chat_members")
 }
 
@@ -561,6 +606,9 @@ model ChatMessage {
   replies       ChatMessage[]     @relation("ThreadReplies")
   reactions     MessageReaction[]
 
+  // Thread conversations spawned from this message
+  threads ChatConversation[] @relation("MessageThreads")
+
   @@unique([conversationId, streamId]) // STRICT ORDERING CONSTRAINT
   @@unique([conversationId, sequence]) // DUAL SEQUENCING CONSTRAINT
   @@index([conversationId, createdAt(sort: Desc)])
@@ -580,6 +628,8 @@ model MessageReaction {
   user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([messageId, userId, emoji]) // One reaction per type per user
+  @@index([messageId, createdAt(sort: Desc)]) // Fast lookups per message
+  @@index([userId, createdAt(sort: Desc)]) // Fast lookups per user
   @@map("message_reactions")
 }
 

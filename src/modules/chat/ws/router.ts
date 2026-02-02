@@ -1,29 +1,35 @@
 import { RouteMap } from "@/infra/ws/types";
-import { subscribeChannel } from "./events/subscribe-channel";
-import { unsubscribeChannel } from "./events/unsubscribe-channel";
-import { subscribeThread } from "./events/subscribe-thread";
-import { unsubscribeThread } from "./events/unsubscribe-thread";
+import { subscribeConversation } from "./events/subscribe-conversation";
+import { unsubscribeConversation } from "./events/unsubscribe-conversation";
 import { sendMessage } from "./events/send-message";
 import { editMessage } from "./events/edit-message";
 import { deleteMessage } from "./events/delete-message";
-import { userTyping } from "./events/user-typing";
-import { userStopTyping } from "./events/user-stop-typing";
+import { typingStart } from "./events/typing-start";
+import { typingStop } from "./events/typing-stop";
 import { markRead } from "./events/mark-read";
+import addReaction from "./events/add-reaction";
+import removeReaction from "./events/remove-reaction";
+import syncReactions from "./events/sync-reactions";
 
 export const chatWSRoutes: RouteMap = {
-  // Subscription Cycle
-  "chat:subscribe-channel": subscribeChannel,
-  "chat:unsubscribe-channel": unsubscribeChannel,
-  "chat:subscribe-thread": subscribeThread,
-  "chat:unsubscribe-thread": unsubscribeThread,
+  // Unified Subscription Cycle (All Conversation Types)
+  "chat:subscribe-conversation": subscribeConversation,
+  "chat:unsubscribe-conversation": unsubscribeConversation,
 
   // Message Actions
   "chat:send-message": sendMessage,
   "chat:edit-message": editMessage,
   "chat:delete-message": deleteMessage,
 
-  // Ephemeral State
-  "chat:user-typing": userTyping,
-  "chat:user-stop-typing": userStopTyping,
+  // Reactions
+  "chat:add-reaction": addReaction,
+  "chat:remove-reaction": removeReaction,
+  "chat:sync-reactions": syncReactions,
+
+  // Ephemeral State (Typing Indicators)
+  "chat:typing-start": typingStart,
+  "chat:typing-stop": typingStop,
+
+  // Read Receipts
   "chat:mark-read": markRead,
 };

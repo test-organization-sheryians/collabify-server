@@ -1,4 +1,3 @@
-
 export const typeDefs = /* GraphQL */ `
   type HistoryPayload {
     messages: [ChatMessage!]!

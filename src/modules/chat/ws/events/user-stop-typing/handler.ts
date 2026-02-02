@@ -1,10 +1,10 @@
-import { Context } from "hono";
+import { WSHandlerContext } from "@/infra/ws/types";
 import { ChatWebSocket } from "@/infra/ws/types";
 import { UserStopTypingInput } from "./schema";
 import { logger } from "@/shared/logger";
 
 export const userStopTypingHandler = async (
-  ctx: Context,
+  ctx: WSHandlerContext,
   socket: ChatWebSocket,
   input: UserStopTypingInput
 ) => {

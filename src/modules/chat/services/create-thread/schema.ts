@@ -1,13 +1,10 @@
 import { z } from "zod";
 
-// Basic schema for JSON content validation (extensible)
-const contentSchema = z.record(z.string(), z.any());
-
-export const createThreadSchema = z.object({
-  channelId: z.string().cuid(),
-  parentMessageId: z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/, "Invalid ULID"),
-  content: contentSchema,
-  nonce: z.string().optional(),
+export const createThreadInputSchema = z.object({
+  workspaceId: z.string().min(1, "Workspace ID is required"),
+  projectId: z.string().min(1, "Project ID is required"),
+  conversationId: z.string().min(1, "Conversation ID is required"),
+  messageId: z.string().min(1, "Message ID is required"),
 });
 
-export type CreateThreadInput = z.infer<typeof createThreadSchema>;
+export type CreateThreadInput = z.infer<typeof createThreadInputSchema>;

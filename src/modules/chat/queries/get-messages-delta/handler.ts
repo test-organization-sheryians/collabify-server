@@ -26,6 +26,19 @@ export const handler = async (
       sequence: "asc",
     },
     take: limit! + 1, // Look-ahead for pagination
+    select: {
+      id: true,
+      conversationId: true,
+      authorUserId: true,
+      content: true,
+      type: true,
+      sequence: true,
+      streamId: true,
+      createdAt: true,
+      deletedAt: true,
+      metadata: true,
+      parentMessageId: true, // For inline replies (message-reference)
+    },
   });
 
   // 2. Pagination Logic
