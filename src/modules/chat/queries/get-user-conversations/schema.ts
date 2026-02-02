@@ -3,14 +3,14 @@ import { z } from "zod";
 /**
  * Get User Conversations Schema
  *
- * Unified query for fetching all conversation types (CHANNEL, DM, GROUP, THREAD)
- * Supports filtering, pagination, and archived conversations.
+ * Fetches conversational items: CHANNEL, DM, GROUP_DM
+ * Note: THREAD is excluded - threads are contextual to messages, not top-level conversations
  */
 export const getUserConversationsSchema = z.object({
   workspaceId: z.string().cuid(),
   projectId: z.string().cuid(),
-  type: z.enum(["CHANNEL", "DM", "GROUP", "THREAD"]).optional(),
-  includeArchived: z.boolean().optional().default(false),
-  limit: z.number().min(1).max(100).optional().default(50),
+  type: z.enum(["CHANNEL", "DM", "GROUP_DM"]).optional(),
+  includeArchived: z.boolean().optional(),
+  limit: z.number().min(1).max(100).optional(),
   cursor: z.string().optional(), // ISO date string for cursor-based pagination
 });

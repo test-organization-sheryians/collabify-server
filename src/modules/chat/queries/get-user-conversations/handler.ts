@@ -1,5 +1,6 @@
 import { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
+import { getUserConversationsSchema } from "./schema";
 import type {
   GetUserConversationsInput,
   GetUserConversationsOutput,
@@ -23,24 +24,20 @@ export const handler = async (
     throw AppError.unauthorized("User not authenticated");
   }
 
-  const { workspaceId, projectId, type, includeArchived, limit, cursor } =
-    input;
+  // Validate and parse input
+  const {
+    workspaceId,
+    projectId,
+    type,
+    includeArchived = false,
+    limit = 50,
+    cursor,
+  } = getUserConversationsSchema.parse(input);
 
-  // Verify project membership
-  const projectMembership = await ctx.db.projectMember.findUnique({
-    where: {
-      projectId_userId: {
-        projectId,
-        userId,
-      },
-    },
-  });
+  // ──────────────────────────────────────────────────────────────────────────
+  // Build query with filters
+  // ──────────────────────────────────────────────────────────────────────────
 
-  if (!projectMembership) {
-    throw AppError.forbidden("You are not a member of this project");
-  }
-
-  // Build where clause
   const where: Prisma.ChatConversationWhereInput = {
     workspaceId,
     projectId,
@@ -49,9 +46,14 @@ export const handler = async (
     },
   };
 
-  // Filter by type
+  // Filter by type (CHANNEL, DM, or GROUP_DM)
+  // THREAD is excluded from this query - handled separately
   if (type) {
-    where.type = type as any; // Prisma enum includes GROUP_DM, Zod uses GROUP
+    where.type = type as any;
+  } else {
+    // Default: exclude threads even though schema doesn't allow it
+    // This is defensive programming in case schema changes
+    where.type = { in: ["CHANNEL", "DM", "GROUP_DM"] };
   }
 
   // Filter archived

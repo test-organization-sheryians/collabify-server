@@ -51133,6 +51133,7 @@ var require_client4 = __commonJS((exports) => {
     updatedAt: "updatedAt",
     createdAt: "createdAt",
     deletedAt: "deletedAt",
+    closedAt: "closedAt",
     parentConversationId: "parentConversationId",
     parentMessageId: "parentMessageId"
   };
@@ -51935,6 +51936,7 @@ model ChatConversation {
   updatedAt    DateTime         @updatedAt @map("updated_at")
   createdAt    DateTime         @default(now()) @map("created_at")
   deletedAt    DateTime?        @map("deleted_at")
+  closedAt     DateTime?        @map("closed_at") // Thread-specific: when thread was closed
 
   // Thread-specific fields (nullable for non-threads)
   parentConversationId String? @map("parent_conversation_id")
@@ -52268,7 +52270,7 @@ model UsageRecord {
 }
 `
   };
-  config2.runtimeDataModel = JSON.parse('{"models":{"User":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"email","kind":"scalar","type":"String"},{"name":"passwordHash","kind":"scalar","type":"String","dbName":"password_hash"},{"name":"fullName","kind":"scalar","type":"String","dbName":"full_name"},{"name":"avatarUrl","kind":"scalar","type":"String","dbName":"avatar_url"},{"name":"status","kind":"enum","type":"UserStatus"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"},{"name":"deletedAt","kind":"scalar","type":"DateTime","dbName":"deleted_at"},{"name":"sessions","kind":"object","type":"UserSession","relationName":"UserToUserSession"},{"name":"keys","kind":"object","type":"UserKey","relationName":"UserToUserKey"},{"name":"workspaceMembers","kind":"object","type":"WorkspaceMember","relationName":"UserToWorkspaceMember"},{"name":"auditLogs","kind":"object","type":"AuditLog","relationName":"AuditLogToUser"},{"name":"projectMembers","kind":"object","type":"ProjectMember","relationName":"ProjectMemberToUser"},{"name":"resourcePolicies","kind":"object","type":"ResourcePolicy","relationName":"ResourcePolicyToUser"},{"name":"subscription","kind":"object","type":"Subscription","relationName":"SubscriptionToUser"},{"name":"usageRecords","kind":"object","type":"UsageRecord","relationName":"UsageRecordToUser"},{"name":"assignedTasks","kind":"object","type":"Task","relationName":"TaskAssignee"},{"name":"reportedTasks","kind":"object","type":"Task","relationName":"TaskReporter"},{"name":"chatMembers","kind":"object","type":"ChatMember","relationName":"ChatMemberToUser"},{"name":"sentMessages","kind":"object","type":"ChatMessage","relationName":"ChatMessageToUser"},{"name":"messageReactions","kind":"object","type":"MessageReaction","relationName":"MessageReactionToUser"},{"name":"meetParticipants","kind":"object","type":"MeetParticipant","relationName":"MeetParticipantToUser"},{"name":"authoredPages","kind":"object","type":"Page","relationName":"PageToUser"},{"name":"uploadedFiles","kind":"object","type":"VaultFile","relationName":"UserToVaultFile"},{"name":"notifications","kind":"object","type":"Notification","relationName":"NotificationToUser"},{"name":"sentNotifications","kind":"object","type":"Notification","relationName":"NotificationActor"},{"name":"aiConversations","kind":"object","type":"CollabifyAiConversation","relationName":"CollabifyAiConversationToUser"},{"name":"notificationPreferences","kind":"object","type":"NotificationPreference","relationName":"NotificationPreferenceToUser"}],"dbName":"users"},"UserSession":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"tokenHash","kind":"scalar","type":"String","dbName":"token_hash"},{"name":"expiresAt","kind":"scalar","type":"DateTime","dbName":"expires_at"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"deviceInfo","kind":"scalar","type":"String","dbName":"device_info"},{"name":"ipAddress","kind":"scalar","type":"String","dbName":"ip_address"},{"name":"user","kind":"object","type":"User","relationName":"UserToUserSession"}],"dbName":"user_sessions"},"UserKey":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"provider","kind":"scalar","type":"String"},{"name":"providerId","kind":"scalar","type":"String","dbName":"provider_id"},{"name":"user","kind":"object","type":"User","relationName":"UserToUserKey"}],"dbName":"user_keys"},"Workspace":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"slug","kind":"scalar","type":"String"},{"name":"name","kind":"scalar","type":"String"},{"name":"logoUrl","kind":"scalar","type":"String","dbName":"logo_url"},{"name":"domainWhitelist","kind":"scalar","type":"String","dbName":"domain_whitelist"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"},{"name":"deletedAt","kind":"scalar","type":"DateTime","dbName":"deleted_at"},{"name":"members","kind":"object","type":"WorkspaceMember","relationName":"WorkspaceToWorkspaceMember"},{"name":"invites","kind":"object","type":"WorkspaceInvite","relationName":"WorkspaceToWorkspaceInvite"},{"name":"auditLogs","kind":"object","type":"AuditLog","relationName":"AuditLogToWorkspace"},{"name":"customRoles","kind":"object","type":"CustomRole","relationName":"CustomRoleToWorkspace"},{"name":"projects","kind":"object","type":"Project","relationName":"ProjectToWorkspace"},{"name":"pages","kind":"object","type":"Page","relationName":"PageToWorkspace"},{"name":"vaultFiles","kind":"object","type":"VaultFile","relationName":"VaultFileToWorkspace"},{"name":"whiteboards","kind":"object","type":"Whiteboard","relationName":"WhiteboardToWorkspace"},{"name":"chats","kind":"object","type":"ChatConversation","relationName":"ChatConversationToWorkspace"},{"name":"tasks","kind":"object","type":"Task","relationName":"TaskToWorkspace"},{"name":"usageRecords","kind":"object","type":"UsageRecord","relationName":"UsageRecordToWorkspace"},{"name":"notificationPreferences","kind":"object","type":"NotificationPreference","relationName":"NotificationPreferenceToWorkspace"},{"name":"notifications","kind":"object","type":"Notification","relationName":"NotificationToWorkspace"}],"dbName":"workspaces"},"WorkspaceMember":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"role","kind":"enum","type":"RoleType"},{"name":"customRoleId","kind":"scalar","type":"String","dbName":"custom_role_id"},{"name":"joinedAt","kind":"scalar","type":"DateTime","dbName":"joined_at"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"WorkspaceToWorkspaceMember"},{"name":"user","kind":"object","type":"User","relationName":"UserToWorkspaceMember"},{"name":"customRole","kind":"object","type":"CustomRole","relationName":"CustomRoleToWorkspaceMember"}],"dbName":"workspace_members"},"WorkspaceInvite":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"email","kind":"scalar","type":"String"},{"name":"token","kind":"scalar","type":"String"},{"name":"role","kind":"enum","type":"RoleType"},{"name":"inviterId","kind":"scalar","type":"String","dbName":"inviter_id"},{"name":"expiresAt","kind":"scalar","type":"DateTime","dbName":"expires_at"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"WorkspaceToWorkspaceInvite"}],"dbName":"workspace_invites"},"SystemPermission":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"description","kind":"scalar","type":"String"},{"name":"module","kind":"scalar","type":"String"},{"name":"inRoles","kind":"object","type":"RolePermission","relationName":"RolePermissionToSystemPermission"}],"dbName":"system_permissions"},"CustomRole":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"name","kind":"scalar","type":"String"},{"name":"description","kind":"scalar","type":"String"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"CustomRoleToWorkspace"},{"name":"permissions","kind":"object","type":"RolePermission","relationName":"CustomRoleToRolePermission"},{"name":"workspaceMembers","kind":"object","type":"WorkspaceMember","relationName":"CustomRoleToWorkspaceMember"},{"name":"projectMembers","kind":"object","type":"ProjectMember","relationName":"CustomRoleToProjectMember"}],"dbName":"custom_roles"},"RolePermission":{"fields":[{"name":"roleId","kind":"scalar","type":"String","dbName":"role_id"},{"name":"permissionId","kind":"scalar","type":"String","dbName":"permission_id"},{"name":"role","kind":"object","type":"CustomRole","relationName":"CustomRoleToRolePermission"},{"name":"permission","kind":"object","type":"SystemPermission","relationName":"RolePermissionToSystemPermission"}],"dbName":"role_permissions"},"ResourcePolicy":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"resourceId","kind":"scalar","type":"String","dbName":"resource_id"},{"name":"resourceType","kind":"scalar","type":"String","dbName":"resource_type"},{"name":"permissionId","kind":"scalar","type":"String","dbName":"permission_id"},{"name":"effect","kind":"enum","type":"PolicyEffect"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"user","kind":"object","type":"User","relationName":"ResourcePolicyToUser"}],"dbName":"resource_policies"},"Project":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"key","kind":"scalar","type":"String","dbName":"key"},{"name":"name","kind":"scalar","type":"String"},{"name":"description","kind":"scalar","type":"String"},{"name":"isPrivate","kind":"scalar","type":"Boolean","dbName":"is_private"},{"name":"isArchived","kind":"scalar","type":"Boolean","dbName":"is_archived"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"},{"name":"deletedAt","kind":"scalar","type":"DateTime","dbName":"deleted_at"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"ProjectToWorkspace"},{"name":"members","kind":"object","type":"ProjectMember","relationName":"ProjectToProjectMember"},{"name":"pages","kind":"object","type":"Page","relationName":"PageToProject"},{"name":"vaultFolders","kind":"object","type":"VaultFolder","relationName":"ProjectToVaultFolder"},{"name":"vaultFiles","kind":"object","type":"VaultFile","relationName":"ProjectToVaultFile"},{"name":"whiteboards","kind":"object","type":"Whiteboard","relationName":"ProjectToWhiteboard"},{"name":"chats","kind":"object","type":"ChatConversation","relationName":"ChatConversationToProject"},{"name":"boards","kind":"object","type":"Board","relationName":"BoardToProject"},{"name":"meets","kind":"object","type":"Meet","relationName":"MeetToProject"},{"name":"aiChats","kind":"object","type":"CollabifyAiConversation","relationName":"CollabifyAiConversationToProject"},{"name":"counters","kind":"object","type":"ProjectCounter","relationName":"ProjectToProjectCounter"},{"name":"tasks","kind":"object","type":"Task","relationName":"ProjectToTask"},{"name":"notificationPreferences","kind":"object","type":"NotificationPreference","relationName":"NotificationPreferenceToProject"},{"name":"notifications","kind":"object","type":"Notification","relationName":"NotificationToProject"}],"dbName":"projects"},"ProjectCounter":{"fields":[{"name":"projectId","kind":"scalar","type":"String","dbName":"project_id"},{"name":"counterType","kind":"scalar","type":"String","dbName":"counter_type"},{"name":"currentVal","kind":"scalar","type":"Int","dbName":"current_val"},{"name":"project","kind":"object","type":"Project","relationName":"ProjectToProjectCounter"}],"dbName":"project_counters"},"ProjectMember":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"projectId","kind":"scalar","type":"String","dbName":"project_id"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"projectRoleId","kind":"scalar","type":"String","dbName":"project_role_id"},{"name":"joinedAt","kind":"scalar","type":"DateTime","dbName":"joined_at"},{"name":"project","kind":"object","type":"Project","relationName":"ProjectToProjectMember"},{"name":"projectRole","kind":"object","type":"CustomRole","relationName":"CustomRoleToProjectMember"},{"name":"user","kind":"object","type":"User","relationName":"ProjectMemberToUser"}],"dbName":"project_members"},"Page":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"projectId","kind":"scalar","type":"String","dbName":"project_id"},{"name":"parentPageId","kind":"scalar","type":"String","dbName":"parent_page_id"},{"name":"title","kind":"scalar","type":"String"},{"name":"emojiIcon","kind":"scalar","type":"String","dbName":"emoji_icon"},{"name":"coverImageUrl","kind":"scalar","type":"String","dbName":"cover_image_url"},{"name":"isLocked","kind":"scalar","type":"Boolean","dbName":"is_locked"},{"name":"contentS3Key","kind":"scalar","type":"String","dbName":"content_s3_key"},{"name":"contentVersion","kind":"scalar","type":"Int","dbName":"content_version"},{"name":"authorUserId","kind":"scalar","type":"String","dbName":"author_user_id"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"},{"name":"deletedAt","kind":"scalar","type":"DateTime","dbName":"deleted_at"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"PageToWorkspace"},{"name":"project","kind":"object","type":"Project","relationName":"PageToProject"},{"name":"author","kind":"object","type":"User","relationName":"PageToUser"},{"name":"parentPage","kind":"object","type":"Page","relationName":"PageHierarchy"},{"name":"childPages","kind":"object","type":"Page","relationName":"PageHierarchy"}],"dbName":"pages"},"VaultFolder":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"projectId","kind":"scalar","type":"String","dbName":"project_id"},{"name":"parentFolderId","kind":"scalar","type":"String","dbName":"parent_folder_id"},{"name":"name","kind":"scalar","type":"String"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"deletedAt","kind":"scalar","type":"DateTime","dbName":"deleted_at"},{"name":"project","kind":"object","type":"Project","relationName":"ProjectToVaultFolder"},{"name":"parentFolder","kind":"object","type":"VaultFolder","relationName":"FolderHierarchy"},{"name":"childFolders","kind":"object","type":"VaultFolder","relationName":"FolderHierarchy"},{"name":"files","kind":"object","type":"VaultFile","relationName":"VaultFileToVaultFolder"}],"dbName":"vault_folders"},"VaultFile":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"projectId","kind":"scalar","type":"String","dbName":"project_id"},{"name":"folderId","kind":"scalar","type":"String","dbName":"folder_id"},{"name":"uploaderUserId","kind":"scalar","type":"String","dbName":"uploader_user_id"},{"name":"name","kind":"scalar","type":"String"},{"name":"mimeType","kind":"scalar","type":"String","dbName":"mime_type"},{"name":"sizeBytes","kind":"scalar","type":"Int","dbName":"size_bytes"},{"name":"s3Key","kind":"scalar","type":"String","dbName":"s3_key"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"deletedAt","kind":"scalar","type":"DateTime","dbName":"deleted_at"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"VaultFileToWorkspace"},{"name":"project","kind":"object","type":"Project","relationName":"ProjectToVaultFile"},{"name":"folder","kind":"object","type":"VaultFolder","relationName":"VaultFileToVaultFolder"},{"name":"uploader","kind":"object","type":"User","relationName":"UserToVaultFile"}],"dbName":"vault_files"},"Whiteboard":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"projectId","kind":"scalar","type":"String","dbName":"project_id"},{"name":"title","kind":"scalar","type":"String"},{"name":"snapshotS3Key","kind":"scalar","type":"String","dbName":"snapshot_s3_key"},{"name":"contentS3Key","kind":"scalar","type":"String","dbName":"content_s3_key"},{"name":"contentVersion","kind":"scalar","type":"Int","dbName":"content_version"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"},{"name":"deletedAt","kind":"scalar","type":"DateTime","dbName":"deleted_at"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"WhiteboardToWorkspace"},{"name":"project","kind":"object","type":"Project","relationName":"ProjectToWhiteboard"}],"dbName":"whiteboards"},"Board":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"projectId","kind":"scalar","type":"String","dbName":"project_id"},{"name":"name","kind":"scalar","type":"String"},{"name":"type","kind":"enum","type":"BoardType"},{"name":"viewStyle","kind":"enum","type":"BoardViewStyle","dbName":"view_style"},{"name":"config","kind":"scalar","type":"Json"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"deletedAt","kind":"scalar","type":"DateTime","dbName":"deleted_at"},{"name":"project","kind":"object","type":"Project","relationName":"BoardToProject"},{"name":"tasks","kind":"object","type":"Task","relationName":"BoardToTask"}],"dbName":"boards"},"Task":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"projectId","kind":"scalar","type":"String","dbName":"project_id"},{"name":"boardId","kind":"scalar","type":"String","dbName":"board_id"},{"name":"seqId","kind":"scalar","type":"Int","dbName":"seq_id"},{"name":"title","kind":"scalar","type":"String"},{"name":"description","kind":"scalar","type":"Json"},{"name":"statusName","kind":"scalar","type":"String","dbName":"status_name"},{"name":"priority","kind":"enum","type":"TaskPriority"},{"name":"assigneeUserId","kind":"scalar","type":"String","dbName":"assignee_user_id"},{"name":"reporterUserId","kind":"scalar","type":"String","dbName":"reporter_user_id"},{"name":"parentTaskId","kind":"scalar","type":"String","dbName":"parent_task_id"},{"name":"startDate","kind":"scalar","type":"DateTime","dbName":"start_date"},{"name":"dueDate","kind":"scalar","type":"DateTime","dbName":"due_date"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"},{"name":"deletedAt","kind":"scalar","type":"DateTime","dbName":"deleted_at"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"TaskToWorkspace"},{"name":"project","kind":"object","type":"Project","relationName":"ProjectToTask"},{"name":"board","kind":"object","type":"Board","relationName":"BoardToTask"},{"name":"assignee","kind":"object","type":"User","relationName":"TaskAssignee"},{"name":"reporter","kind":"object","type":"User","relationName":"TaskReporter"},{"name":"parentTask","kind":"object","type":"Task","relationName":"Subtasks"},{"name":"subtasks","kind":"object","type":"Task","relationName":"Subtasks"}],"dbName":"tasks"},"OutboxMessage":{"fields":[{"name":"id","kind":"scalar","type":"BigInt"},{"name":"messageId","kind":"scalar","type":"String","dbName":"message_id"},{"name":"conversationId","kind":"scalar","type":"String","dbName":"conversation_id"},{"name":"conversationType","kind":"enum","type":"ConversationType","dbName":"conversation_type"},{"name":"payload","kind":"scalar","type":"Json"},{"name":"status","kind":"enum","type":"OutboxStatus"},{"name":"errorLog","kind":"scalar","type":"Json","dbName":"error_log"},{"name":"retryCount","kind":"scalar","type":"Int","dbName":"retry_count"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"processedAt","kind":"scalar","type":"DateTime","dbName":"processed_at"}],"dbName":"chat_outbox_messages"},"MessageEditOutbox":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"messageId","kind":"scalar","type":"String","dbName":"message_id"},{"name":"content","kind":"scalar","type":"String"},{"name":"editedBy","kind":"scalar","type":"String","dbName":"edited_by"},{"name":"editedAt","kind":"scalar","type":"DateTime","dbName":"edited_at"},{"name":"nonce","kind":"scalar","type":"String"},{"name":"status","kind":"enum","type":"OutboxStatus"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"processedAt","kind":"scalar","type":"DateTime","dbName":"processed_at"}],"dbName":"message_edit_outbox"},"MessageDeleteOutbox":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"messageId","kind":"scalar","type":"String","dbName":"message_id"},{"name":"deletedBy","kind":"scalar","type":"String","dbName":"deleted_by"},{"name":"deletedAt","kind":"scalar","type":"DateTime","dbName":"deleted_at"},{"name":"nonce","kind":"scalar","type":"String"},{"name":"status","kind":"enum","type":"OutboxStatus"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"processedAt","kind":"scalar","type":"DateTime","dbName":"processed_at"}],"dbName":"message_delete_outbox"},"ChatConversation":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"projectId","kind":"scalar","type":"String","dbName":"project_id"},{"name":"type","kind":"enum","type":"ConversationType"},{"name":"name","kind":"scalar","type":"String"},{"name":"topic","kind":"scalar","type":"String"},{"name":"isArchived","kind":"scalar","type":"Boolean","dbName":"is_archived"},{"name":"lastSequence","kind":"scalar","type":"Int","dbName":"last_sequence"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"deletedAt","kind":"scalar","type":"DateTime","dbName":"deleted_at"},{"name":"parentConversationId","kind":"scalar","type":"String","dbName":"parent_conversation_id"},{"name":"parentMessageId","kind":"scalar","type":"String","dbName":"parent_message_id"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"ChatConversationToWorkspace"},{"name":"project","kind":"object","type":"Project","relationName":"ChatConversationToProject"},{"name":"parentConversation","kind":"object","type":"ChatConversation","relationName":"ThreadParent"},{"name":"childThreads","kind":"object","type":"ChatConversation","relationName":"ThreadParent"},{"name":"parentMessage","kind":"object","type":"ChatMessage","relationName":"MessageThreads"},{"name":"members","kind":"object","type":"ChatMember","relationName":"ChatConversationToChatMember"},{"name":"messages","kind":"object","type":"ChatMessage","relationName":"ChatConversationToChatMessage"}],"dbName":"chat_conversations"},"ChatMember":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"conversationId","kind":"scalar","type":"String","dbName":"conversation_id"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"lastReadMsgId","kind":"scalar","type":"String","dbName":"last_read_msg_id"},{"name":"lastDeliveredMsgId","kind":"scalar","type":"String","dbName":"last_delivered_msg_id"},{"name":"lastReadSeq","kind":"scalar","type":"Int","dbName":"last_read_seq"},{"name":"lastReadAt","kind":"scalar","type":"DateTime","dbName":"last_read_at"},{"name":"joinedAt","kind":"scalar","type":"DateTime","dbName":"joined_at"},{"name":"role","kind":"scalar","type":"String"},{"name":"isMuted","kind":"scalar","type":"Boolean","dbName":"is_muted"},{"name":"conversation","kind":"object","type":"ChatConversation","relationName":"ChatConversationToChatMember"},{"name":"user","kind":"object","type":"User","relationName":"ChatMemberToUser"}],"dbName":"chat_members"},"ChatMessage":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"conversationId","kind":"scalar","type":"String","dbName":"conversation_id"},{"name":"authorUserId","kind":"scalar","type":"String","dbName":"author_user_id"},{"name":"streamId","kind":"scalar","type":"String","dbName":"stream_id"},{"name":"sequence","kind":"scalar","type":"Int"},{"name":"parentMessageId","kind":"scalar","type":"String","dbName":"parent_message_id"},{"name":"replyCount","kind":"scalar","type":"Int","dbName":"reply_count"},{"name":"content","kind":"scalar","type":"Json"},{"name":"type","kind":"scalar","type":"String"},{"name":"metadata","kind":"scalar","type":"Json"},{"name":"isEdited","kind":"scalar","type":"Boolean","dbName":"is_edited"},{"name":"editedAt","kind":"scalar","type":"DateTime","dbName":"edited_at"},{"name":"deletedAt","kind":"scalar","type":"DateTime","dbName":"deleted_at"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"conversation","kind":"object","type":"ChatConversation","relationName":"ChatConversationToChatMessage"},{"name":"author","kind":"object","type":"User","relationName":"ChatMessageToUser"},{"name":"parentMessage","kind":"object","type":"ChatMessage","relationName":"ThreadReplies"},{"name":"replies","kind":"object","type":"ChatMessage","relationName":"ThreadReplies"},{"name":"reactions","kind":"object","type":"MessageReaction","relationName":"ChatMessageToMessageReaction"},{"name":"threads","kind":"object","type":"ChatConversation","relationName":"MessageThreads"}],"dbName":"chat_messages"},"MessageReaction":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"messageId","kind":"scalar","type":"String","dbName":"message_id"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"emoji","kind":"scalar","type":"String"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"message","kind":"object","type":"ChatMessage","relationName":"ChatMessageToMessageReaction"},{"name":"user","kind":"object","type":"User","relationName":"MessageReactionToUser"}],"dbName":"message_reactions"},"Meet":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"projectId","kind":"scalar","type":"String","dbName":"project_id"},{"name":"title","kind":"scalar","type":"String"},{"name":"startTime","kind":"scalar","type":"DateTime","dbName":"start_time"},{"name":"status","kind":"enum","type":"MeetStatus"},{"name":"startedAt","kind":"scalar","type":"DateTime","dbName":"started_at"},{"name":"endedAt","kind":"scalar","type":"DateTime","dbName":"ended_at"},{"name":"project","kind":"object","type":"Project","relationName":"MeetToProject"},{"name":"participants","kind":"object","type":"MeetParticipant","relationName":"MeetToMeetParticipant"}],"dbName":"meets"},"MeetParticipant":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"meetId","kind":"scalar","type":"String","dbName":"meet_id"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"joinedAt","kind":"scalar","type":"DateTime","dbName":"joined_at"},{"name":"leftAt","kind":"scalar","type":"DateTime","dbName":"left_at"},{"name":"meet","kind":"object","type":"Meet","relationName":"MeetToMeetParticipant"},{"name":"user","kind":"object","type":"User","relationName":"MeetParticipantToUser"}],"dbName":"meet_participants"},"CollabifyAiConversation":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"projectId","kind":"scalar","type":"String","dbName":"project_id"},{"name":"title","kind":"scalar","type":"String"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"user","kind":"object","type":"User","relationName":"CollabifyAiConversationToUser"},{"name":"project","kind":"object","type":"Project","relationName":"CollabifyAiConversationToProject"},{"name":"messages","kind":"object","type":"CollabifyAiMessage","relationName":"CollabifyAiConversationToCollabifyAiMessage"}],"dbName":"collabify_ai_conversations"},"CollabifyAiMessage":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"conversationId","kind":"scalar","type":"String","dbName":"conversation_id"},{"name":"role","kind":"scalar","type":"String"},{"name":"content","kind":"scalar","type":"String"},{"name":"citationData","kind":"scalar","type":"Json"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"conversation","kind":"object","type":"CollabifyAiConversation","relationName":"CollabifyAiConversationToCollabifyAiMessage"}],"dbName":"collabify_ai_messages"},"NotificationOutbox":{"fields":[{"name":"id","kind":"scalar","type":"BigInt"},{"name":"eventType","kind":"scalar","type":"String","dbName":"event_type"},{"name":"payload","kind":"scalar","type":"Json"},{"name":"status","kind":"enum","type":"NotificationStatus"},{"name":"deduplicationId","kind":"scalar","type":"String","dbName":"deduplication_id"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"processedAt","kind":"scalar","type":"DateTime","dbName":"processed_at"},{"name":"errorLog","kind":"scalar","type":"Json","dbName":"error_log"}],"dbName":"notification_outbox"},"NotificationPreference":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"projectId","kind":"scalar","type":"String","dbName":"project_id"},{"name":"categoryKey","kind":"scalar","type":"String","dbName":"category_key"},{"name":"emailEnabled","kind":"scalar","type":"Boolean","dbName":"email_enabled"},{"name":"pushEnabled","kind":"scalar","type":"Boolean","dbName":"push_enabled"},{"name":"inAppEnabled","kind":"scalar","type":"Boolean","dbName":"in_app_enabled"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"},{"name":"user","kind":"object","type":"User","relationName":"NotificationPreferenceToUser"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"NotificationPreferenceToWorkspace"},{"name":"project","kind":"object","type":"Project","relationName":"NotificationPreferenceToProject"}],"dbName":"notification_preferences"},"Notification":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"recipientUserId","kind":"scalar","type":"String","dbName":"recipient_user_id"},{"name":"actorId","kind":"scalar","type":"String","dbName":"actor_id"},{"name":"entityType","kind":"scalar","type":"String","dbName":"entity_type"},{"name":"entityId","kind":"scalar","type":"String","dbName":"entity_id"},{"name":"category","kind":"scalar","type":"String"},{"name":"data","kind":"scalar","type":"Json"},{"name":"isRead","kind":"scalar","type":"Boolean","dbName":"is_read"},{"name":"isArchived","kind":"scalar","type":"Boolean","dbName":"is_archived"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"recipient","kind":"object","type":"User","relationName":"NotificationToUser"},{"name":"actor","kind":"object","type":"User","relationName":"NotificationActor"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"NotificationToWorkspace"},{"name":"workspaceId","kind":"scalar","type":"String"},{"name":"project","kind":"object","type":"Project","relationName":"NotificationToProject"},{"name":"projectId","kind":"scalar","type":"String"}],"dbName":"notifications"},"AuditLog":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"actorUserId","kind":"scalar","type":"String","dbName":"actor_user_id"},{"name":"action","kind":"scalar","type":"String"},{"name":"targetResource","kind":"scalar","type":"String","dbName":"target_resource"},{"name":"metadata","kind":"scalar","type":"Json"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"AuditLogToWorkspace"},{"name":"actor","kind":"object","type":"User","relationName":"AuditLogToUser"}],"dbName":"audit_logs"},"Plan":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"slug","kind":"scalar","type":"String"},{"name":"name","kind":"scalar","type":"String"},{"name":"description","kind":"scalar","type":"String"},{"name":"isActive","kind":"scalar","type":"Boolean"},{"name":"limits","kind":"object","type":"PlanLimit","relationName":"PlanToPlanLimit"},{"name":"subscriptions","kind":"object","type":"Subscription","relationName":"PlanToSubscription"},{"name":"createdAt","kind":"scalar","type":"DateTime"},{"name":"updatedAt","kind":"scalar","type":"DateTime"}],"dbName":"plans"},"PlanLimit":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"planId","kind":"scalar","type":"String","dbName":"plan_id"},{"name":"resourceKey","kind":"scalar","type":"String","dbName":"resource_key"},{"name":"limitValue","kind":"scalar","type":"Int","dbName":"limit_value"},{"name":"plan","kind":"object","type":"Plan","relationName":"PlanToPlanLimit"}],"dbName":"plan_limits"},"Subscription":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"planId","kind":"scalar","type":"String","dbName":"plan_id"},{"name":"status","kind":"scalar","type":"String"},{"name":"startDate","kind":"scalar","type":"DateTime","dbName":"start_date"},{"name":"endDate","kind":"scalar","type":"DateTime","dbName":"end_date"},{"name":"overrides","kind":"object","type":"SubscriptionOverride","relationName":"SubscriptionToSubscriptionOverride"},{"name":"user","kind":"object","type":"User","relationName":"SubscriptionToUser"},{"name":"plan","kind":"object","type":"Plan","relationName":"PlanToSubscription"}],"dbName":"subscriptions"},"SubscriptionOverride":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"subscriptionId","kind":"scalar","type":"String","dbName":"subscription_id"},{"name":"resourceKey","kind":"scalar","type":"String","dbName":"resource_key"},{"name":"limitValue","kind":"scalar","type":"Int","dbName":"limit_value"},{"name":"subscription","kind":"object","type":"Subscription","relationName":"SubscriptionToSubscriptionOverride"}],"dbName":"subscription_overrides"},"UsageRecord":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"resourceKey","kind":"scalar","type":"String","dbName":"resource_key"},{"name":"currentVal","kind":"scalar","type":"Int","dbName":"current_val"},{"name":"resetAt","kind":"scalar","type":"DateTime","dbName":"reset_at"},{"name":"user","kind":"object","type":"User","relationName":"UsageRecordToUser"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"UsageRecordToWorkspace"}],"dbName":"usage_records"}},"enums":{},"types":{}}');
+  config2.runtimeDataModel = JSON.parse('{"models":{"User":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"email","kind":"scalar","type":"String"},{"name":"passwordHash","kind":"scalar","type":"String","dbName":"password_hash"},{"name":"fullName","kind":"scalar","type":"String","dbName":"full_name"},{"name":"avatarUrl","kind":"scalar","type":"String","dbName":"avatar_url"},{"name":"status","kind":"enum","type":"UserStatus"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"},{"name":"deletedAt","kind":"scalar","type":"DateTime","dbName":"deleted_at"},{"name":"sessions","kind":"object","type":"UserSession","relationName":"UserToUserSession"},{"name":"keys","kind":"object","type":"UserKey","relationName":"UserToUserKey"},{"name":"workspaceMembers","kind":"object","type":"WorkspaceMember","relationName":"UserToWorkspaceMember"},{"name":"auditLogs","kind":"object","type":"AuditLog","relationName":"AuditLogToUser"},{"name":"projectMembers","kind":"object","type":"ProjectMember","relationName":"ProjectMemberToUser"},{"name":"resourcePolicies","kind":"object","type":"ResourcePolicy","relationName":"ResourcePolicyToUser"},{"name":"subscription","kind":"object","type":"Subscription","relationName":"SubscriptionToUser"},{"name":"usageRecords","kind":"object","type":"UsageRecord","relationName":"UsageRecordToUser"},{"name":"assignedTasks","kind":"object","type":"Task","relationName":"TaskAssignee"},{"name":"reportedTasks","kind":"object","type":"Task","relationName":"TaskReporter"},{"name":"chatMembers","kind":"object","type":"ChatMember","relationName":"ChatMemberToUser"},{"name":"sentMessages","kind":"object","type":"ChatMessage","relationName":"ChatMessageToUser"},{"name":"messageReactions","kind":"object","type":"MessageReaction","relationName":"MessageReactionToUser"},{"name":"meetParticipants","kind":"object","type":"MeetParticipant","relationName":"MeetParticipantToUser"},{"name":"authoredPages","kind":"object","type":"Page","relationName":"PageToUser"},{"name":"uploadedFiles","kind":"object","type":"VaultFile","relationName":"UserToVaultFile"},{"name":"notifications","kind":"object","type":"Notification","relationName":"NotificationToUser"},{"name":"sentNotifications","kind":"object","type":"Notification","relationName":"NotificationActor"},{"name":"aiConversations","kind":"object","type":"CollabifyAiConversation","relationName":"CollabifyAiConversationToUser"},{"name":"notificationPreferences","kind":"object","type":"NotificationPreference","relationName":"NotificationPreferenceToUser"}],"dbName":"users"},"UserSession":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"tokenHash","kind":"scalar","type":"String","dbName":"token_hash"},{"name":"expiresAt","kind":"scalar","type":"DateTime","dbName":"expires_at"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"deviceInfo","kind":"scalar","type":"String","dbName":"device_info"},{"name":"ipAddress","kind":"scalar","type":"String","dbName":"ip_address"},{"name":"user","kind":"object","type":"User","relationName":"UserToUserSession"}],"dbName":"user_sessions"},"UserKey":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"provider","kind":"scalar","type":"String"},{"name":"providerId","kind":"scalar","type":"String","dbName":"provider_id"},{"name":"user","kind":"object","type":"User","relationName":"UserToUserKey"}],"dbName":"user_keys"},"Workspace":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"slug","kind":"scalar","type":"String"},{"name":"name","kind":"scalar","type":"String"},{"name":"logoUrl","kind":"scalar","type":"String","dbName":"logo_url"},{"name":"domainWhitelist","kind":"scalar","type":"String","dbName":"domain_whitelist"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"},{"name":"deletedAt","kind":"scalar","type":"DateTime","dbName":"deleted_at"},{"name":"members","kind":"object","type":"WorkspaceMember","relationName":"WorkspaceToWorkspaceMember"},{"name":"invites","kind":"object","type":"WorkspaceInvite","relationName":"WorkspaceToWorkspaceInvite"},{"name":"auditLogs","kind":"object","type":"AuditLog","relationName":"AuditLogToWorkspace"},{"name":"customRoles","kind":"object","type":"CustomRole","relationName":"CustomRoleToWorkspace"},{"name":"projects","kind":"object","type":"Project","relationName":"ProjectToWorkspace"},{"name":"pages","kind":"object","type":"Page","relationName":"PageToWorkspace"},{"name":"vaultFiles","kind":"object","type":"VaultFile","relationName":"VaultFileToWorkspace"},{"name":"whiteboards","kind":"object","type":"Whiteboard","relationName":"WhiteboardToWorkspace"},{"name":"chats","kind":"object","type":"ChatConversation","relationName":"ChatConversationToWorkspace"},{"name":"tasks","kind":"object","type":"Task","relationName":"TaskToWorkspace"},{"name":"usageRecords","kind":"object","type":"UsageRecord","relationName":"UsageRecordToWorkspace"},{"name":"notificationPreferences","kind":"object","type":"NotificationPreference","relationName":"NotificationPreferenceToWorkspace"},{"name":"notifications","kind":"object","type":"Notification","relationName":"NotificationToWorkspace"}],"dbName":"workspaces"},"WorkspaceMember":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"role","kind":"enum","type":"RoleType"},{"name":"customRoleId","kind":"scalar","type":"String","dbName":"custom_role_id"},{"name":"joinedAt","kind":"scalar","type":"DateTime","dbName":"joined_at"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"WorkspaceToWorkspaceMember"},{"name":"user","kind":"object","type":"User","relationName":"UserToWorkspaceMember"},{"name":"customRole","kind":"object","type":"CustomRole","relationName":"CustomRoleToWorkspaceMember"}],"dbName":"workspace_members"},"WorkspaceInvite":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"email","kind":"scalar","type":"String"},{"name":"token","kind":"scalar","type":"String"},{"name":"role","kind":"enum","type":"RoleType"},{"name":"inviterId","kind":"scalar","type":"String","dbName":"inviter_id"},{"name":"expiresAt","kind":"scalar","type":"DateTime","dbName":"expires_at"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"WorkspaceToWorkspaceInvite"}],"dbName":"workspace_invites"},"SystemPermission":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"description","kind":"scalar","type":"String"},{"name":"module","kind":"scalar","type":"String"},{"name":"inRoles","kind":"object","type":"RolePermission","relationName":"RolePermissionToSystemPermission"}],"dbName":"system_permissions"},"CustomRole":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"name","kind":"scalar","type":"String"},{"name":"description","kind":"scalar","type":"String"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"CustomRoleToWorkspace"},{"name":"permissions","kind":"object","type":"RolePermission","relationName":"CustomRoleToRolePermission"},{"name":"workspaceMembers","kind":"object","type":"WorkspaceMember","relationName":"CustomRoleToWorkspaceMember"},{"name":"projectMembers","kind":"object","type":"ProjectMember","relationName":"CustomRoleToProjectMember"}],"dbName":"custom_roles"},"RolePermission":{"fields":[{"name":"roleId","kind":"scalar","type":"String","dbName":"role_id"},{"name":"permissionId","kind":"scalar","type":"String","dbName":"permission_id"},{"name":"role","kind":"object","type":"CustomRole","relationName":"CustomRoleToRolePermission"},{"name":"permission","kind":"object","type":"SystemPermission","relationName":"RolePermissionToSystemPermission"}],"dbName":"role_permissions"},"ResourcePolicy":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"resourceId","kind":"scalar","type":"String","dbName":"resource_id"},{"name":"resourceType","kind":"scalar","type":"String","dbName":"resource_type"},{"name":"permissionId","kind":"scalar","type":"String","dbName":"permission_id"},{"name":"effect","kind":"enum","type":"PolicyEffect"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"user","kind":"object","type":"User","relationName":"ResourcePolicyToUser"}],"dbName":"resource_policies"},"Project":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"key","kind":"scalar","type":"String","dbName":"key"},{"name":"name","kind":"scalar","type":"String"},{"name":"description","kind":"scalar","type":"String"},{"name":"isPrivate","kind":"scalar","type":"Boolean","dbName":"is_private"},{"name":"isArchived","kind":"scalar","type":"Boolean","dbName":"is_archived"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"},{"name":"deletedAt","kind":"scalar","type":"DateTime","dbName":"deleted_at"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"ProjectToWorkspace"},{"name":"members","kind":"object","type":"ProjectMember","relationName":"ProjectToProjectMember"},{"name":"pages","kind":"object","type":"Page","relationName":"PageToProject"},{"name":"vaultFolders","kind":"object","type":"VaultFolder","relationName":"ProjectToVaultFolder"},{"name":"vaultFiles","kind":"object","type":"VaultFile","relationName":"ProjectToVaultFile"},{"name":"whiteboards","kind":"object","type":"Whiteboard","relationName":"ProjectToWhiteboard"},{"name":"chats","kind":"object","type":"ChatConversation","relationName":"ChatConversationToProject"},{"name":"boards","kind":"object","type":"Board","relationName":"BoardToProject"},{"name":"meets","kind":"object","type":"Meet","relationName":"MeetToProject"},{"name":"aiChats","kind":"object","type":"CollabifyAiConversation","relationName":"CollabifyAiConversationToProject"},{"name":"counters","kind":"object","type":"ProjectCounter","relationName":"ProjectToProjectCounter"},{"name":"tasks","kind":"object","type":"Task","relationName":"ProjectToTask"},{"name":"notificationPreferences","kind":"object","type":"NotificationPreference","relationName":"NotificationPreferenceToProject"},{"name":"notifications","kind":"object","type":"Notification","relationName":"NotificationToProject"}],"dbName":"projects"},"ProjectCounter":{"fields":[{"name":"projectId","kind":"scalar","type":"String","dbName":"project_id"},{"name":"counterType","kind":"scalar","type":"String","dbName":"counter_type"},{"name":"currentVal","kind":"scalar","type":"Int","dbName":"current_val"},{"name":"project","kind":"object","type":"Project","relationName":"ProjectToProjectCounter"}],"dbName":"project_counters"},"ProjectMember":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"projectId","kind":"scalar","type":"String","dbName":"project_id"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"projectRoleId","kind":"scalar","type":"String","dbName":"project_role_id"},{"name":"joinedAt","kind":"scalar","type":"DateTime","dbName":"joined_at"},{"name":"project","kind":"object","type":"Project","relationName":"ProjectToProjectMember"},{"name":"projectRole","kind":"object","type":"CustomRole","relationName":"CustomRoleToProjectMember"},{"name":"user","kind":"object","type":"User","relationName":"ProjectMemberToUser"}],"dbName":"project_members"},"Page":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"projectId","kind":"scalar","type":"String","dbName":"project_id"},{"name":"parentPageId","kind":"scalar","type":"String","dbName":"parent_page_id"},{"name":"title","kind":"scalar","type":"String"},{"name":"emojiIcon","kind":"scalar","type":"String","dbName":"emoji_icon"},{"name":"coverImageUrl","kind":"scalar","type":"String","dbName":"cover_image_url"},{"name":"isLocked","kind":"scalar","type":"Boolean","dbName":"is_locked"},{"name":"contentS3Key","kind":"scalar","type":"String","dbName":"content_s3_key"},{"name":"contentVersion","kind":"scalar","type":"Int","dbName":"content_version"},{"name":"authorUserId","kind":"scalar","type":"String","dbName":"author_user_id"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"},{"name":"deletedAt","kind":"scalar","type":"DateTime","dbName":"deleted_at"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"PageToWorkspace"},{"name":"project","kind":"object","type":"Project","relationName":"PageToProject"},{"name":"author","kind":"object","type":"User","relationName":"PageToUser"},{"name":"parentPage","kind":"object","type":"Page","relationName":"PageHierarchy"},{"name":"childPages","kind":"object","type":"Page","relationName":"PageHierarchy"}],"dbName":"pages"},"VaultFolder":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"projectId","kind":"scalar","type":"String","dbName":"project_id"},{"name":"parentFolderId","kind":"scalar","type":"String","dbName":"parent_folder_id"},{"name":"name","kind":"scalar","type":"String"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"deletedAt","kind":"scalar","type":"DateTime","dbName":"deleted_at"},{"name":"project","kind":"object","type":"Project","relationName":"ProjectToVaultFolder"},{"name":"parentFolder","kind":"object","type":"VaultFolder","relationName":"FolderHierarchy"},{"name":"childFolders","kind":"object","type":"VaultFolder","relationName":"FolderHierarchy"},{"name":"files","kind":"object","type":"VaultFile","relationName":"VaultFileToVaultFolder"}],"dbName":"vault_folders"},"VaultFile":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"projectId","kind":"scalar","type":"String","dbName":"project_id"},{"name":"folderId","kind":"scalar","type":"String","dbName":"folder_id"},{"name":"uploaderUserId","kind":"scalar","type":"String","dbName":"uploader_user_id"},{"name":"name","kind":"scalar","type":"String"},{"name":"mimeType","kind":"scalar","type":"String","dbName":"mime_type"},{"name":"sizeBytes","kind":"scalar","type":"Int","dbName":"size_bytes"},{"name":"s3Key","kind":"scalar","type":"String","dbName":"s3_key"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"deletedAt","kind":"scalar","type":"DateTime","dbName":"deleted_at"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"VaultFileToWorkspace"},{"name":"project","kind":"object","type":"Project","relationName":"ProjectToVaultFile"},{"name":"folder","kind":"object","type":"VaultFolder","relationName":"VaultFileToVaultFolder"},{"name":"uploader","kind":"object","type":"User","relationName":"UserToVaultFile"}],"dbName":"vault_files"},"Whiteboard":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"projectId","kind":"scalar","type":"String","dbName":"project_id"},{"name":"title","kind":"scalar","type":"String"},{"name":"snapshotS3Key","kind":"scalar","type":"String","dbName":"snapshot_s3_key"},{"name":"contentS3Key","kind":"scalar","type":"String","dbName":"content_s3_key"},{"name":"contentVersion","kind":"scalar","type":"Int","dbName":"content_version"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"},{"name":"deletedAt","kind":"scalar","type":"DateTime","dbName":"deleted_at"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"WhiteboardToWorkspace"},{"name":"project","kind":"object","type":"Project","relationName":"ProjectToWhiteboard"}],"dbName":"whiteboards"},"Board":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"projectId","kind":"scalar","type":"String","dbName":"project_id"},{"name":"name","kind":"scalar","type":"String"},{"name":"type","kind":"enum","type":"BoardType"},{"name":"viewStyle","kind":"enum","type":"BoardViewStyle","dbName":"view_style"},{"name":"config","kind":"scalar","type":"Json"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"deletedAt","kind":"scalar","type":"DateTime","dbName":"deleted_at"},{"name":"project","kind":"object","type":"Project","relationName":"BoardToProject"},{"name":"tasks","kind":"object","type":"Task","relationName":"BoardToTask"}],"dbName":"boards"},"Task":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"projectId","kind":"scalar","type":"String","dbName":"project_id"},{"name":"boardId","kind":"scalar","type":"String","dbName":"board_id"},{"name":"seqId","kind":"scalar","type":"Int","dbName":"seq_id"},{"name":"title","kind":"scalar","type":"String"},{"name":"description","kind":"scalar","type":"Json"},{"name":"statusName","kind":"scalar","type":"String","dbName":"status_name"},{"name":"priority","kind":"enum","type":"TaskPriority"},{"name":"assigneeUserId","kind":"scalar","type":"String","dbName":"assignee_user_id"},{"name":"reporterUserId","kind":"scalar","type":"String","dbName":"reporter_user_id"},{"name":"parentTaskId","kind":"scalar","type":"String","dbName":"parent_task_id"},{"name":"startDate","kind":"scalar","type":"DateTime","dbName":"start_date"},{"name":"dueDate","kind":"scalar","type":"DateTime","dbName":"due_date"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"},{"name":"deletedAt","kind":"scalar","type":"DateTime","dbName":"deleted_at"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"TaskToWorkspace"},{"name":"project","kind":"object","type":"Project","relationName":"ProjectToTask"},{"name":"board","kind":"object","type":"Board","relationName":"BoardToTask"},{"name":"assignee","kind":"object","type":"User","relationName":"TaskAssignee"},{"name":"reporter","kind":"object","type":"User","relationName":"TaskReporter"},{"name":"parentTask","kind":"object","type":"Task","relationName":"Subtasks"},{"name":"subtasks","kind":"object","type":"Task","relationName":"Subtasks"}],"dbName":"tasks"},"OutboxMessage":{"fields":[{"name":"id","kind":"scalar","type":"BigInt"},{"name":"messageId","kind":"scalar","type":"String","dbName":"message_id"},{"name":"conversationId","kind":"scalar","type":"String","dbName":"conversation_id"},{"name":"conversationType","kind":"enum","type":"ConversationType","dbName":"conversation_type"},{"name":"payload","kind":"scalar","type":"Json"},{"name":"status","kind":"enum","type":"OutboxStatus"},{"name":"errorLog","kind":"scalar","type":"Json","dbName":"error_log"},{"name":"retryCount","kind":"scalar","type":"Int","dbName":"retry_count"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"processedAt","kind":"scalar","type":"DateTime","dbName":"processed_at"}],"dbName":"chat_outbox_messages"},"MessageEditOutbox":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"messageId","kind":"scalar","type":"String","dbName":"message_id"},{"name":"content","kind":"scalar","type":"String"},{"name":"editedBy","kind":"scalar","type":"String","dbName":"edited_by"},{"name":"editedAt","kind":"scalar","type":"DateTime","dbName":"edited_at"},{"name":"nonce","kind":"scalar","type":"String"},{"name":"status","kind":"enum","type":"OutboxStatus"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"processedAt","kind":"scalar","type":"DateTime","dbName":"processed_at"}],"dbName":"message_edit_outbox"},"MessageDeleteOutbox":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"messageId","kind":"scalar","type":"String","dbName":"message_id"},{"name":"deletedBy","kind":"scalar","type":"String","dbName":"deleted_by"},{"name":"deletedAt","kind":"scalar","type":"DateTime","dbName":"deleted_at"},{"name":"nonce","kind":"scalar","type":"String"},{"name":"status","kind":"enum","type":"OutboxStatus"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"processedAt","kind":"scalar","type":"DateTime","dbName":"processed_at"}],"dbName":"message_delete_outbox"},"ChatConversation":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"projectId","kind":"scalar","type":"String","dbName":"project_id"},{"name":"type","kind":"enum","type":"ConversationType"},{"name":"name","kind":"scalar","type":"String"},{"name":"topic","kind":"scalar","type":"String"},{"name":"isArchived","kind":"scalar","type":"Boolean","dbName":"is_archived"},{"name":"lastSequence","kind":"scalar","type":"Int","dbName":"last_sequence"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"deletedAt","kind":"scalar","type":"DateTime","dbName":"deleted_at"},{"name":"closedAt","kind":"scalar","type":"DateTime","dbName":"closed_at"},{"name":"parentConversationId","kind":"scalar","type":"String","dbName":"parent_conversation_id"},{"name":"parentMessageId","kind":"scalar","type":"String","dbName":"parent_message_id"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"ChatConversationToWorkspace"},{"name":"project","kind":"object","type":"Project","relationName":"ChatConversationToProject"},{"name":"parentConversation","kind":"object","type":"ChatConversation","relationName":"ThreadParent"},{"name":"childThreads","kind":"object","type":"ChatConversation","relationName":"ThreadParent"},{"name":"parentMessage","kind":"object","type":"ChatMessage","relationName":"MessageThreads"},{"name":"members","kind":"object","type":"ChatMember","relationName":"ChatConversationToChatMember"},{"name":"messages","kind":"object","type":"ChatMessage","relationName":"ChatConversationToChatMessage"}],"dbName":"chat_conversations"},"ChatMember":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"conversationId","kind":"scalar","type":"String","dbName":"conversation_id"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"lastReadMsgId","kind":"scalar","type":"String","dbName":"last_read_msg_id"},{"name":"lastDeliveredMsgId","kind":"scalar","type":"String","dbName":"last_delivered_msg_id"},{"name":"lastReadSeq","kind":"scalar","type":"Int","dbName":"last_read_seq"},{"name":"lastReadAt","kind":"scalar","type":"DateTime","dbName":"last_read_at"},{"name":"joinedAt","kind":"scalar","type":"DateTime","dbName":"joined_at"},{"name":"role","kind":"scalar","type":"String"},{"name":"isMuted","kind":"scalar","type":"Boolean","dbName":"is_muted"},{"name":"conversation","kind":"object","type":"ChatConversation","relationName":"ChatConversationToChatMember"},{"name":"user","kind":"object","type":"User","relationName":"ChatMemberToUser"}],"dbName":"chat_members"},"ChatMessage":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"conversationId","kind":"scalar","type":"String","dbName":"conversation_id"},{"name":"authorUserId","kind":"scalar","type":"String","dbName":"author_user_id"},{"name":"streamId","kind":"scalar","type":"String","dbName":"stream_id"},{"name":"sequence","kind":"scalar","type":"Int"},{"name":"parentMessageId","kind":"scalar","type":"String","dbName":"parent_message_id"},{"name":"replyCount","kind":"scalar","type":"Int","dbName":"reply_count"},{"name":"content","kind":"scalar","type":"Json"},{"name":"type","kind":"scalar","type":"String"},{"name":"metadata","kind":"scalar","type":"Json"},{"name":"isEdited","kind":"scalar","type":"Boolean","dbName":"is_edited"},{"name":"editedAt","kind":"scalar","type":"DateTime","dbName":"edited_at"},{"name":"deletedAt","kind":"scalar","type":"DateTime","dbName":"deleted_at"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"conversation","kind":"object","type":"ChatConversation","relationName":"ChatConversationToChatMessage"},{"name":"author","kind":"object","type":"User","relationName":"ChatMessageToUser"},{"name":"parentMessage","kind":"object","type":"ChatMessage","relationName":"ThreadReplies"},{"name":"replies","kind":"object","type":"ChatMessage","relationName":"ThreadReplies"},{"name":"reactions","kind":"object","type":"MessageReaction","relationName":"ChatMessageToMessageReaction"},{"name":"threads","kind":"object","type":"ChatConversation","relationName":"MessageThreads"}],"dbName":"chat_messages"},"MessageReaction":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"messageId","kind":"scalar","type":"String","dbName":"message_id"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"emoji","kind":"scalar","type":"String"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"message","kind":"object","type":"ChatMessage","relationName":"ChatMessageToMessageReaction"},{"name":"user","kind":"object","type":"User","relationName":"MessageReactionToUser"}],"dbName":"message_reactions"},"Meet":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"projectId","kind":"scalar","type":"String","dbName":"project_id"},{"name":"title","kind":"scalar","type":"String"},{"name":"startTime","kind":"scalar","type":"DateTime","dbName":"start_time"},{"name":"status","kind":"enum","type":"MeetStatus"},{"name":"startedAt","kind":"scalar","type":"DateTime","dbName":"started_at"},{"name":"endedAt","kind":"scalar","type":"DateTime","dbName":"ended_at"},{"name":"project","kind":"object","type":"Project","relationName":"MeetToProject"},{"name":"participants","kind":"object","type":"MeetParticipant","relationName":"MeetToMeetParticipant"}],"dbName":"meets"},"MeetParticipant":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"meetId","kind":"scalar","type":"String","dbName":"meet_id"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"joinedAt","kind":"scalar","type":"DateTime","dbName":"joined_at"},{"name":"leftAt","kind":"scalar","type":"DateTime","dbName":"left_at"},{"name":"meet","kind":"object","type":"Meet","relationName":"MeetToMeetParticipant"},{"name":"user","kind":"object","type":"User","relationName":"MeetParticipantToUser"}],"dbName":"meet_participants"},"CollabifyAiConversation":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"projectId","kind":"scalar","type":"String","dbName":"project_id"},{"name":"title","kind":"scalar","type":"String"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"user","kind":"object","type":"User","relationName":"CollabifyAiConversationToUser"},{"name":"project","kind":"object","type":"Project","relationName":"CollabifyAiConversationToProject"},{"name":"messages","kind":"object","type":"CollabifyAiMessage","relationName":"CollabifyAiConversationToCollabifyAiMessage"}],"dbName":"collabify_ai_conversations"},"CollabifyAiMessage":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"conversationId","kind":"scalar","type":"String","dbName":"conversation_id"},{"name":"role","kind":"scalar","type":"String"},{"name":"content","kind":"scalar","type":"String"},{"name":"citationData","kind":"scalar","type":"Json"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"conversation","kind":"object","type":"CollabifyAiConversation","relationName":"CollabifyAiConversationToCollabifyAiMessage"}],"dbName":"collabify_ai_messages"},"NotificationOutbox":{"fields":[{"name":"id","kind":"scalar","type":"BigInt"},{"name":"eventType","kind":"scalar","type":"String","dbName":"event_type"},{"name":"payload","kind":"scalar","type":"Json"},{"name":"status","kind":"enum","type":"NotificationStatus"},{"name":"deduplicationId","kind":"scalar","type":"String","dbName":"deduplication_id"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"processedAt","kind":"scalar","type":"DateTime","dbName":"processed_at"},{"name":"errorLog","kind":"scalar","type":"Json","dbName":"error_log"}],"dbName":"notification_outbox"},"NotificationPreference":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"projectId","kind":"scalar","type":"String","dbName":"project_id"},{"name":"categoryKey","kind":"scalar","type":"String","dbName":"category_key"},{"name":"emailEnabled","kind":"scalar","type":"Boolean","dbName":"email_enabled"},{"name":"pushEnabled","kind":"scalar","type":"Boolean","dbName":"push_enabled"},{"name":"inAppEnabled","kind":"scalar","type":"Boolean","dbName":"in_app_enabled"},{"name":"updatedAt","kind":"scalar","type":"DateTime","dbName":"updated_at"},{"name":"user","kind":"object","type":"User","relationName":"NotificationPreferenceToUser"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"NotificationPreferenceToWorkspace"},{"name":"project","kind":"object","type":"Project","relationName":"NotificationPreferenceToProject"}],"dbName":"notification_preferences"},"Notification":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"recipientUserId","kind":"scalar","type":"String","dbName":"recipient_user_id"},{"name":"actorId","kind":"scalar","type":"String","dbName":"actor_id"},{"name":"entityType","kind":"scalar","type":"String","dbName":"entity_type"},{"name":"entityId","kind":"scalar","type":"String","dbName":"entity_id"},{"name":"category","kind":"scalar","type":"String"},{"name":"data","kind":"scalar","type":"Json"},{"name":"isRead","kind":"scalar","type":"Boolean","dbName":"is_read"},{"name":"isArchived","kind":"scalar","type":"Boolean","dbName":"is_archived"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"recipient","kind":"object","type":"User","relationName":"NotificationToUser"},{"name":"actor","kind":"object","type":"User","relationName":"NotificationActor"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"NotificationToWorkspace"},{"name":"workspaceId","kind":"scalar","type":"String"},{"name":"project","kind":"object","type":"Project","relationName":"NotificationToProject"},{"name":"projectId","kind":"scalar","type":"String"}],"dbName":"notifications"},"AuditLog":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"actorUserId","kind":"scalar","type":"String","dbName":"actor_user_id"},{"name":"action","kind":"scalar","type":"String"},{"name":"targetResource","kind":"scalar","type":"String","dbName":"target_resource"},{"name":"metadata","kind":"scalar","type":"Json"},{"name":"createdAt","kind":"scalar","type":"DateTime","dbName":"created_at"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"AuditLogToWorkspace"},{"name":"actor","kind":"object","type":"User","relationName":"AuditLogToUser"}],"dbName":"audit_logs"},"Plan":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"slug","kind":"scalar","type":"String"},{"name":"name","kind":"scalar","type":"String"},{"name":"description","kind":"scalar","type":"String"},{"name":"isActive","kind":"scalar","type":"Boolean"},{"name":"limits","kind":"object","type":"PlanLimit","relationName":"PlanToPlanLimit"},{"name":"subscriptions","kind":"object","type":"Subscription","relationName":"PlanToSubscription"},{"name":"createdAt","kind":"scalar","type":"DateTime"},{"name":"updatedAt","kind":"scalar","type":"DateTime"}],"dbName":"plans"},"PlanLimit":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"planId","kind":"scalar","type":"String","dbName":"plan_id"},{"name":"resourceKey","kind":"scalar","type":"String","dbName":"resource_key"},{"name":"limitValue","kind":"scalar","type":"Int","dbName":"limit_value"},{"name":"plan","kind":"object","type":"Plan","relationName":"PlanToPlanLimit"}],"dbName":"plan_limits"},"Subscription":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"planId","kind":"scalar","type":"String","dbName":"plan_id"},{"name":"status","kind":"scalar","type":"String"},{"name":"startDate","kind":"scalar","type":"DateTime","dbName":"start_date"},{"name":"endDate","kind":"scalar","type":"DateTime","dbName":"end_date"},{"name":"overrides","kind":"object","type":"SubscriptionOverride","relationName":"SubscriptionToSubscriptionOverride"},{"name":"user","kind":"object","type":"User","relationName":"SubscriptionToUser"},{"name":"plan","kind":"object","type":"Plan","relationName":"PlanToSubscription"}],"dbName":"subscriptions"},"SubscriptionOverride":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"subscriptionId","kind":"scalar","type":"String","dbName":"subscription_id"},{"name":"resourceKey","kind":"scalar","type":"String","dbName":"resource_key"},{"name":"limitValue","kind":"scalar","type":"Int","dbName":"limit_value"},{"name":"subscription","kind":"object","type":"Subscription","relationName":"SubscriptionToSubscriptionOverride"}],"dbName":"subscription_overrides"},"UsageRecord":{"fields":[{"name":"id","kind":"scalar","type":"String"},{"name":"userId","kind":"scalar","type":"String","dbName":"user_id"},{"name":"workspaceId","kind":"scalar","type":"String","dbName":"workspace_id"},{"name":"resourceKey","kind":"scalar","type":"String","dbName":"resource_key"},{"name":"currentVal","kind":"scalar","type":"Int","dbName":"current_val"},{"name":"resetAt","kind":"scalar","type":"DateTime","dbName":"reset_at"},{"name":"user","kind":"object","type":"User","relationName":"UsageRecordToUser"},{"name":"workspace","kind":"object","type":"Workspace","relationName":"UsageRecordToWorkspace"}],"dbName":"usage_records"}},"enums":{},"types":{}}');
   defineDmmfProperty2(exports.Prisma, config2.runtimeDataModel);
   config2.compilerWasm = {
     getRuntime: async () => require_query_compiler_fast_bg(),
@@ -104295,44 +104297,136 @@ var deleteMessage = {
   handler: deleteMessageHandler
 };
 
-// src/modules/chat/ws/events/user-typing/handler.ts
+// src/modules/chat/domain/typing/redis-ops.ts
+init_redis();
+var TYPING_TTL = 5;
+async function setTyping(conversationId, userId) {
+  const key = `typing:${conversationId}:${userId}`;
+  await appRedis.setex(key, TYPING_TTL, "1");
+}
+async function clearTyping(conversationId, userId) {
+  const key = `typing:${conversationId}:${userId}`;
+  await appRedis.del(key);
+}
+
+// src/modules/chat/ws/events/typing-start/handler.ts
 init_logger();
-var userTypingHandler = async (ctx, socket, input) => {
-  const { channelId } = input;
+init_redis();
+var typingStartHandler = async (ctx, socket, input) => {
+  const { conversationId, nonce } = input;
   const { userId } = socket.data;
-  logger.debug({ msg: "User Typing", userId, channelId });
+  try {
+    const member = await ctx.db.chatMember.findFirst({
+      where: { conversationId, userId }
+    });
+    if (!member) {
+      logger.warn({ userId, conversationId }, "Typing-start: Member not found");
+      return;
+    }
+    await setTyping(conversationId, userId);
+    const event = {
+      type: "chat:typing-start",
+      data: {
+        conversationId,
+        userId,
+        timestamp: Date.now()
+      }
+    };
+    const onlineMembers = await ctx.db.chatMember.findMany({
+      where: {
+        conversationId,
+        userId: { not: userId }
+      },
+      select: { userId: true }
+    });
+    for (const member2 of onlineMembers) {
+      const topic = `user:${member2.userId}:events`;
+      await appRedis.publish(topic, JSON.stringify(event));
+    }
+    if (nonce) {
+      socket.send(JSON.stringify({
+        type: "ack",
+        nonce,
+        success: true
+      }));
+    }
+    logger.debug({ conversationId, userId, memberCount: onlineMembers.length }, "Typing-start processed");
+  } catch (error48) {
+    logger.error({ error: error48, conversationId, userId }, "Typing-start handler error");
+  }
 };
 
-// src/modules/chat/ws/events/user-typing/schema.ts
+// src/modules/chat/ws/events/typing-start/schema.ts
 init_zod();
-var userTypingSchema = exports_external.object({
-  channelId: exports_external.string().min(1)
+var typingStartSchema = exports_external.object({
+  conversationId: exports_external.string().min(1, "conversationId is required"),
+  nonce: exports_external.string().optional()
 });
 
-// src/modules/chat/ws/events/user-typing/index.ts
-var userTyping = {
-  handler: userTypingHandler,
-  schema: userTypingSchema
+// src/modules/chat/ws/events/typing-start/index.ts
+var typingStart = {
+  handler: typingStartHandler,
+  schema: typingStartSchema
 };
 
-// src/modules/chat/ws/events/user-stop-typing/handler.ts
+// src/modules/chat/ws/events/typing-stop/handler.ts
 init_logger();
-var userStopTypingHandler = async (ctx, socket, input) => {
-  const { channelId } = input;
+init_redis();
+var typingStopHandler = async (ctx, socket, input) => {
+  const { conversationId, nonce } = input;
   const { userId } = socket.data;
-  logger.debug({ msg: "User Stop Typing", userId, channelId });
+  try {
+    const member = await ctx.db.chatMember.findFirst({
+      where: { conversationId, userId }
+    });
+    if (!member) {
+      logger.warn({ userId, conversationId }, "Typing-stop: Member not found");
+      return;
+    }
+    await clearTyping(conversationId, userId);
+    const event = {
+      type: "chat:typing-stop",
+      data: {
+        conversationId,
+        userId,
+        timestamp: Date.now()
+      }
+    };
+    const onlineMembers = await ctx.db.chatMember.findMany({
+      where: {
+        conversationId,
+        userId: { not: userId }
+      },
+      select: { userId: true }
+    });
+    for (const member2 of onlineMembers) {
+      const topic = `user:${member2.userId}:events`;
+      await appRedis.publish(topic, JSON.stringify(event));
+    }
+    if (nonce) {
+      socket.send(JSON.stringify({
+        type: "ack",
+        nonce,
+        success: true
+      }));
+    }
+    logger.debug({ conversationId, userId, memberCount: onlineMembers.length }, "Typing-stop processed");
+  } catch (error48) {
+    logger.error({ error: error48, conversationId, userId }, "Typing-stop handler error");
+  }
 };
 
-// src/modules/chat/ws/events/user-stop-typing/schema.ts
+// src/modules/chat/ws/events/typing-stop/schema.ts
 init_zod();
-var userStopTypingSchema = exports_external.object({
-  channelId: exports_external.string().min(1)
+var typingStopSchema = exports_external.object({
+  conversationId: exports_external.string().min(1, "conversationId is required"),
+  nonce: exports_external.string().optional()
 });
 
-// src/modules/chat/ws/events/user-stop-typing/index.ts
-var userStopTyping = {
-  handler: userStopTypingHandler,
-  schema: userStopTypingSchema
+// src/modules/chat/ws/events/typing-stop/index.ts
+var typingStop = {
+  handler: typingStopHandler,
+  schema: typingStopSchema
 };
 
 // src/modules/chat/domain/read-receipts/redis-ops.ts
@@ -104714,8 +104808,8 @@ var chatWSRoutes = {
   "chat:add-reaction": add_reaction_default,
   "chat:remove-reaction": remove_reaction_default,
   "chat:sync-reactions": sync_reactions_default,
-  "chat:user-typing": userTyping,
-  "chat:user-stop-typing": userStopTyping,
+  "chat:typing-start": typingStart,
+  "chat:typing-stop": typingStop,
   "chat:mark-read": markRead
 };
 
@@ -119100,56 +119194,1387 @@ var typeDefs20 = `
     createGroup(input: CreateGroupInput!): Conversation!
   }
 `;
-// src/modules/chat/queries/get-channel-messages/index.ts
-var exports_get_channel_messages = {};
-__export(exports_get_channel_messages, {
+// src/modules/chat/services/delete-channel/index.ts
+var exports_delete_channel = {};
+__export(exports_delete_channel, {
   typeDefs: () => typeDefs21,
   handler: () => handler35,
-  getChannelMessagesSchema: () => getChannelMessagesSchema
+  deleteChannelSchema: () => deleteChannelSchema
 });
 
-// src/modules/chat/queries/get-channel-messages/handler.ts
+// src/modules/chat/services/delete-channel/handler.ts
+init_errors3();
 var handler35 = async (input, ctx) => {
-  return await ctx.db.chatMessage.findMany({
+  const { userId } = ctx.auth;
+  if (!userId) {
+    throw AppError.unauthorized("User not authenticated");
+  }
+  const { workspaceId, channelId } = input;
+  const channel = await ctx.db.chatConversation.findFirst({
     where: {
-      conversationId: input.channelId,
-      parentMessageId: null
-    },
-    take: input.limit,
-    skip: input.beforeCursor ? 1 : 0,
-    cursor: input.beforeCursor ? { id: input.beforeCursor } : undefined,
-    orderBy: {
-      createdAt: "desc"
+      id: channelId,
+      workspaceId,
+      type: "CHANNEL"
     }
   });
+  if (!channel) {
+    throw AppError.notFound("Channel not found");
+  }
+  if (!channel.deletedAt) {
+    throw AppError.badRequest("Channel must be archived before deletion");
+  }
+  const members = await ctx.db.chatMember.findMany({
+    where: { conversationId: channelId },
+    select: { userId: true }
+  });
+  await ctx.db.chatConversation.delete({
+    where: { id: channelId }
+  });
+  await Promise.all(members.map(async (member) => {
+    await ctx.redis.publish(`user:${member.userId}:events`, JSON.stringify({
+      type: "chat:channel-deleted",
+      payload: {
+        channelId,
+        workspaceId,
+        deletedBy: userId,
+        timestamp: new Date().toISOString()
+      }
+    }));
+  }));
+  return {
+    success: true,
+    channelId
+  };
 };
-// src/modules/chat/queries/get-channel-messages/schema.ts
+// src/modules/chat/services/delete-channel/schema.ts
 init_zod();
-var getChannelMessagesSchema = exports_external.object({
-  channelId: exports_external.string().cuid(),
-  limit: exports_external.number().min(1).max(100).default(50),
-  beforeCursor: exports_external.string().optional()
+var deleteChannelSchema = exports_external.object({
+  workspaceId: exports_external.string().cuid(),
+  channelId: exports_external.string().cuid()
 });
-// src/modules/chat/queries/get-channel-messages/type-defs.ts
+// src/modules/chat/services/delete-channel/type-defs.ts
 var typeDefs21 = `
-  extend type Query {
-    getChannelMessages(
+  extend type Mutation {
+    deleteChannel(workspaceId: ID!, channelId: ID!): DeleteChannelResult!
+  }
+
+  type DeleteChannelResult {
+    success: Boolean!
+    channelId: ID!
+  }
+`;
+// src/modules/chat/services/unarchive-channel/index.ts
+var exports_unarchive_channel = {};
+__export(exports_unarchive_channel, {
+  unarchiveChannelSchema: () => unarchiveChannelSchema,
+  typeDefs: () => typeDefs22,
+  handler: () => handler36
+});
+
+// src/modules/chat/services/unarchive-channel/handler.ts
+init_errors3();
+var handler36 = async (input, ctx) => {
+  const { userId } = ctx.auth;
+  if (!userId) {
+    throw AppError.unauthorized("User not authenticated");
+  }
+  const { workspaceId, channelId } = input;
+  const channel = await ctx.db.chatConversation.findFirst({
+    where: {
+      id: channelId,
+      workspaceId,
+      type: "CHANNEL"
+    },
+    include: {
+      members: {
+        select: { userId: true }
+      }
+    }
+  });
+  if (!channel) {
+    throw AppError.notFound("Channel not found");
+  }
+  if (!channel.deletedAt) {
+    throw AppError.badRequest("Channel is not archived");
+  }
+  const updated = await ctx.db.chatConversation.update({
+    where: { id: channelId },
+    data: {
+      deletedAt: null,
+      isArchived: false
+    }
+  });
+  await Promise.all(channel.members.map(async (member) => {
+    await ctx.redis.publish(`user:${member.userId}:events`, JSON.stringify({
+      type: "chat:channel-unarchived",
+      payload: {
+        channelId,
+        workspaceId,
+        name: channel.name,
+        timestamp: new Date().toISOString()
+      }
+    }));
+  }));
+  return {
+    success: true,
+    channelId: updated.id,
+    name: updated.name || "Unnamed Channel"
+  };
+};
+// src/modules/chat/services/unarchive-channel/schema.ts
+init_zod();
+var unarchiveChannelSchema = exports_external.object({
+  workspaceId: exports_external.string().cuid(),
+  channelId: exports_external.string().cuid()
+});
+// src/modules/chat/services/unarchive-channel/type-defs.ts
+var typeDefs22 = `
+  extend type Mutation {
+    unarchiveChannel(workspaceId: ID!, channelId: ID!): UnarchiveChannelResult!
+  }
+
+  type UnarchiveChannelResult {
+    success: Boolean!
+    channelId: ID!
+    name: String!
+  }
+`;
+// src/modules/chat/services/update-channel-description/index.ts
+var exports_update_channel_description = {};
+__export(exports_update_channel_description, {
+  updateChannelDescriptionSchema: () => updateChannelDescriptionSchema,
+  typeDefs: () => typeDefs23,
+  handler: () => handler37
+});
+
+// src/modules/chat/services/update-channel-description/handler.ts
+init_errors3();
+var handler37 = async (input, ctx) => {
+  const { userId } = ctx.auth;
+  if (!userId) {
+    throw AppError.unauthorized("User not authenticated");
+  }
+  const { workspaceId, channelId, description } = input;
+  const channel = await ctx.db.chatConversation.findFirst({
+    where: {
+      id: channelId,
+      workspaceId,
+      type: "CHANNEL",
+      deletedAt: null
+    },
+    include: {
+      members: { select: { userId: true } }
+    }
+  });
+  if (!channel) {
+    throw AppError.notFound("Channel not found");
+  }
+  const updated = await ctx.db.chatConversation.update({
+    where: { id: channelId },
+    data: {
+      topic: description || null
+    }
+  });
+  await Promise.all(channel.members.map(async (member) => {
+    await ctx.redis.publish(`user:${member.userId}:events`, JSON.stringify({
+      type: "chat:channel-description-updated",
+      payload: {
+        channelId,
+        description: description || null,
+        updatedBy: userId,
+        timestamp: new Date().toISOString()
+      }
+    }));
+  }));
+  return {
+    success: true,
+    channelId: updated.id,
+    description: updated.topic
+  };
+};
+// src/modules/chat/services/update-channel-description/schema.ts
+init_zod();
+var updateChannelDescriptionSchema = exports_external.object({
+  workspaceId: exports_external.string().cuid(),
+  channelId: exports_external.string().cuid(),
+  description: exports_external.string().min(0).max(500).optional()
+});
+// src/modules/chat/services/update-channel-description/type-defs.ts
+var typeDefs23 = `
+  extend type Mutation {
+    updateChannelDescription(
+      workspaceId: ID!
       channelId: ID!
-      limit: Int
-      beforeCursor: ID
-    ): [ChatMessage!]!
+      description: String
+    ): UpdateChannelDescriptionResult!
+  }
+
+  type UpdateChannelDescriptionResult {
+    success: Boolean!
+    channelId: ID!
+    description: String
+  }
+`;
+// src/modules/chat/services/update-channel-visibility/index.ts
+var exports_update_channel_visibility = {};
+__export(exports_update_channel_visibility, {
+  updateChannelVisibilitySchema: () => updateChannelVisibilitySchema,
+  typeDefs: () => typeDefs24,
+  handler: () => handler38
+});
+
+// src/modules/chat/services/update-channel-visibility/handler.ts
+init_errors3();
+var handler38 = async (input, ctx) => {
+  const { userId } = ctx.auth;
+  if (!userId) {
+    throw AppError.unauthorized("User not authenticated");
+  }
+  const { workspaceId, channelId, isPublic } = input;
+  const channel = await ctx.db.chatConversation.findFirst({
+    where: {
+      id: channelId,
+      workspaceId,
+      type: "CHANNEL",
+      deletedAt: null
+    },
+    include: {
+      members: { select: { userId: true } }
+    }
+  });
+  if (!channel) {
+    throw AppError.notFound("Channel not found");
+  }
+  await Promise.all(channel.members.map(async (member) => {
+    await ctx.redis.publish(`user:${member.userId}:events`, JSON.stringify({
+      type: "chat:channel-visibility-updated",
+      payload: {
+        channelId,
+        isPublic,
+        updatedBy: userId,
+        timestamp: new Date().toISOString()
+      }
+    }));
+  }));
+  return {
+    success: true,
+    channelId,
+    isPublic
+  };
+};
+// src/modules/chat/services/update-channel-visibility/schema.ts
+init_zod();
+var updateChannelVisibilitySchema = exports_external.object({
+  workspaceId: exports_external.string().cuid(),
+  channelId: exports_external.string().cuid(),
+  isPublic: exports_external.boolean()
+});
+// src/modules/chat/services/update-channel-visibility/type-defs.ts
+var typeDefs24 = `
+  extend type Mutation {
+    updateChannelVisibility(
+      workspaceId: ID!
+      channelId: ID!
+      isPublic: Boolean!
+    ): UpdateChannelVisibilityResult!
+  }
+
+  type UpdateChannelVisibilityResult {
+    success: Boolean!
+    channelId: ID!
+    isPublic: Boolean!
+  }
+`;
+// src/modules/chat/services/add-channel-members/index.ts
+var exports_add_channel_members = {};
+__export(exports_add_channel_members, {
+  typeDefs: () => typeDefs25,
+  handler: () => handler39,
+  addChannelMembersSchema: () => addChannelMembersSchema
+});
+
+// src/modules/chat/services/add-channel-members/handler.ts
+init_errors3();
+var handler39 = async (input, ctx) => {
+  const { userId } = ctx.auth;
+  if (!userId) {
+    throw AppError.unauthorized("User not authenticated");
+  }
+  const { workspaceId, channelId, userIds } = input;
+  const channel = await ctx.db.chatConversation.findFirst({
+    where: {
+      id: channelId,
+      workspaceId,
+      type: "CHANNEL",
+      deletedAt: null
+    }
+  });
+  if (!channel) {
+    throw AppError.notFound("Channel not found");
+  }
+  const existingMembers = await ctx.db.chatMember.findMany({
+    where: {
+      conversationId: channelId,
+      userId: { in: userIds }
+    },
+    select: { userId: true }
+  });
+  const existingIds = new Set(existingMembers.map((m) => m.userId));
+  const newUserIds = userIds.filter((id) => !existingIds.has(id));
+  if (newUserIds.length === 0) {
+    throw AppError.badRequest("All users are already members");
+  }
+  const newMembers = await ctx.db.$transaction(newUserIds.map((uid) => ctx.db.chatMember.create({
+    data: {
+      conversationId: channelId,
+      userId: uid,
+      role: "MEMBER"
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          avatarUrl: true
+        }
+      }
+    }
+  })));
+  await Promise.all(newMembers.map(async (member) => {
+    await ctx.redis.publish(`user:${member.userId}:events`, JSON.stringify({
+      type: "chat:channel-member-added",
+      payload: {
+        channelId,
+        channelName: channel.name,
+        timestamp: new Date().toISOString()
+      }
+    }));
+  }));
+  return {
+    success: true,
+    addedCount: newMembers.length,
+    skippedCount: existingIds.size,
+    members: newMembers.map((m) => ({
+      userId: m.userId,
+      user: {
+        id: m.user.id,
+        fullName: m.user.fullName || "Unknown",
+        email: m.user.email,
+        avatarUrl: m.user.avatarUrl
+      }
+    }))
+  };
+};
+// src/modules/chat/services/add-channel-members/schema.ts
+init_zod();
+var addChannelMembersSchema = exports_external.object({
+  workspaceId: exports_external.string().cuid(),
+  channelId: exports_external.string().cuid(),
+  userIds: exports_external.array(exports_external.string().cuid()).min(1).max(50)
+});
+// src/modules/chat/services/add-channel-members/type-defs.ts
+var typeDefs25 = `
+  extend type Mutation {
+    addChannelMembers(
+      workspaceId: ID!
+      channelId: ID!
+      userIds: [ID!]!
+    ): AddChannelMembersResult!
+  }
+
+  type AddChannelMembersResult {
+    success: Boolean!
+    addedCount: Int!
+    skippedCount: Int!
+    members: [ChannelMemberInfo!]!
+  }
+
+  type ChannelMemberInfo {
+    userId: ID!
+    user: UserBasic!
+  }
+`;
+// src/modules/chat/services/remove-channel-member/index.ts
+var exports_remove_channel_member = {};
+__export(exports_remove_channel_member, {
+  typeDefs: () => typeDefs26,
+  removeChannelMemberSchema: () => removeChannelMemberSchema,
+  handler: () => handler40
+});
+
+// src/modules/chat/services/remove-channel-member/handler.ts
+init_errors3();
+var handler40 = async (input, ctx) => {
+  const { userId: actorId } = ctx.auth;
+  if (!actorId) {
+    throw AppError.unauthorized("User not authenticated");
+  }
+  const { workspaceId, channelId, userId: targetUserId } = input;
+  const channel = await ctx.db.chatConversation.findFirst({
+    where: {
+      id: channelId,
+      workspaceId,
+      type: "CHANNEL",
+      deletedAt: null
+    }
+  });
+  if (!channel) {
+    throw AppError.notFound("Channel not found");
+  }
+  const membership = await ctx.db.chatMember.findUnique({
+    where: {
+      conversationId_userId: {
+        conversationId: channelId,
+        userId: targetUserId
+      }
+    }
+  });
+  if (!membership) {
+    throw AppError.notFound("User is not a member of this channel");
+  }
+  await ctx.db.chatMember.delete({
+    where: {
+      conversationId_userId: {
+        conversationId: channelId,
+        userId: targetUserId
+      }
+    }
+  });
+  await ctx.redis.publish(`user:${targetUserId}:events`, JSON.stringify({
+    type: "chat:channel-member-removed",
+    payload: {
+      channelId,
+      channelName: channel.name,
+      removedBy: actorId,
+      timestamp: new Date().toISOString()
+    }
+  }));
+  return {
+    success: true,
+    channelId,
+    userId: targetUserId
+  };
+};
+// src/modules/chat/services/remove-channel-member/schema.ts
+init_zod();
+var removeChannelMemberSchema = exports_external.object({
+  workspaceId: exports_external.string().cuid(),
+  channelId: exports_external.string().cuid(),
+  userId: exports_external.string().cuid()
+});
+// src/modules/chat/services/remove-channel-member/type-defs.ts
+var typeDefs26 = `
+  extend type Mutation {
+    removeChannelMember(
+      workspaceId: ID!
+      channelId: ID!
+      userId: ID!
+    ): RemoveChannelMemberResult!
+  }
+
+  type RemoveChannelMemberResult {
+    success: Boolean!
+    channelId: ID!
+    userId: ID!
+  }
+`;
+// src/modules/chat/services/delete-dm/index.ts
+var exports_delete_dm = {};
+__export(exports_delete_dm, {
+  typeDefs: () => typeDefs27,
+  handler: () => handler41,
+  deleteDmSchema: () => deleteDmSchema
+});
+
+// src/modules/chat/services/delete-dm/handler.ts
+init_errors3();
+var handler41 = async (input, ctx) => {
+  const { userId } = ctx.auth;
+  if (!userId) {
+    throw AppError.unauthorized("User not authenticated");
+  }
+  const { workspaceId, dmId } = input;
+  const dm = await ctx.db.chatConversation.findFirst({
+    where: {
+      id: dmId,
+      workspaceId,
+      type: "DM",
+      members: { some: { userId } }
+    },
+    include: {
+      members: { select: { userId: true } }
+    }
+  });
+  if (!dm) {
+    throw AppError.notFound("DM not found or access denied");
+  }
+  const otherMember = dm.members.find((m) => m.userId !== userId);
+  await ctx.db.chatConversation.delete({
+    where: { id: dmId }
+  });
+  const participants = dm.members.map((m) => m.userId);
+  await Promise.all(participants.map(async (participantId) => {
+    await ctx.redis.publish(`user:${participantId}:events`, JSON.stringify({
+      type: "chat:dm-deleted",
+      payload: {
+        dmId,
+        deletedBy: userId,
+        timestamp: new Date().toISOString()
+      }
+    }));
+  }));
+  return {
+    success: true,
+    dmId
+  };
+};
+// src/modules/chat/services/delete-dm/schema.ts
+init_zod();
+var deleteDmSchema = exports_external.object({
+  workspaceId: exports_external.string().cuid(),
+  dmId: exports_external.string().cuid()
+});
+// src/modules/chat/services/delete-dm/type-defs.ts
+var typeDefs27 = `
+  extend type Mutation {
+    deleteDm(workspaceId: ID!, dmId: ID!): DeleteDmResult!
+  }
+
+  type DeleteDmResult {
+    success: Boolean!
+    dmId: ID!
+  }
+`;
+// src/modules/chat/services/mute-conversation/index.ts
+var exports_mute_conversation = {};
+__export(exports_mute_conversation, {
+  typeDefs: () => typeDefs28,
+  muteConversationSchema: () => muteConversationSchema,
+  handler: () => handler42
+});
+
+// src/modules/chat/services/mute-conversation/handler.ts
+init_errors3();
+var handler42 = async (input, ctx) => {
+  const { userId } = ctx.auth;
+  if (!userId) {
+    throw AppError.unauthorized("User not authenticated");
+  }
+  const { conversationId, isMuted } = input;
+  const membership = await ctx.db.chatMember.findUnique({
+    where: {
+      conversationId_userId: {
+        conversationId,
+        userId
+      }
+    }
+  });
+  if (!membership) {
+    throw AppError.notFound("You are not a member of this conversation");
+  }
+  await ctx.db.chatMember.update({
+    where: {
+      conversationId_userId: {
+        conversationId,
+        userId
+      }
+    },
+    data: {
+      isMuted
+    }
+  });
+  return {
+    success: true,
+    conversationId,
+    isMuted
+  };
+};
+// src/modules/chat/services/mute-conversation/schema.ts
+init_zod();
+var muteConversationSchema = exports_external.object({
+  conversationId: exports_external.string().cuid(),
+  isMuted: exports_external.boolean()
+});
+// src/modules/chat/services/mute-conversation/type-defs.ts
+var typeDefs28 = `
+  extend type Mutation {
+    muteConversation(
+      conversationId: ID!
+      isMuted: Boolean!
+    ): MuteConversationResult!
+  }
+
+  type MuteConversationResult {
+    success: Boolean!
+    conversationId: ID!
+    isMuted: Boolean!
+  }
+`;
+// src/modules/chat/services/rename-group/index.ts
+var exports_rename_group = {};
+__export(exports_rename_group, {
+  typeDefs: () => typeDefs29,
+  renameGroupSchema: () => renameGroupSchema,
+  handler: () => handler43
+});
+
+// src/modules/chat/services/rename-group/handler.ts
+init_errors3();
+var handler43 = async (input, ctx) => {
+  const { userId } = ctx.auth;
+  if (!userId) {
+    throw AppError.unauthorized("User not authenticated");
+  }
+  const { workspaceId, groupId, name: name2 } = input;
+  const group = await ctx.db.chatConversation.findFirst({
+    where: {
+      id: groupId,
+      workspaceId,
+      type: "GROUP_DM",
+      members: { some: { userId } },
+      deletedAt: null
+    },
+    include: {
+      members: { select: { userId: true } }
+    }
+  });
+  if (!group) {
+    throw AppError.notFound("Group not found or access denied");
+  }
+  const updated = await ctx.db.chatConversation.update({
+    where: { id: groupId },
+    data: { name: name2 }
+  });
+  await Promise.all(group.members.map(async (member) => {
+    await ctx.redis.publish(`user:${member.userId}:events`, JSON.stringify({
+      type: "chat:group-renamed",
+      payload: {
+        groupId,
+        name: name2,
+        renamedBy: userId,
+        timestamp: new Date().toISOString()
+      }
+    }));
+  }));
+  return {
+    success: true,
+    groupId: updated.id,
+    name: updated.name || name2
+  };
+};
+// src/modules/chat/services/rename-group/schema.ts
+init_zod();
+var renameGroupSchema = exports_external.object({
+  workspaceId: exports_external.string().cuid(),
+  groupId: exports_external.string().cuid(),
+  name: exports_external.string().min(1).max(80)
+});
+// src/modules/chat/services/rename-group/type-defs.ts
+var typeDefs29 = `
+  extend type Mutation {
+    renameGroup(
+      workspaceId: ID!
+      groupId: ID!
+      name: String!
+    ): RenameGroupResult!
+  }
+
+  type RenameGroupResult {
+    success: Boolean!
+    groupId: ID!
+    name: String!
+  }
+`;
+// src/modules/chat/services/delete-group/index.ts
+var exports_delete_group = {};
+__export(exports_delete_group, {
+  typeDefs: () => typeDefs30,
+  handler: () => handler44,
+  deleteGroupSchema: () => deleteGroupSchema
+});
+
+// src/modules/chat/services/delete-group/handler.ts
+init_errors3();
+var handler44 = async (input, ctx) => {
+  const { userId } = ctx.auth;
+  if (!userId) {
+    throw AppError.unauthorized("User not authenticated");
+  }
+  const { workspaceId, groupId } = input;
+  const group = await ctx.db.chatConversation.findFirst({
+    where: {
+      id: groupId,
+      workspaceId,
+      type: "GROUP_DM",
+      members: { some: { userId } }
+    },
+    include: {
+      members: { select: { userId: true } }
+    }
+  });
+  if (!group) {
+    throw AppError.notFound("Group not found or access denied");
+  }
+  await ctx.db.chatConversation.delete({
+    where: { id: groupId }
+  });
+  await Promise.all(group.members.map(async (member) => {
+    await ctx.redis.publish(`user:${member.userId}:events`, JSON.stringify({
+      type: "chat:group-deleted",
+      payload: {
+        groupId,
+        deletedBy: userId,
+        timestamp: new Date().toISOString()
+      }
+    }));
+  }));
+  return {
+    success: true,
+    groupId
+  };
+};
+// src/modules/chat/services/delete-group/schema.ts
+init_zod();
+var deleteGroupSchema = exports_external.object({
+  workspaceId: exports_external.string().cuid(),
+  groupId: exports_external.string().cuid()
+});
+// src/modules/chat/services/delete-group/type-defs.ts
+var typeDefs30 = `
+  extend type Mutation {
+    deleteGroup(workspaceId: ID!, groupId: ID!): DeleteGroupResult!
+  }
+
+  type DeleteGroupResult {
+    success: Boolean!
+    groupId: ID!
+  }
+`;
+// src/modules/chat/services/add-group-members/index.ts
+var exports_add_group_members = {};
+__export(exports_add_group_members, {
+  typeDefs: () => typeDefs31,
+  handler: () => handler45,
+  addGroupMembersSchema: () => addGroupMembersSchema
+});
+
+// src/modules/chat/services/add-group-members/handler.ts
+init_errors3();
+var handler45 = async (input, ctx) => {
+  const { userId } = ctx.auth;
+  if (!userId) {
+    throw AppError.unauthorized("User not authenticated");
+  }
+  const { workspaceId, groupId, userIds } = input;
+  const group = await ctx.db.chatConversation.findFirst({
+    where: {
+      id: groupId,
+      workspaceId,
+      type: "GROUP_DM",
+      deletedAt: null
+    }
+  });
+  if (!group) {
+    throw AppError.notFound("Group not found");
+  }
+  const existingMembers = await ctx.db.chatMember.findMany({
+    where: {
+      conversationId: groupId,
+      userId: { in: userIds }
+    },
+    select: { userId: true }
+  });
+  const existingIds = new Set(existingMembers.map((m) => m.userId));
+  const newUserIds = userIds.filter((id) => !existingIds.has(id));
+  if (newUserIds.length === 0) {
+    throw AppError.badRequest("All users are already members");
+  }
+  const newMembers = await ctx.db.$transaction(newUserIds.map((uid) => ctx.db.chatMember.create({
+    data: {
+      conversationId: groupId,
+      userId: uid,
+      role: "MEMBER"
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          avatarUrl: true
+        }
+      }
+    }
+  })));
+  await Promise.all(newMembers.map(async (member) => {
+    await ctx.redis.publish(`user:${member.userId}:events`, JSON.stringify({
+      type: "chat:group-member-added",
+      payload: {
+        groupId,
+        groupName: group.name,
+        timestamp: new Date().toISOString()
+      }
+    }));
+  }));
+  return {
+    success: true,
+    addedCount: newMembers.length,
+    skippedCount: existingIds.size,
+    members: newMembers.map((m) => ({
+      userId: m.userId,
+      user: {
+        id: m.user.id,
+        fullName: m.user.fullName || "Unknown",
+        email: m.user.email,
+        avatarUrl: m.user.avatarUrl
+      }
+    }))
+  };
+};
+// src/modules/chat/services/add-group-members/schema.ts
+init_zod();
+var addGroupMembersSchema = exports_external.object({
+  workspaceId: exports_external.string().cuid(),
+  groupId: exports_external.string().cuid(),
+  userIds: exports_external.array(exports_external.string().cuid()).min(1).max(50)
+});
+// src/modules/chat/services/add-group-members/type-defs.ts
+var typeDefs31 = `
+  extend type Mutation {
+    addGroupMembers(
+      workspaceId: ID!
+      groupId: ID!
+      userIds: [ID!]!
+    ): AddGroupMembersResult!
+  }
+
+  type AddGroupMembersResult {
+    success: Boolean!
+    addedCount: Int!
+    skippedCount: Int!
+    members: [GroupMemberInfo!]!
+  }
+
+  type GroupMemberInfo {
+    userId: ID!
+    user: UserBasic!
+  }
+`;
+// src/modules/chat/services/remove-group-member/index.ts
+var exports_remove_group_member = {};
+__export(exports_remove_group_member, {
+  typeDefs: () => typeDefs32,
+  removeGroupMemberSchema: () => removeGroupMemberSchema,
+  handler: () => handler46
+});
+
+// src/modules/chat/services/remove-group-member/handler.ts
+init_errors3();
+var handler46 = async (input, ctx) => {
+  const { userId: actorId } = ctx.auth;
+  if (!actorId) {
+    throw AppError.unauthorized("User not authenticated");
+  }
+  const { workspaceId, groupId, userId: targetUserId } = input;
+  const group = await ctx.db.chatConversation.findFirst({
+    where: {
+      id: groupId,
+      workspaceId,
+      type: "GROUP_DM",
+      deletedAt: null
+    }
+  });
+  if (!group) {
+    throw AppError.notFound("Group not found");
+  }
+  const membership = await ctx.db.chatMember.findUnique({
+    where: {
+      conversationId_userId: {
+        conversationId: groupId,
+        userId: targetUserId
+      }
+    }
+  });
+  if (!membership) {
+    throw AppError.notFound("User is not a member of this group");
+  }
+  await ctx.db.chatMember.delete({
+    where: {
+      conversationId_userId: {
+        conversationId: groupId,
+        userId: targetUserId
+      }
+    }
+  });
+  await ctx.redis.publish(`user:${targetUserId}:events`, JSON.stringify({
+    type: "chat:group-member-removed",
+    payload: {
+      groupId,
+      groupName: group.name,
+      removedBy: actorId,
+      timestamp: new Date().toISOString()
+    }
+  }));
+  return {
+    success: true,
+    groupId,
+    userId: targetUserId
+  };
+};
+// src/modules/chat/services/remove-group-member/schema.ts
+init_zod();
+var removeGroupMemberSchema = exports_external.object({
+  workspaceId: exports_external.string().cuid(),
+  groupId: exports_external.string().cuid(),
+  userId: exports_external.string().cuid()
+});
+// src/modules/chat/services/remove-group-member/type-defs.ts
+var typeDefs32 = `
+  extend type Mutation {
+    removeGroupMember(
+      workspaceId: ID!
+      groupId: ID!
+      userId: ID!
+    ): RemoveGroupMemberResult!
+  }
+
+  type RemoveGroupMemberResult {
+    success: Boolean!
+    groupId: ID!
+    userId: ID!
+  }
+`;
+// src/modules/chat/services/leave-group/index.ts
+var exports_leave_group = {};
+__export(exports_leave_group, {
+  typeDefs: () => typeDefs33,
+  leaveGroupSchema: () => leaveGroupSchema,
+  handler: () => handler47
+});
+
+// src/modules/chat/services/leave-group/handler.ts
+init_errors3();
+var handler47 = async (input, ctx) => {
+  const { userId } = ctx.auth;
+  if (!userId) {
+    throw AppError.unauthorized("User not authenticated");
+  }
+  const { workspaceId, groupId } = input;
+  const group = await ctx.db.chatConversation.findFirst({
+    where: {
+      id: groupId,
+      workspaceId,
+      type: "GROUP_DM",
+      members: { some: { userId } },
+      deletedAt: null
+    },
+    include: {
+      members: { select: { userId: true } }
+    }
+  });
+  if (!group) {
+    throw AppError.notFound("Group not found or you are not a member");
+  }
+  await ctx.db.chatMember.delete({
+    where: {
+      conversationId_userId: {
+        conversationId: groupId,
+        userId
+      }
+    }
+  });
+  if (group.members.length === 1) {
+    await ctx.db.chatConversation.delete({
+      where: { id: groupId }
+    });
+  } else {
+    const remainingMembers = group.members.filter((m) => m.userId !== userId);
+    await Promise.all(remainingMembers.map(async (member) => {
+      await ctx.redis.publish(`user:${member.userId}:events`, JSON.stringify({
+        type: "chat:group-member-left",
+        payload: {
+          groupId,
+          userId,
+          timestamp: new Date().toISOString()
+        }
+      }));
+    }));
+  }
+  return {
+    success: true,
+    groupId
+  };
+};
+// src/modules/chat/services/leave-group/schema.ts
+init_zod();
+var leaveGroupSchema = exports_external.object({
+  workspaceId: exports_external.string().cuid(),
+  groupId: exports_external.string().cuid()
+});
+// src/modules/chat/services/leave-group/type-defs.ts
+var typeDefs33 = `
+  extend type Mutation {
+    leaveGroup(workspaceId: ID!, groupId: ID!): LeaveGroupResult!
+  }
+
+  type LeaveGroupResult {
+    success: Boolean!
+    groupId: ID!
+  }
+`;
+// src/modules/chat/services/close-thread/index.ts
+var exports_close_thread = {};
+__export(exports_close_thread, {
+  typeDefs: () => typeDefs34,
+  handler: () => handler48,
+  closeThreadSchema: () => closeThreadSchema
+});
+
+// src/modules/chat/services/close-thread/handler.ts
+init_errors3();
+var handler48 = async (input, ctx) => {
+  const { userId } = ctx.auth;
+  if (!userId) {
+    throw AppError.unauthorized("User not authenticated");
+  }
+  const { workspaceId, threadId } = input;
+  const thread = await ctx.db.chatConversation.findFirst({
+    where: {
+      id: threadId,
+      workspaceId,
+      type: "THREAD",
+      members: { some: { userId } },
+      deletedAt: null
+    },
+    include: {
+      members: { select: { userId: true } }
+    }
+  });
+  if (!thread) {
+    throw AppError.notFound("Thread not found or access denied");
+  }
+  if (thread.closedAt) {
+    throw AppError.badRequest("Thread is already closed");
+  }
+  const closedAt = new Date;
+  await ctx.db.chatConversation.update({
+    where: { id: threadId },
+    data: { closedAt }
+  });
+  await Promise.all(thread.members.map(async (member) => {
+    await ctx.redis.publish(`user:${member.userId}:events`, JSON.stringify({
+      type: "chat:thread-closed",
+      payload: {
+        threadId,
+        closedBy: userId,
+        closedAt: closedAt.toISOString(),
+        timestamp: closedAt.toISOString()
+      }
+    }));
+  }));
+  return {
+    success: true,
+    threadId,
+    closedAt
+  };
+};
+// src/modules/chat/services/close-thread/schema.ts
+init_zod();
+var closeThreadSchema = exports_external.object({
+  workspaceId: exports_external.string().cuid(),
+  threadId: exports_external.string().cuid()
+});
+// src/modules/chat/services/close-thread/type-defs.ts
+var typeDefs34 = `
+  extend type Mutation {
+    closeThread(workspaceId: ID!, threadId: ID!): CloseThreadResult!
+  }
+
+  type CloseThreadResult {
+    success: Boolean!
+    threadId: ID!
+    closedAt: DateTime!
+  }
+`;
+// src/modules/chat/services/reopen-thread/index.ts
+var exports_reopen_thread = {};
+__export(exports_reopen_thread, {
+  typeDefs: () => typeDefs35,
+  reopenThreadSchema: () => reopenThreadSchema,
+  handler: () => handler49
+});
+
+// src/modules/chat/services/reopen-thread/handler.ts
+init_errors3();
+var handler49 = async (input, ctx) => {
+  const { userId } = ctx.auth;
+  if (!userId) {
+    throw AppError.unauthorized("User not authenticated");
+  }
+  const { workspaceId, threadId } = input;
+  const thread = await ctx.db.chatConversation.findFirst({
+    where: {
+      id: threadId,
+      workspaceId,
+      type: "THREAD",
+      members: { some: { userId } },
+      deletedAt: null
+    },
+    include: {
+      members: { select: { userId: true } }
+    }
+  });
+  if (!thread) {
+    throw AppError.notFound("Thread not found or access denied");
+  }
+  if (!thread.closedAt) {
+    throw AppError.badRequest("Thread is already open");
+  }
+  await ctx.db.chatConversation.update({
+    where: { id: threadId },
+    data: { closedAt: null }
+  });
+  await Promise.all(thread.members.map(async (member) => {
+    await ctx.redis.publish(`user:${member.userId}:events`, JSON.stringify({
+      type: "chat:thread-reopened",
+      payload: {
+        threadId,
+        reopenedBy: userId,
+        timestamp: new Date().toISOString()
+      }
+    }));
+  }));
+  return {
+    success: true,
+    threadId
+  };
+};
+// src/modules/chat/services/reopen-thread/schema.ts
+init_zod();
+var reopenThreadSchema = exports_external.object({
+  workspaceId: exports_external.string().cuid(),
+  threadId: exports_external.string().cuid()
+});
+// src/modules/chat/services/reopen-thread/type-defs.ts
+var typeDefs35 = `
+  extend type Mutation {
+    reopenThread(workspaceId: ID!, threadId: ID!): ReopenThreadResult!
+  }
+
+  type ReopenThreadResult {
+    success: Boolean!
+    threadId: ID!
+  }
+`;
+// src/modules/chat/services/delete-thread/index.ts
+var exports_delete_thread = {};
+__export(exports_delete_thread, {
+  typeDefs: () => typeDefs36,
+  handler: () => handler50,
+  deleteThreadSchema: () => deleteThreadSchema
+});
+
+// src/modules/chat/services/delete-thread/handler.ts
+init_errors3();
+var handler50 = async (input, ctx) => {
+  const { userId } = ctx.auth;
+  if (!userId) {
+    throw AppError.unauthorized("User not authenticated");
+  }
+  const { workspaceId, threadId } = input;
+  const thread = await ctx.db.chatConversation.findFirst({
+    where: {
+      id: threadId,
+      workspaceId,
+      type: "THREAD",
+      members: { some: { userId } }
+    },
+    include: {
+      members: { select: { userId: true } }
+    }
+  });
+  if (!thread) {
+    throw AppError.notFound("Thread not found or access denied");
+  }
+  await ctx.db.chatConversation.delete({
+    where: { id: threadId }
+  });
+  await Promise.all(thread.members.map(async (member) => {
+    await ctx.redis.publish(`user:${member.userId}:events`, JSON.stringify({
+      type: "chat:thread-deleted",
+      payload: {
+        threadId,
+        deletedBy: userId,
+        timestamp: new Date().toISOString()
+      }
+    }));
+  }));
+  return {
+    success: true,
+    threadId
+  };
+};
+// src/modules/chat/services/delete-thread/schema.ts
+init_zod();
+var deleteThreadSchema = exports_external.object({
+  workspaceId: exports_external.string().cuid(),
+  threadId: exports_external.string().cuid()
+});
+// src/modules/chat/services/delete-thread/type-defs.ts
+var typeDefs36 = `
+  extend type Mutation {
+    deleteThread(workspaceId: ID!, threadId: ID!): DeleteThreadResult!
+  }
+
+  type DeleteThreadResult {
+    success: Boolean!
+    threadId: ID!
+  }
+`;
+// src/modules/chat/services/subscribe-thread/index.ts
+var exports_subscribe_thread = {};
+__export(exports_subscribe_thread, {
+  typeDefs: () => typeDefs37,
+  subscribeThreadSchema: () => subscribeThreadSchema,
+  handler: () => handler51
+});
+
+// src/modules/chat/services/subscribe-thread/handler.ts
+init_errors3();
+var handler51 = async (input, ctx) => {
+  const { userId } = ctx.auth;
+  if (!userId) {
+    throw AppError.unauthorized("User not authenticated");
+  }
+  const { threadId } = input;
+  const thread = await ctx.db.chatConversation.findFirst({
+    where: {
+      id: threadId,
+      type: "THREAD",
+      deletedAt: null
+    }
+  });
+  if (!thread) {
+    throw AppError.notFound("Thread not found");
+  }
+  const existing = await ctx.db.chatMember.findUnique({
+    where: {
+      conversationId_userId: {
+        conversationId: threadId,
+        userId
+      }
+    }
+  });
+  if (existing) {
+    return {
+      success: true,
+      threadId,
+      isSubscribed: true
+    };
+  }
+  await ctx.db.chatMember.create({
+    data: {
+      conversationId: threadId,
+      userId,
+      role: "MEMBER"
+    }
+  });
+  return {
+    success: true,
+    threadId,
+    isSubscribed: true
+  };
+};
+// src/modules/chat/services/subscribe-thread/schema.ts
+init_zod();
+var subscribeThreadSchema = exports_external.object({
+  threadId: exports_external.string().cuid()
+});
+// src/modules/chat/services/subscribe-thread/type-defs.ts
+var typeDefs37 = `
+  extend type Mutation {
+    subscribeThread(threadId: ID!): SubscribeThreadResult!
+  }
+
+  type SubscribeThreadResult {
+    success: Boolean!
+    threadId: ID!
+    isSubscribed: Boolean!
+  }
+`;
+// src/modules/chat/services/unsubscribe-thread/index.ts
+var exports_unsubscribe_thread = {};
+__export(exports_unsubscribe_thread, {
+  unsubscribeThreadSchema: () => unsubscribeThreadSchema,
+  typeDefs: () => typeDefs38,
+  handler: () => handler52
+});
+
+// src/modules/chat/services/unsubscribe-thread/handler.ts
+init_errors3();
+var handler52 = async (input, ctx) => {
+  const { userId } = ctx.auth;
+  if (!userId) {
+    throw AppError.unauthorized("User not authenticated");
+  }
+  const { threadId } = input;
+  const membership = await ctx.db.chatMember.findUnique({
+    where: {
+      conversationId_userId: {
+        conversationId: threadId,
+        userId
+      }
+    }
+  });
+  if (!membership) {
+    return {
+      success: true,
+      threadId,
+      isSubscribed: false
+    };
+  }
+  await ctx.db.chatMember.delete({
+    where: {
+      conversationId_userId: {
+        conversationId: threadId,
+        userId
+      }
+    }
+  });
+  return {
+    success: true,
+    threadId,
+    isSubscribed: false
+  };
+};
+// src/modules/chat/services/unsubscribe-thread/schema.ts
+init_zod();
+var unsubscribeThreadSchema = exports_external.object({
+  threadId: exports_external.string().cuid()
+});
+// src/modules/chat/services/unsubscribe-thread/type-defs.ts
+var typeDefs38 = `
+  extend type Mutation {
+    unsubscribeThread(threadId: ID!): UnsubscribeThreadResult!
+  }
+
+  type UnsubscribeThreadResult {
+    success: Boolean!
+    threadId: ID!
+    isSubscribed: Boolean!
   }
 `;
 // src/modules/chat/queries/get-thread-messages/index.ts
 var exports_get_thread_messages = {};
 __export(exports_get_thread_messages, {
-  typeDefs: () => typeDefs22,
-  handler: () => handler37,
+  typeDefs: () => typeDefs39,
+  handler: () => handler53,
   getThreadMessagesSchema: () => getThreadMessagesSchema
 });
 
 // src/modules/chat/queries/get-thread-messages/handler.ts
-var handler37 = async (input, ctx) => {
+var handler53 = async (input, ctx) => {
   return await ctx.db.chatMessage.findMany({
     where: {
       parentMessageId: input.parentMessageId
@@ -119170,7 +120595,7 @@ var getThreadMessagesSchema = exports_external.object({
   beforeCursor: exports_external.string().optional()
 });
 // src/modules/chat/queries/get-thread-messages/type-defs.ts
-var typeDefs22 = `
+var typeDefs39 = `
   extend type Query {
     getThreadMessages(
       parentMessageId: ID!
@@ -119182,13 +120607,13 @@ var typeDefs22 = `
 // src/modules/chat/queries/get-message-by-id/index.ts
 var exports_get_message_by_id = {};
 __export(exports_get_message_by_id, {
-  typeDefs: () => typeDefs23,
-  handler: () => handler39,
+  typeDefs: () => typeDefs40,
+  handler: () => handler55,
   getMessageByIdSchema: () => getMessageByIdSchema
 });
 
 // src/modules/chat/queries/get-message-by-id/handler.ts
-var handler39 = async (input, ctx) => {
+var handler55 = async (input, ctx) => {
   return await ctx.db.chatMessage.findUnique({
     where: { id: input.messageId }
   });
@@ -119199,7 +120624,7 @@ var getMessageByIdSchema = exports_external.object({
   messageId: exports_external.string().ulid()
 });
 // src/modules/chat/queries/get-message-by-id/type-defs.ts
-var typeDefs23 = `
+var typeDefs40 = `
   extend type Query {
     getMessageById(messageId: ID!): ChatMessage
   }
@@ -119207,13 +120632,13 @@ var typeDefs23 = `
 // src/modules/chat/queries/get-messages-after-cursor/index.ts
 var exports_get_messages_after_cursor = {};
 __export(exports_get_messages_after_cursor, {
-  typeDefs: () => typeDefs24,
-  handler: () => handler41,
+  typeDefs: () => typeDefs41,
+  handler: () => handler57,
   getMessagesAfterCursorSchema: () => getMessagesAfterCursorSchema
 });
 
 // src/modules/chat/queries/get-messages-after-cursor/handler.ts
-var handler41 = async (input, ctx) => {
+var handler57 = async (input, ctx) => {
   return await ctx.db.chatMessage.findMany({
     where: {
       conversationId: input.channelId
@@ -119247,7 +120672,7 @@ var getMessagesAfterCursorSchema = exports_external.object({
   limit: exports_external.number().min(1).max(100).default(50)
 });
 // src/modules/chat/queries/get-messages-after-cursor/type-defs.ts
-var typeDefs24 = `
+var typeDefs41 = `
   extend type Query {
     getMessagesAfterCursor(
       channelId: ID!
@@ -119259,13 +120684,13 @@ var typeDefs24 = `
 // src/modules/chat/queries/get-missing-messages/index.ts
 var exports_get_missing_messages = {};
 __export(exports_get_missing_messages, {
-  typeDefs: () => typeDefs25,
-  handler: () => handler43,
+  typeDefs: () => typeDefs42,
+  handler: () => handler59,
   getMissingMessagesSchema: () => getMissingMessagesSchema
 });
 
 // src/modules/chat/queries/get-missing-messages/handler.ts
-var handler43 = async (input, ctx) => {
+var handler59 = async (input, ctx) => {
   return await ctx.db.chatMessage.findMany({
     where: {
       conversationId: input.channelId,
@@ -119287,7 +120712,7 @@ var getMissingMessagesSchema = exports_external.object({
   rangeEnd: exports_external.string().ulid()
 });
 // src/modules/chat/queries/get-missing-messages/type-defs.ts
-var typeDefs25 = `
+var typeDefs42 = `
   extend type Query {
     getMissingMessages(
       channelId: ID!
@@ -119296,91 +120721,17 @@ var typeDefs25 = `
     ): [ChatMessage!]!
   }
 `;
-// src/modules/chat/queries/get-user-channels/index.ts
-var exports_get_user_channels = {};
-__export(exports_get_user_channels, {
-  typeDefs: () => typeDefs26,
-  handler: () => handler45,
-  getUserChannelsSchema: () => getUserChannelsSchema
-});
-
-// src/modules/chat/queries/get-user-channels/handler.ts
-init_errors3();
-var handler45 = async (input, ctx) => {
-  const { userId } = ctx.auth;
-  if (!userId)
-    throw new AppError("User not authenticated", "UNAUTHORIZED", 401);
-  const workspaceMember = await ctx.db.workspaceMember.findUnique({
-    where: {
-      workspaceId_userId: {
-        workspaceId: input.workspaceId,
-        userId
-      }
-    }
-  });
-  if (!workspaceMember) {
-    throw AppError.forbidden("You are not a member of this workspace");
-  }
-  const project = await ctx.db.project.findUnique({
-    where: {
-      id: input.projectId,
-      workspaceId: input.workspaceId
-    },
-    select: {
-      id: true,
-      members: {
-        where: { userId },
-        select: { userId: true }
-      }
-    }
-  });
-  if (!project) {
-    throw AppError.notFound("Project not found");
-  }
-  return ctx.db.chatConversation.findMany({
-    where: {
-      workspaceId: input.workspaceId,
-      projectId: input.projectId,
-      type: "CHANNEL",
-      deletedAt: null
-    },
-    take: input.limit,
-    skip: input.offset,
-    orderBy: {
-      createdAt: "desc"
-    }
-  });
-};
-// src/modules/chat/queries/get-user-channels/schema.ts
-init_zod();
-var getUserChannelsSchema = exports_external.object({
-  workspaceId: exports_external.string().cuid("Invalid workspace ID format"),
-  projectId: exports_external.string().cuid("Invalid project ID format"),
-  limit: exports_external.number().min(1, "Limit must be at least 1").max(100, "Limit cannot exceed 100").default(50),
-  offset: exports_external.number().min(0, "Offset cannot be negative").default(0)
-});
-// src/modules/chat/queries/get-user-channels/type-defs.ts
-var typeDefs26 = `
-  extend type Query {
-    getUserChannels(
-      workspaceId: ID!
-      projectId: ID!
-      limit: Int
-      offset: Int
-    ): [Conversation!]!
-  }
-`;
 // src/modules/chat/queries/get-channel-members/index.ts
 var exports_get_channel_members = {};
 __export(exports_get_channel_members, {
-  typeDefs: () => typeDefs27,
-  handler: () => handler47,
+  typeDefs: () => typeDefs43,
+  handler: () => handler61,
   getChannelMembersSchema: () => getChannelMembersSchema
 });
 
 // src/modules/chat/queries/get-channel-members/handler.ts
 init_errors3();
-var handler47 = async (input, ctx) => {
+var handler61 = async (input, ctx) => {
   const { userId } = ctx.auth;
   if (!userId)
     throw new AppError("User not authenticated", "UNAUTHORIZED", 401);
@@ -119415,94 +120766,21 @@ var getChannelMembersSchema = exports_external.object({
   offset: exports_external.number().min(0).default(0)
 });
 // src/modules/chat/queries/get-channel-members/type-defs.ts
-var typeDefs27 = `
+var typeDefs43 = `
   extend type Query {
     getChannelMembers(channelId: ID!, limit: Int, offset: Int): [ChatMember!]!
-  }
-`;
-// src/modules/chat/queries/get-channel-unread-count/index.ts
-var exports_get_channel_unread_count = {};
-__export(exports_get_channel_unread_count, {
-  typeDefs: () => typeDefs28,
-  handler: () => handler49,
-  getChannelUnreadCountSchema: () => getChannelUnreadCountSchema
-});
-
-// src/modules/chat/queries/get-channel-unread-count/handler.ts
-var handler49 = async (input, ctx) => {
-  const member = await ctx.db.chatMember.findUnique({
-    where: {
-      conversationId_userId: {
-        conversationId: input.channelId,
-        userId: ctx.auth.userId || ""
-      }
-    }
-  });
-  if (!member) {
-    return 0;
-  }
-  return await ctx.db.chatMessage.count({
-    where: {
-      conversationId: input.channelId,
-      createdAt: {
-        gt: member.lastReadAt
-      },
-      authorUserId: {
-        not: member.userId
-      }
-    }
-  });
-};
-// src/modules/chat/queries/get-channel-unread-count/schema.ts
-init_zod();
-var getChannelUnreadCountSchema = exports_external.object({
-  channelId: exports_external.string().cuid()
-});
-// src/modules/chat/queries/get-channel-unread-count/type-defs.ts
-var typeDefs28 = `
-  extend type Query {
-    getChannelUnreadCount(channelId: ID!): Int!
-  }
-`;
-// src/modules/chat/queries/get-subscribed-channels/index.ts
-var exports_get_subscribed_channels = {};
-__export(exports_get_subscribed_channels, {
-  typeDefs: () => typeDefs29,
-  handler: () => handler51,
-  getSubscribedChannelsSchema: () => getSubscribedChannelsSchema
-});
-
-// src/modules/chat/queries/get-subscribed-channels/handler.ts
-var handler51 = async (input, ctx) => {
-  const memberships = await ctx.db.chatMember.findMany({
-    where: {
-      userId: ctx.auth.userId || ""
-    },
-    select: {
-      channelId: true
-    }
-  });
-  return memberships.map((m) => m.channelId);
-};
-// src/modules/chat/queries/get-subscribed-channels/schema.ts
-init_zod();
-var getSubscribedChannelsSchema = exports_external.object({});
-// src/modules/chat/queries/get-subscribed-channels/type-defs.ts
-var typeDefs29 = `
-  extend type Query {
-    getSubscribedChannels: [ID!]!
   }
 `;
 // src/modules/chat/queries/get-last-read-message/index.ts
 var exports_get_last_read_message = {};
 __export(exports_get_last_read_message, {
-  typeDefs: () => typeDefs30,
-  handler: () => handler53,
+  typeDefs: () => typeDefs44,
+  handler: () => handler63,
   getLastReadMessageSchema: () => getLastReadMessageSchema
 });
 
 // src/modules/chat/queries/get-last-read-message/handler.ts
-var handler53 = async (input, ctx) => {
+var handler63 = async (input, ctx) => {
   const member = await ctx.db.chatMember.findUnique({
     where: {
       conversationId_userId: {
@@ -119522,48 +120800,21 @@ var getLastReadMessageSchema = exports_external.object({
   channelId: exports_external.string().cuid()
 });
 // src/modules/chat/queries/get-last-read-message/type-defs.ts
-var typeDefs30 = `
+var typeDefs44 = `
   extend type Query {
     getLastReadMessage(channelId: ID!): ID
-  }
-`;
-// src/modules/chat/queries/get-presence-map/index.ts
-var exports_get_presence_map = {};
-__export(exports_get_presence_map, {
-  typeDefs: () => typeDefs31,
-  handler: () => handler55,
-  getPresenceMapSchema: () => getPresenceMapSchema
-});
-
-// src/modules/chat/queries/get-presence-map/handler.ts
-var handler55 = (input, _ctx) => {
-  return input.userIds.map((userId) => ({
-    userId,
-    status: "OFFLINE" /* OFFLINE */,
-    lastActiveAt: null
-  }));
-};
-// src/modules/chat/queries/get-presence-map/schema.ts
-init_zod();
-var getPresenceMapSchema = exports_external.object({
-  userIds: exports_external.array(exports_external.string().cuid())
-});
-// src/modules/chat/queries/get-presence-map/type-defs.ts
-var typeDefs31 = `
-  extend type Query {
-    getPresenceMap(userIds: [ID!]!): [UserPresence!]!
   }
 `;
 // src/modules/chat/queries/get-messages-delta/index.ts
 var exports_get_messages_delta = {};
 __export(exports_get_messages_delta, {
-  typeDefs: () => typeDefs32,
-  handler: () => handler57,
+  typeDefs: () => typeDefs45,
+  handler: () => handler65,
   getMessagesDeltaSchema: () => getMessagesDeltaSchema
 });
 
 // src/modules/chat/queries/get-messages-delta/handler.ts
-var handler57 = async (input, ctx) => {
+var handler65 = async (input, ctx) => {
   const { conversationId, afterSequence, limit } = input;
   const messages = await ctx.db.chatMessage.findMany({
     where: {
@@ -119609,7 +120860,7 @@ var getMessagesDeltaSchema = exports_external.object({
   limit: exports_external.number().int().min(1).max(200).optional().default(50)
 });
 // src/modules/chat/queries/get-messages-delta/type-defs.ts
-var typeDefs32 = `
+var typeDefs45 = `
   type MessagesDelta {
     messages: [ChatMessage!]!
     hasMore: Boolean! # For client to know if it should keep fetching
@@ -119628,8 +120879,8 @@ var typeDefs32 = `
 // src/modules/chat/queries/get-history/index.ts
 var exports_get_history = {};
 __export(exports_get_history, {
-  typeDefs: () => typeDefs33,
-  handler: () => handler59,
+  typeDefs: () => typeDefs46,
+  handler: () => handler67,
   GetHistoryInputSchema: () => GetHistoryInputSchema
 });
 
@@ -119641,7 +120892,7 @@ var GetHistoryInputSchema = exports_external.object({
   limit: exports_external.number().int().min(1).max(100).default(50).optional()
 });
 // src/modules/chat/queries/get-history/type-defs.ts
-var typeDefs33 = `
+var typeDefs46 = `
   type HistoryPayload {
     messages: [ChatMessage!]!
     hasMore: Boolean!
@@ -119657,7 +120908,7 @@ var typeDefs33 = `
   }
 `;
 // src/modules/chat/queries/get-history/handler.ts
-async function handler59(input, ctx) {
+async function handler67(input, ctx) {
   const { conversationId, beforeSequence, limit } = GetHistoryInputSchema.parse(input);
   const fetchLimit = limit ?? 50;
   const messages = await ctx.db.chatMessage.findMany({
@@ -119683,153 +120934,17 @@ async function handler59(input, ctx) {
     minSequence
   };
 }
-// src/modules/chat/queries/get-dm-conversations/index.ts
-var exports_get_dm_conversations = {};
-__export(exports_get_dm_conversations, {
-  typeDefs: () => typeDefs34,
-  handler: () => handler61,
-  getDmConversationsInputSchema: () => getDmConversationsInputSchema
-});
-
-// src/modules/chat/queries/get-dm-conversations/handler.ts
-init_errors3();
-var handler61 = async (input, ctx) => {
-  const { userId } = ctx.auth;
-  if (!userId)
-    throw AppError.unauthorized("User not authenticated");
-  const { workspaceId, projectId } = input;
-  const projectMembership = await ctx.db.projectMember.findUnique({
-    where: {
-      projectId_userId: {
-        projectId,
-        userId
-      }
-    }
-  });
-  if (!projectMembership) {
-    throw AppError.forbidden("You are not a member of this project");
-  }
-  const conversations = await ctx.db.chatConversation.findMany({
-    where: {
-      workspaceId,
-      projectId,
-      type: "DM",
-      members: {
-        some: {
-          userId
-        }
-      }
-    },
-    include: {
-      members: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              fullName: true,
-              avatarUrl: true
-            }
-          }
-        }
-      }
-    },
-    orderBy: {
-      updatedAt: "desc"
-    }
-  });
-  return conversations;
-};
-// src/modules/chat/queries/get-dm-conversations/schema.ts
-init_zod();
-var getDmConversationsInputSchema = exports_external.object({
-  workspaceId: exports_external.string().min(1),
-  projectId: exports_external.string().min(1)
-});
-// src/modules/chat/queries/get-dm-conversations/type-defs.ts
-var typeDefs34 = `
-  extend type Query {
-    getDmConversations(workspaceId: ID!, projectId: ID!): [Conversation!]!
-  }
-`;
-// src/modules/chat/queries/get-group-conversations/index.ts
-var exports_get_group_conversations = {};
-__export(exports_get_group_conversations, {
-  typeDefs: () => typeDefs35,
-  handler: () => handler62,
-  getGroupConversationsInputSchema: () => getGroupConversationsInputSchema
-});
-
-// src/modules/chat/queries/get-group-conversations/handler.ts
-init_errors3();
-var handler62 = async (input, ctx) => {
-  const { userId } = ctx.auth;
-  if (!userId)
-    throw AppError.unauthorized("User not authenticated");
-  const { workspaceId, projectId } = input;
-  const projectMembership = await ctx.db.projectMember.findUnique({
-    where: {
-      projectId_userId: {
-        projectId,
-        userId
-      }
-    }
-  });
-  if (!projectMembership) {
-    throw AppError.forbidden("You are not a member of this project");
-  }
-  const conversations = await ctx.db.chatConversation.findMany({
-    where: {
-      workspaceId,
-      projectId,
-      type: "GROUP_DM",
-      members: {
-        some: {
-          userId
-        }
-      }
-    },
-    include: {
-      members: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              fullName: true,
-              avatarUrl: true
-            }
-          }
-        }
-      }
-    },
-    orderBy: {
-      updatedAt: "desc"
-    }
-  });
-  return conversations;
-};
-// src/modules/chat/queries/get-group-conversations/schema.ts
-init_zod();
-var getGroupConversationsInputSchema = exports_external.object({
-  workspaceId: exports_external.string().min(1),
-  projectId: exports_external.string().min(1)
-});
-// src/modules/chat/queries/get-group-conversations/type-defs.ts
-var typeDefs35 = `
-  extend type Query {
-    getGroupConversations(workspaceId: ID!, projectId: ID!): [Conversation!]!
-  }
-`;
 // src/modules/chat/queries/get-message-reactions/index.ts
 var exports_get_message_reactions = {};
 __export(exports_get_message_reactions, {
-  typeDefs: () => typeDefs36,
-  handler: () => handler63,
+  typeDefs: () => typeDefs47,
+  handler: () => handler69,
   getMessageReactionsSchema: () => getMessageReactionsSchema
 });
 
 // src/modules/chat/queries/get-message-reactions/handler.ts
 init_logger();
-var handler63 = async (input, ctx) => {
+var handler69 = async (input, ctx) => {
   const { messageId } = input;
   const userId = ctx.auth.userId;
   const message = await ctx.db.chatMessage.findFirst({
@@ -119897,7 +121012,7 @@ var getMessageReactionsSchema = exports_external.object({
   messageId: exports_external.string().uuid()
 });
 // src/modules/chat/queries/get-message-reactions/type-defs.ts
-var typeDefs36 = `
+var typeDefs47 = `
   extend type Query {
     messageReactions(messageId: ID!): [MessageReaction!]!
   }
@@ -119905,13 +121020,13 @@ var typeDefs36 = `
 // src/modules/chat/queries/get-reaction-users/index.ts
 var exports_get_reaction_users = {};
 __export(exports_get_reaction_users, {
-  typeDefs: () => typeDefs37,
-  handler: () => handler64,
+  typeDefs: () => typeDefs48,
+  handler: () => handler70,
   getReactionUsersSchema: () => getReactionUsersSchema
 });
 
 // src/modules/chat/queries/get-reaction-users/handler.ts
-var handler64 = async (input, ctx) => {
+var handler70 = async (input, ctx) => {
   const { messageId, emoji: emoji3, cursor = 0 } = input;
   const message = await ctx.db.chatMessage.findFirst({
     where: {
@@ -119945,7 +121060,7 @@ var getReactionUsersSchema = exports_external.object({
   cursor: exports_external.number().int().nonnegative().optional().default(0)
 });
 // src/modules/chat/queries/get-reaction-users/type-defs.ts
-var typeDefs37 = `
+var typeDefs48 = `
   extend type Query {
     reactionUsers(
       messageId: ID!
@@ -119957,13 +121072,13 @@ var typeDefs37 = `
 // src/modules/chat/queries/get-unread-counts/index.ts
 var exports_get_unread_counts = {};
 __export(exports_get_unread_counts, {
-  typeDefs: () => typeDefs38,
-  handler: () => handler65,
+  typeDefs: () => typeDefs49,
+  handler: () => handler71,
   getUnreadCountsSchema: () => getUnreadCountsSchema
 });
 
 // src/modules/chat/queries/get-unread-counts/handler.ts
-var handler65 = async (input, ctx) => {
+var handler71 = async (input, ctx) => {
   const { workspaceId, projectId } = input;
   const userId = ctx.auth.userId;
   const members = await ctx.db.chatMember.findMany({
@@ -120009,7 +121124,7 @@ var getUnreadCountsSchema = exports_external.object({
   projectId: exports_external.string()
 });
 // src/modules/chat/queries/get-unread-counts/type-defs.ts
-var typeDefs38 = `
+var typeDefs49 = `
   extend type Query {
     getUnreadCounts(workspaceId: ID!, projectId: ID!): UnreadCountsResponse!
   }
@@ -120027,13 +121142,13 @@ var typeDefs38 = `
 // src/modules/chat/queries/get-read-receipts/index.ts
 var exports_get_read_receipts = {};
 __export(exports_get_read_receipts, {
-  typeDefs: () => typeDefs39,
-  handler: () => handler66,
+  typeDefs: () => typeDefs50,
+  handler: () => handler72,
   getReadReceiptsSchema: () => getReadReceiptsSchema
 });
 
 // src/modules/chat/queries/get-read-receipts/handler.ts
-var handler66 = async (input, ctx) => {
+var handler72 = async (input, ctx) => {
   const { messageId } = input;
   const message = await ctx.db.chatMessage.findUnique({
     where: { id: messageId },
@@ -120103,7 +121218,7 @@ var getReadReceiptsSchema = exports_external.object({
   messageId: exports_external.string()
 });
 // src/modules/chat/queries/get-read-receipts/type-defs.ts
-var typeDefs39 = `
+var typeDefs50 = `
   extend type Query {
     getReadReceipts(messageId: ID!): ReadReceiptsResponse!
   }
@@ -120118,6 +121233,425 @@ var typeDefs39 = `
     userId: ID!
     username: String!
     avatarUrl: String
+  }
+`;
+// src/modules/chat/queries/get-user-conversations/index.ts
+var exports_get_user_conversations = {};
+__export(exports_get_user_conversations, {
+  typeDefs: () => typeDefs51,
+  handler: () => handler73,
+  getUserConversationsSchema: () => getUserConversationsSchema
+});
+
+// src/modules/chat/queries/get-user-conversations/handler.ts
+init_errors3();
+var handler73 = async (input, ctx) => {
+  const { userId } = ctx.auth;
+  if (!userId) {
+    throw AppError.unauthorized("User not authenticated");
+  }
+  const { workspaceId, projectId, type, includeArchived, limit, cursor } = input;
+  const projectMembership = await ctx.db.projectMember.findUnique({
+    where: {
+      projectId_userId: {
+        projectId,
+        userId
+      }
+    }
+  });
+  if (!projectMembership) {
+    throw AppError.forbidden("You are not a member of this project");
+  }
+  const where = {
+    workspaceId,
+    projectId,
+    members: {
+      some: { userId }
+    }
+  };
+  if (type) {
+    where.type = type;
+  }
+  if (!includeArchived) {
+    where.deletedAt = null;
+  }
+  if (cursor) {
+    where.updatedAt = {
+      lt: new Date(cursor)
+    };
+  }
+  const conversations = await ctx.db.chatConversation.findMany({
+    where,
+    take: limit + 1,
+    orderBy: {
+      updatedAt: "desc"
+    },
+    include: {
+      members: {
+        select: { userId: true }
+      }
+    }
+  });
+  const hasNextPage = conversations.length > limit;
+  const edges = hasNextPage ? conversations.slice(0, limit) : conversations;
+  const conversationsWithMetadata = await Promise.all(edges.map(async (conv) => {
+    const member = await ctx.db.chatMember.findUnique({
+      where: {
+        conversationId_userId: {
+          conversationId: conv.id,
+          userId
+        }
+      }
+    });
+    const unreadCount = await ctx.db.chatMessage.count({
+      where: {
+        conversationId: conv.id,
+        sequence: { gt: member?.lastReadSeq || 0 },
+        deletedAt: null
+      }
+    });
+    const lastMessage = await ctx.db.chatMessage.findFirst({
+      where: {
+        conversationId: conv.id,
+        deletedAt: null
+      },
+      orderBy: {
+        createdAt: "desc"
+      },
+      select: {
+        id: true,
+        content: true,
+        authorUserId: true,
+        createdAt: true
+      }
+    });
+    return {
+      id: conv.id,
+      type: conv.type,
+      name: conv.name,
+      description: conv.topic,
+      isPublic: conv.type === "CHANNEL" && !conv.name?.startsWith("#private-"),
+      workspaceId: conv.workspaceId,
+      projectId: conv.projectId,
+      memberCount: conv.members.length,
+      unreadCount,
+      lastMessage,
+      createdAt: conv.createdAt,
+      updatedAt: conv.updatedAt,
+      deletedAt: conv.deletedAt
+    };
+  }));
+  return {
+    edges: conversationsWithMetadata,
+    pageInfo: {
+      hasNextPage,
+      endCursor: hasNextPage ? edges[edges.length - 1].updatedAt.toISOString() : null
+    }
+  };
+};
+// src/modules/chat/queries/get-user-conversations/schema.ts
+init_zod();
+var getUserConversationsSchema = exports_external.object({
+  workspaceId: exports_external.string().cuid(),
+  projectId: exports_external.string().cuid(),
+  type: exports_external.enum(["CHANNEL", "DM", "GROUP", "THREAD"]).optional(),
+  includeArchived: exports_external.boolean().optional().default(false),
+  limit: exports_external.number().min(1).max(100).optional().default(50),
+  cursor: exports_external.string().optional()
+});
+// src/modules/chat/queries/get-user-conversations/type-defs.ts
+var typeDefs51 = `
+  extend type Query {
+    getUserConversations(
+      workspaceId: ID!
+      projectId: ID!
+      type: ConversationType
+      includeArchived: Boolean
+      limit: Int
+      cursor: String
+    ): ConversationConnection!
+  }
+
+  type ConversationConnection {
+    edges: [ConversationEdge!]!
+    pageInfo: PageInfo!
+  }
+
+  type ConversationEdge {
+    id: ID!
+    type: ConversationType!
+    name: String
+    description: String
+    isPublic: Boolean!
+    workspaceId: ID!
+    projectId: ID
+    memberCount: Int!
+    unreadCount: Int!
+    lastMessage: LastMessagePreview
+    createdAt: DateTime!
+    updatedAt: DateTime!
+    deletedAt: DateTime
+  }
+
+  type LastMessagePreview {
+    id: ID!
+    content: JSON!
+    authorUserId: ID!
+    createdAt: DateTime!
+  }
+
+  type PageInfo {
+    hasNextPage: Boolean!
+    endCursor: String
+  }
+`;
+// src/modules/chat/queries/get-conversation/index.ts
+var exports_get_conversation = {};
+__export(exports_get_conversation, {
+  typeDefs: () => typeDefs52,
+  handler: () => handler74,
+  getConversationSchema: () => getConversationSchema
+});
+
+// src/modules/chat/queries/get-conversation/handler.ts
+init_errors3();
+var handler74 = async (input, ctx) => {
+  const { userId } = ctx.auth;
+  if (!userId) {
+    throw AppError.unauthorized("User not authenticated");
+  }
+  const { conversationId } = input;
+  const conversation = await ctx.db.chatConversation.findFirst({
+    where: {
+      id: conversationId,
+      members: {
+        some: { userId }
+      },
+      deletedAt: null
+    },
+    include: {
+      members: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              avatarUrl: true
+            }
+          }
+        }
+      }
+    }
+  });
+  if (!conversation) {
+    throw AppError.notFound("Conversation not found or access denied");
+  }
+  const userMember = conversation.members.find((m) => m.userId === userId);
+  const unreadCount = await ctx.db.chatMessage.count({
+    where: {
+      conversationId,
+      sequence: { gt: userMember?.lastReadSeq || 0 },
+      deletedAt: null
+    }
+  });
+  const lastMessage = await ctx.db.chatMessage.findFirst({
+    where: {
+      conversationId,
+      deletedAt: null
+    },
+    orderBy: {
+      createdAt: "desc"
+    },
+    select: {
+      id: true,
+      content: true,
+      authorUserId: true,
+      createdAt: true
+    }
+  });
+  return {
+    id: conversation.id,
+    type: conversation.type,
+    name: conversation.name,
+    description: conversation.topic,
+    isPublic: conversation.type === "CHANNEL",
+    workspaceId: conversation.workspaceId,
+    projectId: conversation.projectId,
+    parentMessageId: conversation.parentMessageId,
+    createdBy: null,
+    memberCount: conversation.members.length,
+    unreadCount,
+    members: conversation.members.map((m) => ({
+      userId: m.userId,
+      role: m.role,
+      isMuted: m.isMuted,
+      joinedAt: m.joinedAt,
+      user: {
+        ...m.user,
+        fullName: m.user.fullName || "Unknown"
+      }
+    })),
+    lastMessage,
+    createdAt: conversation.createdAt,
+    updatedAt: conversation.updatedAt,
+    deletedAt: conversation.deletedAt
+  };
+};
+// src/modules/chat/queries/get-conversation/schema.ts
+init_zod();
+var getConversationSchema = exports_external.object({
+  conversationId: exports_external.string().cuid()
+});
+// src/modules/chat/queries/get-conversation/type-defs.ts
+var typeDefs52 = `
+  extend type Query {
+    getConversation(conversationId: ID!): ConversationDetails!
+  }
+
+  type ConversationDetails {
+    id: ID!
+    type: ConversationType!
+    name: String
+    description: String
+    isPublic: Boolean!
+    workspaceId: ID!
+    projectId: ID
+    parentMessageId: ID
+    createdBy: ID
+    memberCount: Int!
+    unreadCount: Int!
+    members: [ConversationMemberDetails!]!
+    lastMessage: LastMessagePreview
+    createdAt: DateTime!
+    updatedAt: DateTime!
+    deletedAt: DateTime
+  }
+
+  type ConversationMemberDetails {
+    userId: ID!
+    role: String!
+    isMuted: Boolean!
+    joinedAt: DateTime!
+    user: UserBasic!
+  }
+
+  type UserBasic {
+    id: ID!
+    fullName: String!
+    email: String!
+    avatarUrl: String
+  }
+`;
+// src/modules/chat/queries/get-dm-by-users/index.ts
+var exports_get_dm_by_users = {};
+__export(exports_get_dm_by_users, {
+  typeDefs: () => typeDefs53,
+  handler: () => handler75,
+  getDmByUsersSchema: () => getDmByUsersSchema
+});
+
+// src/modules/chat/queries/get-dm-by-users/handler.ts
+init_errors3();
+var handler75 = async (input, ctx) => {
+  const { userId } = ctx.auth;
+  if (!userId) {
+    throw AppError.unauthorized("User not authenticated");
+  }
+  const { workspaceId, projectId, otherUserId } = input;
+  if (userId === otherUserId) {
+    throw AppError.badRequest("Cannot create DM with yourself");
+  }
+  const projectMembership = await ctx.db.projectMember.findUnique({
+    where: {
+      projectId_userId: {
+        projectId,
+        userId
+      }
+    }
+  });
+  if (!projectMembership) {
+    throw AppError.forbidden("You are not a member of this project");
+  }
+  const dm = await ctx.db.chatConversation.findFirst({
+    where: {
+      workspaceId,
+      projectId,
+      type: "DM",
+      AND: [
+        { members: { some: { userId } } },
+        { members: { some: { userId: otherUserId } } }
+      ],
+      deletedAt: null
+    },
+    include: {
+      members: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              avatarUrl: true
+            }
+          }
+        }
+      }
+    }
+  });
+  if (!dm) {
+    return null;
+  }
+  return {
+    id: dm.id,
+    workspaceId: dm.workspaceId,
+    projectId: dm.projectId,
+    type: "DM" /* Dm */,
+    memberCount: dm.members.length,
+    members: dm.members.map((m) => ({
+      userId: m.userId,
+      user: {
+        id: m.user.id,
+        fullName: m.user.fullName || "Unknown",
+        email: m.user.email,
+        avatarUrl: m.user.avatarUrl
+      }
+    })),
+    createdAt: dm.createdAt,
+    updatedAt: dm.updatedAt
+  };
+};
+// src/modules/chat/queries/get-dm-by-users/schema.ts
+init_zod();
+var getDmByUsersSchema = exports_external.object({
+  workspaceId: exports_external.string().cuid(),
+  projectId: exports_external.string().cuid(),
+  otherUserId: exports_external.string().cuid()
+});
+// src/modules/chat/queries/get-dm-by-users/type-defs.ts
+var typeDefs53 = `
+  extend type Query {
+    getDmByUsers(
+      workspaceId: ID!
+      projectId: ID!
+      otherUserId: ID!
+    ): DmConversation
+  }
+
+  type DmConversation {
+    id: ID!
+    workspaceId: ID!
+    projectId: ID!
+    type: ConversationType!
+    memberCount: Int!
+    members: [DmMember!]!
+    createdAt: DateTime!
+    updatedAt: DateTime!
+  }
+
+  type DmMember {
+    userId: ID!
+    user: UserBasic!
   }
 `;
 // src/modules/chat/graphql/type-defs.ts
@@ -120143,6 +121677,7 @@ var sharedTypeDefs = `
     CHANNEL
     DM
     GROUP_DM
+    THREAD
   }
 
   type ChatMember {
@@ -120200,7 +121735,7 @@ var sharedTypeDefs = `
     OFFLINE
   }
 `;
-var typeDefs40 = [
+var typeDefs54 = [
   sharedTypeDefs,
   typeDefs14,
   typeDefs15,
@@ -120227,16 +121762,25 @@ var typeDefs40 = [
   typeDefs36,
   typeDefs37,
   typeDefs38,
-  typeDefs39
+  typeDefs39,
+  typeDefs40,
+  typeDefs41,
+  typeDefs42,
+  typeDefs43,
+  typeDefs44,
+  typeDefs45,
+  typeDefs46,
+  typeDefs47,
+  typeDefs48,
+  typeDefs49,
+  typeDefs50,
+  typeDefs51,
+  typeDefs52,
+  typeDefs53
 ];
 // src/modules/chat/graphql/resolvers.ts
 var resolvers5 = {
   Query: {
-    getChannelMessages: async (_2, args, ctx) => {
-      await requireUser(ctx);
-      const input = exports_get_channel_messages.getChannelMessagesSchema.parse(args);
-      return exports_get_channel_messages.handler(input, ctx);
-    },
     getThreadMessages: async (_2, args, ctx) => {
       await requireUser(ctx);
       const input = exports_get_thread_messages.getThreadMessagesSchema.parse(args);
@@ -120257,34 +121801,15 @@ var resolvers5 = {
       const input = exports_get_missing_messages.getMissingMessagesSchema.parse(args);
       return exports_get_missing_messages.handler(input, ctx);
     },
-    getUserChannels: async (_2, args, ctx) => {
-      await requireUser(ctx);
-      const input = exports_get_user_channels.getUserChannelsSchema.parse(args);
-      return exports_get_user_channels.handler(input, ctx);
-    },
     getChannelMembers: async (_2, args, ctx) => {
       await requireUser(ctx);
       const input = exports_get_channel_members.getChannelMembersSchema.parse(args);
       return exports_get_channel_members.handler(input, ctx);
     },
-    getChannelUnreadCount: async (_2, args, ctx) => {
-      await requireUser(ctx);
-      const input = exports_get_channel_unread_count.getChannelUnreadCountSchema.parse(args);
-      return exports_get_channel_unread_count.handler(input, ctx);
-    },
-    getSubscribedChannels: async (_2, _args, ctx) => {
-      await requireUser(ctx);
-      return exports_get_subscribed_channels.handler({}, ctx);
-    },
     getLastReadMessage: async (_2, args, ctx) => {
       await requireUser(ctx);
       const input = exports_get_last_read_message.getLastReadMessageSchema.parse(args);
       return exports_get_last_read_message.handler(input, ctx);
-    },
-    getPresenceMap: async (_2, args, ctx) => {
-      await requireUser(ctx);
-      const input = exports_get_presence_map.getPresenceMapSchema.parse(args);
-      return exports_get_presence_map.handler(input, ctx);
     },
     messagesDelta: async (_2, args, ctx) => {
       await requireUser(ctx);
@@ -120295,16 +121820,6 @@ var resolvers5 = {
       await requireUser(ctx);
       const input = exports_get_history.GetHistoryInputSchema.parse(args);
       return exports_get_history.handler(input, ctx);
-    },
-    getDmConversations: async (_2, args, ctx) => {
-      await requireUser(ctx);
-      const input = exports_get_dm_conversations.getDmConversationsInputSchema.parse(args);
-      return exports_get_dm_conversations.handler(input, ctx);
-    },
-    getGroupConversations: async (_2, args, ctx) => {
-      await requireUser(ctx);
-      const input = exports_get_group_conversations.getGroupConversationsInputSchema.parse(args);
-      return exports_get_group_conversations.handler(input, ctx);
     },
     messageReactions: async (_2, args, ctx) => {
       await requireUser(ctx);
@@ -120320,6 +121835,21 @@ var resolvers5 = {
       await requireUser(ctx);
       const input = exports_get_read_receipts.getReadReceiptsSchema.parse(args);
       return exports_get_read_receipts.handler(input, ctx);
+    },
+    getUserConversations: async (_2, args, ctx) => {
+      await requireUser(ctx);
+      const input = exports_get_user_conversations.getUserConversationsSchema.parse(args);
+      return exports_get_user_conversations.handler(input, ctx);
+    },
+    getConversation: async (_2, args, ctx) => {
+      await requireUser(ctx);
+      const input = exports_get_conversation.getConversationSchema.parse(args);
+      return exports_get_conversation.handler(input, ctx);
+    },
+    getDmByUsers: async (_2, args, ctx) => {
+      await requireUser(ctx);
+      const input = exports_get_dm_by_users.getDmByUsersSchema.parse(args);
+      return exports_get_dm_by_users.handler(input, ctx);
     },
     reactionUsers: async (_2, args, ctx) => {
       await requireUser(ctx);
@@ -120362,6 +121892,96 @@ var resolvers5 = {
       await requireUser(ctx);
       const input = exports_create_group.createGroupInputSchema.parse(args.input);
       return exports_create_group.handler(input, ctx);
+    },
+    deleteChannel: async (_2, args, ctx) => {
+      await requireUser(ctx);
+      const input = exports_delete_channel.deleteChannelSchema.parse(args);
+      return exports_delete_channel.handler(input, ctx);
+    },
+    unarchiveChannel: async (_2, args, ctx) => {
+      await requireUser(ctx);
+      const input = exports_unarchive_channel.unarchiveChannelSchema.parse(args);
+      return exports_unarchive_channel.handler(input, ctx);
+    },
+    updateChannelDescription: async (_2, args, ctx) => {
+      await requireUser(ctx);
+      const input = exports_update_channel_description.updateChannelDescriptionSchema.parse(args);
+      return exports_update_channel_description.handler(input, ctx);
+    },
+    updateChannelVisibility: async (_2, args, ctx) => {
+      await requireUser(ctx);
+      const input = exports_update_channel_visibility.updateChannelVisibilitySchema.parse(args);
+      return exports_update_channel_visibility.handler(input, ctx);
+    },
+    addChannelMembers: async (_2, args, ctx) => {
+      await requireUser(ctx);
+      const input = exports_add_channel_members.addChannelMembersSchema.parse(args);
+      return exports_add_channel_members.handler(input, ctx);
+    },
+    removeChannelMember: async (_2, args, ctx) => {
+      await requireUser(ctx);
+      const input = exports_remove_channel_member.removeChannelMemberSchema.parse(args);
+      return exports_remove_channel_member.handler(input, ctx);
+    },
+    deleteDm: async (_2, args, ctx) => {
+      await requireUser(ctx);
+      const input = exports_delete_dm.deleteDmSchema.parse(args);
+      return exports_delete_dm.handler(input, ctx);
+    },
+    muteConversation: async (_2, args, ctx) => {
+      await requireUser(ctx);
+      const input = exports_mute_conversation.muteConversationSchema.parse(args);
+      return exports_mute_conversation.handler(input, ctx);
+    },
+    renameGroup: async (_2, args, ctx) => {
+      await requireUser(ctx);
+      const input = exports_rename_group.renameGroupSchema.parse(args);
+      return exports_rename_group.handler(input, ctx);
+    },
+    deleteGroup: async (_2, args, ctx) => {
+      await requireUser(ctx);
+      const input = exports_delete_group.deleteGroupSchema.parse(args);
+      return exports_delete_group.handler(input, ctx);
+    },
+    addGroupMembers: async (_2, args, ctx) => {
+      await requireUser(ctx);
+      const input = exports_add_group_members.addGroupMembersSchema.parse(args);
+      return exports_add_group_members.handler(input, ctx);
+    },
+    removeGroupMember: async (_2, args, ctx) => {
+      await requireUser(ctx);
+      const input = exports_remove_group_member.removeGroupMemberSchema.parse(args);
+      return exports_remove_group_member.handler(input, ctx);
+    },
+    leaveGroup: async (_2, args, ctx) => {
+      await requireUser(ctx);
+      const input = exports_leave_group.leaveGroupSchema.parse(args);
+      return exports_leave_group.handler(input, ctx);
+    },
+    closeThread: async (_2, args, ctx) => {
+      await requireUser(ctx);
+      const input = exports_close_thread.closeThreadSchema.parse(args);
+      return exports_close_thread.handler(input, ctx);
+    },
+    reopenThread: async (_2, args, ctx) => {
+      await requireUser(ctx);
+      const input = exports_reopen_thread.reopenThreadSchema.parse(args);
+      return exports_reopen_thread.handler(input, ctx);
+    },
+    deleteThread: async (_2, args, ctx) => {
+      await requireUser(ctx);
+      const input = exports_delete_thread.deleteThreadSchema.parse(args);
+      return exports_delete_thread.handler(input, ctx);
+    },
+    subscribeThread: async (_2, args, ctx) => {
+      await requireUser(ctx);
+      const input = exports_subscribe_thread.subscribeThreadSchema.parse(args);
+      return exports_subscribe_thread.handler(input, ctx);
+    },
+    unsubscribeThread: async (_2, args, ctx) => {
+      await requireUser(ctx);
+      const input = exports_unsubscribe_thread.unsubscribeThreadSchema.parse(args);
+      return exports_unsubscribe_thread.handler(input, ctx);
     }
   },
   Conversation: {
@@ -120535,7 +122155,7 @@ var ChatModule = {
 };
 
 // src/graphql/schema.ts
-var schema42 = createSchema({
+var schema37 = createSchema({
   typeDefs: [
     `
       scalar DateTime
@@ -120557,7 +122177,7 @@ var schema42 = createSchema({
     typeDefs4,
     typeDefs5,
     typeDefs13,
-    typeDefs40
+    typeDefs54
   ],
   resolvers: [
     {
@@ -120654,7 +122274,7 @@ init_logger();
 init_env();
 var createGraphQLApp = () => {
   return createYoga({
-    schema: schema42,
+    schema: schema37,
     graphqlEndpoint: "/graphql",
     context: ({ c }) => createContext(c),
     maskedErrors: {
