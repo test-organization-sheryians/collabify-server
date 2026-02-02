@@ -4,8 +4,8 @@ import { getUserConversationsSchema } from "./schema";
 import type {
   GetUserConversationsInput,
   GetUserConversationsOutput,
-  ConversationEdge,
 } from "./types";
+import type { Conversation } from "@/graphql/generated";
 import type { Prisma } from "@prisma/client";
 import { ConversationType } from "@/graphql/generated";
 
@@ -88,7 +88,7 @@ export const handler = async (
 
   // Fetch metadata for each conversation (unread count, last message)
   const conversationsWithMetadata = await Promise.all(
-    edges.map(async (conv): Promise<ConversationEdge> => {
+    edges.map(async (conv): Promise<Conversation> => {
       // Get user's membership for unread count
       const member = await ctx.db.chatMember.findUnique({
         where: {
@@ -129,14 +129,18 @@ export const handler = async (
         id: conv.id,
         type: conv.type as ConversationType,
         name: conv.name,
-        description: conv.topic, // Prisma schema uses 'topic' field
+        topic: conv.topic,
         isPublic:
-          conv.type === "CHANNEL" && !conv.name?.startsWith("#private-"), // Inferred from type
+          conv.type === "CHANNEL" && !conv.name?.startsWith("#private-"),
         workspaceId: conv.workspaceId,
         projectId: conv.projectId,
+        parentMessageId: conv.parentMessageId,
+        createdBy: null, // Not tracked in current schema
+        isArchived: !!conv.deletedAt,
         memberCount: conv.members.length,
         unreadCount,
-        lastMessage,
+        members: [], // Empty for list queries (performance optimization)
+        lastMessage: lastMessage || null,
         createdAt: conv.createdAt,
         updatedAt: conv.updatedAt,
         deletedAt: conv.deletedAt,

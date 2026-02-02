@@ -52,14 +52,18 @@ const sharedTypeDefs = /* GraphQL */ `
     type: ConversationType!
     name: String
     topic: String
+    isPublic: Boolean!
+    parentMessageId: ID
+    createdBy: ID
     isArchived: Boolean!
+    unreadCount: Int!
+    memberCount: Int!
     createdAt: DateTime!
     updatedAt: DateTime!
     deletedAt: DateTime
     # Computed/Loaded fields
-    members: [ChatMember!]
-    lastMessage: ChatMessage
-    memberCount: Int!
+    members: [ConversationMember!]
+    lastMessage: LastMessagePreview
   }
 
   enum ConversationType {
@@ -69,7 +73,29 @@ const sharedTypeDefs = /* GraphQL */ `
     THREAD
   }
 
-  type ChatMember {
+  type ConversationMember {
+    userId: ID!
+    role: String!
+    isMuted: Boolean!
+    joinedAt: DateTime!
+    user: UserBasic!
+  }
+
+  type UserBasic {
+    id: ID!
+    fullName: String!
+    email: String!
+    avatarUrl: String
+  }
+
+  type LastMessagePreview {
+    id: ID!
+    content: JSON!
+    authorUserId: ID!
+    createdAt: DateTime!
+  }
+
+  type ChatMemberRecord {
     id: ID!
     conversationId: ID!
     userId: ID!

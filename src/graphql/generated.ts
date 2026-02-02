@@ -1,5 +1,5 @@
 import { GraphQLResolveInfo, GraphQLScalarType, GraphQLScalarTypeConfig } from 'graphql';
-import { Project as PrismaProject, ProjectMember as PrismaProjectMember, User as PrismaUser, Workspace as PrismaWorkspace, WorkspaceMember as PrismaWorkspaceMember, Notification as PrismaNotification, ChatConversation as PrismaConversation, ChatMember as PrismaChatMember, ChatMessage as PrismaChatMessage } from '@prisma/client';
+import { Project as PrismaProject, ProjectMember as PrismaProjectMember, User as PrismaUser, Workspace as PrismaWorkspace, WorkspaceMember as PrismaWorkspaceMember, Notification as PrismaNotification, ChatMember as PrismaChatMember, ChatMessage as PrismaChatMessage } from '@prisma/client';
 import { ServiceContext } from './types';
 export type Maybe<T> = T | null;
 export type InputMaybe<T> = Maybe<T>;
@@ -71,8 +71,8 @@ export type ChannelMemberInfo = {
   userId: Scalars['ID']['output'];
 };
 
-export type ChatMember = {
-  __typename?: 'ChatMember';
+export type ChatMemberRecord = {
+  __typename?: 'ChatMemberRecord';
   conversationId: Scalars['ID']['output'];
   id: Scalars['ID']['output'];
   isMuted: Scalars['Boolean']['output'];
@@ -116,65 +116,32 @@ export type CloseThreadResult = {
 export type Conversation = {
   __typename?: 'Conversation';
   createdAt: Scalars['DateTime']['output'];
+  createdBy?: Maybe<Scalars['ID']['output']>;
   deletedAt?: Maybe<Scalars['DateTime']['output']>;
   id: Scalars['ID']['output'];
   isArchived: Scalars['Boolean']['output'];
-  lastMessage?: Maybe<ChatMessage>;
+  isPublic: Scalars['Boolean']['output'];
+  lastMessage?: Maybe<LastMessagePreview>;
   memberCount: Scalars['Int']['output'];
-  members?: Maybe<Array<ChatMember>>;
+  members?: Maybe<Array<ConversationMember>>;
   name?: Maybe<Scalars['String']['output']>;
+  parentMessageId?: Maybe<Scalars['ID']['output']>;
   projectId?: Maybe<Scalars['ID']['output']>;
   topic?: Maybe<Scalars['String']['output']>;
   type: ConversationType;
+  unreadCount: Scalars['Int']['output'];
   updatedAt: Scalars['DateTime']['output'];
   workspaceId: Scalars['ID']['output'];
 };
 
 export type ConversationConnection = {
   __typename?: 'ConversationConnection';
-  edges: Array<ConversationEdge>;
+  edges: Array<Conversation>;
   pageInfo: PageInfo;
 };
 
-export type ConversationDetails = {
-  __typename?: 'ConversationDetails';
-  createdAt: Scalars['DateTime']['output'];
-  createdBy?: Maybe<Scalars['ID']['output']>;
-  deletedAt?: Maybe<Scalars['DateTime']['output']>;
-  description?: Maybe<Scalars['String']['output']>;
-  id: Scalars['ID']['output'];
-  isPublic: Scalars['Boolean']['output'];
-  lastMessage?: Maybe<LastMessagePreview>;
-  memberCount: Scalars['Int']['output'];
-  members: Array<ConversationMemberDetails>;
-  name?: Maybe<Scalars['String']['output']>;
-  parentMessageId?: Maybe<Scalars['ID']['output']>;
-  projectId?: Maybe<Scalars['ID']['output']>;
-  type: ConversationType;
-  unreadCount: Scalars['Int']['output'];
-  updatedAt: Scalars['DateTime']['output'];
-  workspaceId: Scalars['ID']['output'];
-};
-
-export type ConversationEdge = {
-  __typename?: 'ConversationEdge';
-  createdAt: Scalars['DateTime']['output'];
-  deletedAt?: Maybe<Scalars['DateTime']['output']>;
-  description?: Maybe<Scalars['String']['output']>;
-  id: Scalars['ID']['output'];
-  isPublic: Scalars['Boolean']['output'];
-  lastMessage?: Maybe<LastMessagePreview>;
-  memberCount: Scalars['Int']['output'];
-  name?: Maybe<Scalars['String']['output']>;
-  projectId?: Maybe<Scalars['ID']['output']>;
-  type: ConversationType;
-  unreadCount: Scalars['Int']['output'];
-  updatedAt: Scalars['DateTime']['output'];
-  workspaceId: Scalars['ID']['output'];
-};
-
-export type ConversationMemberDetails = {
-  __typename?: 'ConversationMemberDetails';
+export type ConversationMember = {
+  __typename?: 'ConversationMember';
   isMuted: Scalars['Boolean']['output'];
   joinedAt: Scalars['DateTime']['output'];
   role: Scalars['String']['output'];
@@ -676,8 +643,8 @@ export type ProjectMember = {
 
 export type Query = {
   __typename?: 'Query';
-  getChannelMembers: Array<ChatMember>;
-  getConversation: ConversationDetails;
+  getChannelMembers: Array<ChatMemberRecord>;
+  getConversation: Conversation;
   getDmByUsers?: Maybe<DmConversation>;
   getLastReadMessage?: Maybe<Scalars['ID']['output']>;
   getMessageById?: Maybe<ChatMessage>;
@@ -1076,15 +1043,13 @@ export type ResolversTypes = ResolversObject<{
   Boolean: ResolverTypeWrapper<Scalars['Boolean']['output']>;
   ChannelAvailabilityResponse: ResolverTypeWrapper<ChannelAvailabilityResponse>;
   ChannelMemberInfo: ResolverTypeWrapper<ChannelMemberInfo>;
-  ChatMember: ResolverTypeWrapper<PrismaChatMember>;
+  ChatMemberRecord: ResolverTypeWrapper<PrismaChatMember>;
   ChatMessage: ResolverTypeWrapper<PrismaChatMessage>;
   CheckChannelAvailabilityInput: CheckChannelAvailabilityInput;
   CloseThreadResult: ResolverTypeWrapper<CloseThreadResult>;
-  Conversation: ResolverTypeWrapper<PrismaConversation>;
-  ConversationConnection: ResolverTypeWrapper<ConversationConnection>;
-  ConversationDetails: ResolverTypeWrapper<ConversationDetails>;
-  ConversationEdge: ResolverTypeWrapper<ConversationEdge>;
-  ConversationMemberDetails: ResolverTypeWrapper<ConversationMemberDetails>;
+  Conversation: ResolverTypeWrapper<Omit<Conversation, 'members'> & { members?: Maybe<Array<ResolversTypes['ConversationMember']>> }>;
+  ConversationConnection: ResolverTypeWrapper<Omit<ConversationConnection, 'edges'> & { edges: Array<ResolversTypes['Conversation']> }>;
+  ConversationMember: ResolverTypeWrapper<PrismaChatMember>;
   ConversationType: ConversationType;
   ConversationUnreadCount: ResolverTypeWrapper<ConversationUnreadCount>;
   CreateChannelInput: CreateChannelInput;
@@ -1157,15 +1122,13 @@ export type ResolversParentTypes = ResolversObject<{
   Boolean: Scalars['Boolean']['output'];
   ChannelAvailabilityResponse: ChannelAvailabilityResponse;
   ChannelMemberInfo: ChannelMemberInfo;
-  ChatMember: PrismaChatMember;
+  ChatMemberRecord: PrismaChatMember;
   ChatMessage: PrismaChatMessage;
   CheckChannelAvailabilityInput: CheckChannelAvailabilityInput;
   CloseThreadResult: CloseThreadResult;
-  Conversation: PrismaConversation;
-  ConversationConnection: ConversationConnection;
-  ConversationDetails: ConversationDetails;
-  ConversationEdge: ConversationEdge;
-  ConversationMemberDetails: ConversationMemberDetails;
+  Conversation: Omit<Conversation, 'members'> & { members?: Maybe<Array<ResolversParentTypes['ConversationMember']>> };
+  ConversationConnection: Omit<ConversationConnection, 'edges'> & { edges: Array<ResolversParentTypes['Conversation']> };
+  ConversationMember: PrismaChatMember;
   ConversationUnreadCount: ConversationUnreadCount;
   CreateChannelInput: CreateChannelInput;
   CreateDmInput: CreateDmInput;
@@ -1259,7 +1222,7 @@ export type ChannelMemberInfoResolvers<ContextType = ServiceContext, ParentType 
   userId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
 }>;
 
-export type ChatMemberResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ChatMember'] = ResolversParentTypes['ChatMember']> = ResolversObject<{
+export type ChatMemberRecordResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ChatMemberRecord'] = ResolversParentTypes['ChatMemberRecord']> = ResolversObject<{
   conversationId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   isMuted?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
@@ -1295,61 +1258,30 @@ export type CloseThreadResultResolvers<ContextType = ServiceContext, ParentType 
 
 export type ConversationResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Conversation'] = ResolversParentTypes['Conversation']> = ResolversObject<{
   createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  createdBy?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
   deletedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   isArchived?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
-  lastMessage?: Resolver<Maybe<ResolversTypes['ChatMessage']>, ParentType, ContextType>;
+  isPublic?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  lastMessage?: Resolver<Maybe<ResolversTypes['LastMessagePreview']>, ParentType, ContextType>;
   memberCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-  members?: Resolver<Maybe<Array<ResolversTypes['ChatMember']>>, ParentType, ContextType>;
+  members?: Resolver<Maybe<Array<ResolversTypes['ConversationMember']>>, ParentType, ContextType>;
   name?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  parentMessageId?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
   projectId?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
   topic?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   type?: Resolver<ResolversTypes['ConversationType'], ParentType, ContextType>;
+  unreadCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
   workspaceId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
 }>;
 
 export type ConversationConnectionResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ConversationConnection'] = ResolversParentTypes['ConversationConnection']> = ResolversObject<{
-  edges?: Resolver<Array<ResolversTypes['ConversationEdge']>, ParentType, ContextType>;
+  edges?: Resolver<Array<ResolversTypes['Conversation']>, ParentType, ContextType>;
   pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
 }>;
 
-export type ConversationDetailsResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ConversationDetails'] = ResolversParentTypes['ConversationDetails']> = ResolversObject<{
-  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
-  createdBy?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
-  deletedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
-  description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
-  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
-  isPublic?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
-  lastMessage?: Resolver<Maybe<ResolversTypes['LastMessagePreview']>, ParentType, ContextType>;
-  memberCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-  members?: Resolver<Array<ResolversTypes['ConversationMemberDetails']>, ParentType, ContextType>;
-  name?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
-  parentMessageId?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
-  projectId?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
-  type?: Resolver<ResolversTypes['ConversationType'], ParentType, ContextType>;
-  unreadCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
-  workspaceId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
-}>;
-
-export type ConversationEdgeResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ConversationEdge'] = ResolversParentTypes['ConversationEdge']> = ResolversObject<{
-  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
-  deletedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
-  description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
-  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
-  isPublic?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
-  lastMessage?: Resolver<Maybe<ResolversTypes['LastMessagePreview']>, ParentType, ContextType>;
-  memberCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-  name?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
-  projectId?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
-  type?: Resolver<ResolversTypes['ConversationType'], ParentType, ContextType>;
-  unreadCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
-  workspaceId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
-}>;
-
-export type ConversationMemberDetailsResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ConversationMemberDetails'] = ResolversParentTypes['ConversationMemberDetails']> = ResolversObject<{
+export type ConversationMemberResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ConversationMember'] = ResolversParentTypes['ConversationMember']> = ResolversObject<{
   isMuted?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   joinedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
   role?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
@@ -1570,8 +1502,8 @@ export type ProjectMemberResolvers<ContextType = ServiceContext, ParentType exte
 }>;
 
 export type QueryResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Query'] = ResolversParentTypes['Query']> = ResolversObject<{
-  getChannelMembers?: Resolver<Array<ResolversTypes['ChatMember']>, ParentType, ContextType, RequireFields<QueryGetChannelMembersArgs, 'channelId'>>;
-  getConversation?: Resolver<ResolversTypes['ConversationDetails'], ParentType, ContextType, RequireFields<QueryGetConversationArgs, 'conversationId'>>;
+  getChannelMembers?: Resolver<Array<ResolversTypes['ChatMemberRecord']>, ParentType, ContextType, RequireFields<QueryGetChannelMembersArgs, 'channelId'>>;
+  getConversation?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<QueryGetConversationArgs, 'conversationId'>>;
   getDmByUsers?: Resolver<Maybe<ResolversTypes['DmConversation']>, ParentType, ContextType, RequireFields<QueryGetDmByUsersArgs, 'otherUserId' | 'projectId' | 'workspaceId'>>;
   getLastReadMessage?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType, RequireFields<QueryGetLastReadMessageArgs, 'channelId'>>;
   getMessageById?: Resolver<Maybe<ResolversTypes['ChatMessage']>, ParentType, ContextType, RequireFields<QueryGetMessageByIdArgs, 'messageId'>>;
@@ -1731,14 +1663,12 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   AvailabilityResponse?: AvailabilityResponseResolvers<ContextType>;
   ChannelAvailabilityResponse?: ChannelAvailabilityResponseResolvers<ContextType>;
   ChannelMemberInfo?: ChannelMemberInfoResolvers<ContextType>;
-  ChatMember?: ChatMemberResolvers<ContextType>;
+  ChatMemberRecord?: ChatMemberRecordResolvers<ContextType>;
   ChatMessage?: ChatMessageResolvers<ContextType>;
   CloseThreadResult?: CloseThreadResultResolvers<ContextType>;
   Conversation?: ConversationResolvers<ContextType>;
   ConversationConnection?: ConversationConnectionResolvers<ContextType>;
-  ConversationDetails?: ConversationDetailsResolvers<ContextType>;
-  ConversationEdge?: ConversationEdgeResolvers<ContextType>;
-  ConversationMemberDetails?: ConversationMemberDetailsResolvers<ContextType>;
+  ConversationMember?: ConversationMemberResolvers<ContextType>;
   ConversationUnreadCount?: ConversationUnreadCountResolvers<ContextType>;
   DateTime?: GraphQLScalarType;
   DeleteChannelResult?: DeleteChannelResultResolvers<ContextType>;

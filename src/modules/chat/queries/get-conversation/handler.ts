@@ -1,6 +1,7 @@
 import { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
-import type { GetConversationInput, GetConversationOutput } from "./types";
+import type { GetConversationInput } from "./types";
+import type { Conversation } from "@/graphql/generated";
 import { ConversationType } from "@/graphql/generated";
 
 /**
@@ -11,7 +12,7 @@ import { ConversationType } from "@/graphql/generated";
 export const handler = async (
   input: GetConversationInput,
   ctx: ServiceContext
-): Promise<GetConversationOutput> => {
+): Promise<Conversation> => {
   const { userId } = ctx.auth;
   if (!userId) {
     throw AppError.unauthorized("User not authenticated");
@@ -81,12 +82,13 @@ export const handler = async (
     id: conversation.id,
     type: conversation.type as unknown as ConversationType,
     name: conversation.name,
-    description: conversation.topic, // Prisma uses 'topic' field
-    isPublic: conversation.type === "CHANNEL", // Inferred from type
+    topic: conversation.topic,
+    isPublic: conversation.type === "CHANNEL",
     workspaceId: conversation.workspaceId,
     projectId: conversation.projectId,
     parentMessageId: conversation.parentMessageId,
-    createdBy: null, // Field doesn't exist in schema
+    createdBy: null, // Not tracked in current schema
+    isArchived: !!conversation.deletedAt,
     memberCount: conversation.members.length,
     unreadCount,
     members: conversation.members.map((m) => ({
@@ -99,7 +101,7 @@ export const handler = async (
         fullName: m.user.fullName || "Unknown",
       },
     })),
-    lastMessage,
+    lastMessage: lastMessage || null,
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
     deletedAt: conversation.deletedAt,
