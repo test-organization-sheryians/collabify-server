@@ -55,22 +55,22 @@ export const handler = async (
   });
 
   // Fanout deletion event to all members
-  await Promise.all(
-    members.map(async (member) => {
-      await ctx.redis.publish(
-        `user:${member.userId}:events`,
-        JSON.stringify({
-          type: "chat:channel-deleted",
-          payload: {
-            channelId,
-            workspaceId,
-            deletedBy: userId,
-            timestamp: new Date().toISOString(),
-          },
-        })
-      );
-    })
-  );
+  // await Promise.all(
+  //   members.map(async (member) => {
+  //     await ctx.redis.publish(
+  //       `user:${member.userId}:events`,
+  //       JSON.stringify({
+  //         type: "chat:channel-deleted",
+  //         payload: {
+  //           channelId,
+  //           workspaceId,
+  //           deletedBy: userId,
+  //           timestamp: new Date().toISOString(),
+  //         },
+  //       })
+  //     );
+  //   })
+  // );
 
   return {
     success: true,

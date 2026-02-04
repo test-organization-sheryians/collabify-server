@@ -58,7 +58,7 @@ export const handler = async (
 
   // Filter archived
   if (!includeArchived) {
-    where.deletedAt = null;
+    where.isArchived = false; // Use isArchived field instead of deletedAt
   }
 
   // Cursor-based pagination
@@ -136,7 +136,7 @@ export const handler = async (
         projectId: conv.projectId,
         parentMessageId: conv.parentMessageId,
         createdBy: null, // Not tracked in current schema
-        isArchived: !!conv.deletedAt,
+        isArchived: conv.isArchived, // Use actual isArchived field from DB
         memberCount: conv.members.length,
         unreadCount,
         members: [], // Empty for list queries (performance optimization)

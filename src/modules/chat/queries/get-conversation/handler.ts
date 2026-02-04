@@ -21,13 +21,14 @@ export const handler = async (
   const { conversationId } = input;
 
   // Fetch conversation with membership check
+  // Note: We don't filter by deletedAt here because we want to allow
+  // viewing archived channels (e.g., in settings modal)
   const conversation = await ctx.db.chatConversation.findFirst({
     where: {
       id: conversationId,
       members: {
         some: { userId },
       },
-      deletedAt: null,
     },
     include: {
       members: {
@@ -88,7 +89,7 @@ export const handler = async (
     projectId: conversation.projectId,
     parentMessageId: conversation.parentMessageId,
     createdBy: null, // Not tracked in current schema
-    isArchived: !!conversation.deletedAt,
+    isArchived: conversation.isArchived, // Use actual isArchived field from DB
     memberCount: conversation.members.length,
     unreadCount,
     members: conversation.members.map((m) => ({

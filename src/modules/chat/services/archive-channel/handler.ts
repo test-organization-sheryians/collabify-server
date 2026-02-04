@@ -32,11 +32,13 @@ export const handler = async (
       throw AppError.forbidden("You are not a member of this workspace");
     }
 
-    // 3. Action: Archive
+    // 3. Action: Archive (sets both isArchived and deletedAt for soft delete)
     return await ctx.db.chatConversation.update({
       where: { id: input.channelId },
-      data: { isArchived: true },
-      // Optional: We can select specific fields to return, but default is generic ChatChannel
+      data: {
+        isArchived: true,
+        deletedAt: new Date(), // Set soft delete timestamp
+      },
     });
   } catch (error: any) {
     if (error instanceof AppError) throw error;
