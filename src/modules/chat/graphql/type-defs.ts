@@ -43,6 +43,7 @@ import { typeDefs as getReadReceiptsTypeDefs } from "../queries/get-read-receipt
 import { typeDefs as getUserConversationsTypeDefs } from "../queries/get-user-conversations";
 import { typeDefs as getConversationTypeDefs } from "../queries/get-conversation";
 import { typeDefs as getDmByUsersTypeDefs } from "../queries/get-dm-by-users";
+import { typeDefs as getUsersByIdsTypeDefs } from "../queries/get-users-by-ids";
 
 const sharedTypeDefs = /* GraphQL */ `
   type Conversation {
@@ -200,4 +201,5 @@ export const typeDefs = [
   getUserConversationsTypeDefs,
   getConversationTypeDefs,
   getDmByUsersTypeDefs,
+  getUsersByIdsTypeDefs,
 ];

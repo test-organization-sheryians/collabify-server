@@ -91,6 +91,11 @@ export const resolvers: Resolvers = {
       const input = queries.getDmByUsers.getDmByUsersSchema.parse(args);
       return queries.getDmByUsers.handler(input, ctx);
     },
+    getUsersByIds: async (_, args, ctx) => {
+      await requireUser(ctx);
+      const input = queries.getUsersByIds.getUsersByIdsSchema.parse(args);
+      return queries.getUsersByIds.handler(input, ctx);
+    },
     reactionUsers: async (_, args, ctx) => {
       await requireUser(ctx);
       const input = queries.getReactionUsers.getReactionUsersSchema.parse(args);
@@ -276,6 +281,8 @@ export const resolvers: Resolvers = {
       return 0;
     },
 
+    // @ts-expect-error - Dataloader returns Prisma ChatMember with nested user.
+    // GraphQL ConversationMember expects user field, which is resolved correctly at runtime.
     members: (parent, _args, ctx) => {
       // If handler already populated members, return them
       if (parent.members && parent.members.length > 0) {

@@ -654,6 +654,7 @@ export type Query = {
   getThreadMessages: Array<ChatMessage>;
   getUnreadCounts: UnreadCountsResponse;
   getUserConversations: ConversationConnection;
+  getUsersByIds: Array<UserBasic>;
   getWorkspaceInviteInfo: WorkspaceInviteInfo;
   health: Scalars['String']['output'];
   history: HistoryPayload;
@@ -743,6 +744,11 @@ export type QueryGetUserConversationsArgs = {
   projectId: Scalars['ID']['input'];
   type?: InputMaybe<ConversationType>;
   workspaceId: Scalars['ID']['input'];
+};
+
+
+export type QueryGetUsersByIdsArgs = {
+  userIds: Array<Scalars['ID']['input']>;
 };
 
 
@@ -1513,6 +1519,7 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   getThreadMessages?: Resolver<Array<ResolversTypes['ChatMessage']>, ParentType, ContextType, RequireFields<QueryGetThreadMessagesArgs, 'parentMessageId'>>;
   getUnreadCounts?: Resolver<ResolversTypes['UnreadCountsResponse'], ParentType, ContextType, RequireFields<QueryGetUnreadCountsArgs, 'projectId' | 'workspaceId'>>;
   getUserConversations?: Resolver<ResolversTypes['ConversationConnection'], ParentType, ContextType, RequireFields<QueryGetUserConversationsArgs, 'projectId' | 'workspaceId'>>;
+  getUsersByIds?: Resolver<Array<ResolversTypes['UserBasic']>, ParentType, ContextType, RequireFields<QueryGetUsersByIdsArgs, 'userIds'>>;
   getWorkspaceInviteInfo?: Resolver<ResolversTypes['WorkspaceInviteInfo'], ParentType, ContextType, RequireFields<QueryGetWorkspaceInviteInfoArgs, 'token'>>;
   health?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   history?: Resolver<ResolversTypes['HistoryPayload'], ParentType, ContextType, RequireFields<QueryHistoryArgs, 'beforeSequence' | 'conversationId'>>;
