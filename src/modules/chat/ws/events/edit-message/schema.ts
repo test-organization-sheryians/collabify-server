@@ -1,9 +1,13 @@
-import { z } from "zod";
+/**
+ * Edit Message Schema
+ *
+ * Re-exports upstream contract from registry as single source of truth.
+ */
 
-export const editMessageSchema = z.object({
-  messageId: z.string().min(1),
-  content: z.string().min(1).max(4000),
-  nonce: z.string().uuid(), // Client-generated UUID for idempotency
-});
+import {
+  EditMessagePayloadSchema,
+  EditMessagePayload,
+} from "@/shared/contracts/chat/upstream";
 
-export type EditMessageInput = z.infer<typeof editMessageSchema>;
+export const editMessageSchema = EditMessagePayloadSchema;
+export type EditMessageInput = EditMessagePayload;

@@ -1,4 +1,4 @@
-import { RouteDefinition } from "@/infra/ws/types";
+import { RouteDefinition } from "@/infra/ws/core/types";
 import { unsubscribeConversationHandler } from "./handler";
 import { unsubscribeConversationSchema } from "./schema";
 

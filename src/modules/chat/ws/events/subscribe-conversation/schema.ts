@@ -1,16 +1,13 @@
-import { z } from "zod";
-
 /**
- * Unified subscription schema for all conversation types
- * Replaces subscribe-channel and subscribe-thread
+ * Subscribe Conversation Schema
+ *
+ * Re-exports upstream contract from registry as single source of truth.
  */
-export const subscribeConversationSchema = z.object({
-  conversationId: z.string().min(1),
-  conversationType: z.enum(["CHANNEL", "DM", "GROUP_DM", "THREAD"]),
-  lastSequence: z.number().optional(),
-  epoch: z.string().optional(),
-});
 
-export type SubscribeConversationInput = z.infer<
-  typeof subscribeConversationSchema
->;
+import {
+  SubscribeConversationPayloadSchema,
+  SubscribeConversationPayload,
+} from "@/shared/contracts/chat/upstream";
+
+export const subscribeConversationSchema = SubscribeConversationPayloadSchema;
+export type SubscribeConversationInput = SubscribeConversationPayload;

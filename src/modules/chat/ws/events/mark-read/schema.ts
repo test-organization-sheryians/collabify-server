@@ -1,9 +1,13 @@
-import { z } from "zod";
+/**
+ * Mark Read Schema
+ *
+ * Re-exports upstream contract from registry as single source of truth.
+ */
 
-export const markReadSchema = z.object({
-  conversationId: z.string(),
-  watermarkId: z.string(), // Watermark: All messages <= this are read
-  nonce: z.string().uuid().optional(),
-});
+import {
+  MarkReadPayloadSchema,
+  MarkReadPayload,
+} from "@/shared/contracts/chat/upstream";
 
-export type MarkReadInput = z.infer<typeof markReadSchema>;
+export const markReadSchema = MarkReadPayloadSchema;
+export type MarkReadInput = MarkReadPayload;

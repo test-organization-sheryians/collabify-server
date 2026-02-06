@@ -1,9 +1,10 @@
-import { WSHandlerContext } from "@/infra/ws/types";
 import {
-  ChatWebSocket,
+  WSHandlerContext,
+  GenericWebSocket,
   createSuccessFrame,
   createErrorFrame,
-} from "@/infra/ws/types";
+} from "@/infra/ws/core/types";
+import { ChatDownstreamEvent } from "@/shared/contracts/chat/events";
 import { SendMessageInput } from "./schema";
 import { logger } from "@/shared/logger";
 import { appRedis } from "@/infra/redis";
@@ -13,7 +14,7 @@ import { validateReplyParent } from "@/shared/validation/chat-permissions";
 
 export const sendMessageHandler = async (
   ctx: WSHandlerContext,
-  socket: ChatWebSocket,
+  socket: GenericWebSocket,
   input: SendMessageInput
 ) => {
   const { conversationId, content, dedupeId, parentMessageId } = input;
@@ -36,7 +37,7 @@ export const sendMessageHandler = async (
     if (existing) {
       logger.warn({ dedupeId }, "Duplicate intent detected. Idempotent ACK.");
       socket.send(
-        createSuccessFrame(undefined, "chat:ack-message", {
+        createSuccessFrame(undefined, ChatDownstreamEvent.AckMessage, {
           dedupeId,
           status: "duplicate",
           message: "Message already accepted",
@@ -90,7 +91,7 @@ export const sendMessageHandler = async (
 
     const basePayload = {
       conversationId,
-      type: "chat:new-message",
+      type: ChatDownstreamEvent.NewMessage,
       payload: JSON.stringify(input),
       dedupeId,
       outboxId,
@@ -173,7 +174,7 @@ export const sendMessageHandler = async (
 
     // 4. Optimistic Ack
     socket.send(
-      createSuccessFrame(undefined, "chat:ack-message", {
+      createSuccessFrame(undefined, ChatDownstreamEvent.AckMessage, {
         dedupeId,
         status: "sent",
         message: "Message sequenced",
@@ -187,7 +188,7 @@ export const sendMessageHandler = async (
     // ... Error Handling (Same as before) ...
     if (err.code === "P2002") {
       socket.send(
-        createSuccessFrame(undefined, "chat:ack-message", {
+        createSuccessFrame(undefined, ChatDownstreamEvent.AckMessage, {
           dedupeId,
           status: "duplicate",
           message: "Message already processed",
@@ -199,7 +200,7 @@ export const sendMessageHandler = async (
     socket.send(
       createErrorFrame(
         undefined,
-        "chat:ack-message",
+        ChatDownstreamEvent.AckMessage,
         "INTERNAL_ERROR",
         "Failed to process message"
       )

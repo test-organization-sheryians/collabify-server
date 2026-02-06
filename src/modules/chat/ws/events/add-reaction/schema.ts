@@ -1,13 +1,13 @@
-import { z } from "zod";
+/**
+ * Add Reaction Schema
+ *
+ * Re-exports upstream contract from registry as single source of truth.
+ */
 
-export const addReactionSchema = z.object({
-  messageId: z.string().uuid(),
-  emoji: z
-    .string()
-    .min(1)
-    .max(10)
-    .regex(/^[\p{Emoji}\p{Emoji_Component}]+$/u, "Invalid emoji format"),
-  tempId: z.string().uuid().optional(), // For optimistic UI
-});
+import {
+  AddReactionPayloadSchema,
+  AddReactionPayload,
+} from "@/shared/contracts/chat/upstream";
 
-export type AddReactionInput = z.infer<typeof addReactionSchema>;
+export const addReactionSchema = AddReactionPayloadSchema;
+export type AddReactionInput = AddReactionPayload;

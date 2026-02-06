@@ -1,7 +1,7 @@
 import { Context } from "hono";
-import { logger } from "../../shared/logger";
+import { logger } from "@/shared/logger";
 import { Server, ServerWebSocket } from "bun";
-import { ChatWebSocket, WSContext } from "./types";
+import { WSSocketData, GenericWebSocket } from "./core/types";
 import { wsRegistry } from "./subscription-registry";
 import { wsRouter } from "./router";
 import { db } from "../db";
@@ -58,7 +58,7 @@ export const createWSGateway = () => {
       }
 
       // 3. Upgrade to Native Bun WebSocket
-      const server = c.env as unknown as Server<WSContext>;
+      const server = c.env as unknown as Server<WSSocketData>;
 
       if (server && typeof server.upgrade === "function") {
         const success = server.upgrade(c.req.raw, {
@@ -79,7 +79,7 @@ export const createWSGateway = () => {
 
     // Bun.serve({ websocket: ... }) Handler
     websocketHandler: {
-      open(ws: ServerWebSocket<WSContext>) {
+      open(ws: ServerWebSocket<WSSocketData>) {
         const { workspaceId, userId, socketId } = ws.data;
         logger.info({ msg: "WS Connected", workspaceId, userId, socketId });
 
@@ -87,7 +87,7 @@ export const createWSGateway = () => {
         wsRegistry.startSession(ws);
       },
 
-      message(ws: ServerWebSocket<WSContext>, message: string | Buffer) {
+      message(ws: ServerWebSocket<WSSocketData>, message: string | Buffer) {
         // Keep Registry Alive
         wsRegistry.touch(ws.data.socketId);
 
@@ -95,7 +95,7 @@ export const createWSGateway = () => {
         wsRouter.handleMessage({ db } as unknown as Context, ws, message);
       },
 
-      close(ws: ServerWebSocket<WSContext>) {
+      close(ws: ServerWebSocket<WSSocketData>) {
         const { socketId } = ws.data;
         logger.info({ msg: "WS Closed", socketId });
 
@@ -103,7 +103,7 @@ export const createWSGateway = () => {
         wsRegistry.endSession(socketId);
       },
 
-      drain(ws: ServerWebSocket<WSContext>) {
+      drain(ws: ServerWebSocket<WSSocketData>) {
         // Optional: Handle backpressure
       },
     },

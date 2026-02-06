@@ -1,5 +1,6 @@
-import { WSHandlerContext } from "@/infra/ws/types";
-import { ChatWebSocket } from "@/infra/ws/types";
+import { WSHandlerContext } from "@/infra/ws/core/types";
+import { ChatDownstreamEvent } from "@/shared/contracts/chat/events";
+import { GenericWebSocket } from "@/infra/ws/core/types";
 import type { TypingStartInput } from "./schema";
 import { setTyping } from "@/modules/chat/domain/typing/redis-ops";
 import { logger } from "@/shared/logger";
@@ -7,7 +8,7 @@ import { appRedis } from "@/infra/redis";
 
 export const typingStartHandler = async (
   ctx: WSHandlerContext,
-  socket: ChatWebSocket,
+  socket: GenericWebSocket,
   input: TypingStartInput
 ) => {
   const { conversationId, nonce } = input;
@@ -29,7 +30,7 @@ export const typingStartHandler = async (
 
     // 3. Fanout to other conversation members
     const event = {
-      type: "chat:typing-start",
+      type: ChatDownstreamEvent.UserTyping,
       data: {
         conversationId,
         userId,
