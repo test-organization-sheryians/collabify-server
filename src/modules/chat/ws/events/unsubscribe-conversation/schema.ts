@@ -1,13 +1,14 @@
-import { z } from "zod";
-
 /**
- * Unified unsubscription schema for all conversation types
- * Replaces unsubscribe-channel and unsubscribe-thread
+ * Unsubscribe Conversation Schema
+ *
+ * Re-exports upstream contract from registry as single source of truth.
  */
-export const unsubscribeConversationSchema = z.object({
-  conversationId: z.string().min(1),
-});
 
-export type UnsubscribeConversationInput = z.infer<
-  typeof unsubscribeConversationSchema
->;
+import {
+  UnsubscribeConversationPayloadSchema,
+  UnsubscribeConversationPayload,
+} from "@/shared/contracts/chat/upstream";
+
+export const unsubscribeConversationSchema =
+  UnsubscribeConversationPayloadSchema;
+export type UnsubscribeConversationInput = UnsubscribeConversationPayload;

@@ -3,6 +3,7 @@ import { logger } from "../../shared/logger";
 import * as os from "os";
 import { KeyFactory } from "../redis/keys";
 import { persistenceQueue } from "@/modules/chat/jobs/queues";
+import { ChatDownstreamEvent } from "@/shared/contracts/chat/events";
 import {
   queueReactionPersistence,
   periodicFlush,
@@ -288,28 +289,29 @@ export const streamWorker = {
     // ═══════════════════════════════════════════════════════════
     // HANDLE: chat:message-edited
     // ═══════════════════════════════════════════════════════════
-    if (type === "chat:message-edited") {
+    if (type === ChatDownstreamEvent.MessageEdited) {
       // 1. Fan-out to subscribed clients
       const downstreamMsg = JSON.stringify({
         type,
         data: rawPayload,
       });
-      await publishSafe(topic, downstreamMsg);
 
-      // 2. Enqueue persistence job
+      try {
+        await publishSafe(topic, downstreamMsg);
+      } catch (err) {
+        logger.error(
+          { conversationId, type, err },
+          "Failed to publish edited message"
+        );
+      }
+
+      // 2. Queue persistence (asynchronous, never blocks fanout)
       await persistenceQueue.add(
-        "persist-message-edit",
-        {
-          outboxId,
-          messageId: rawPayload.messageId,
-          content: rawPayload.content,
-          editedAt: rawPayload.editedAt,
-          editorUserId: rawPayload.editorUserId,
-        },
+        "persist-edit",
+        { rawPayload },
         {
           attempts: 3,
           backoff: { type: "exponential", delay: 2000 },
-          removeOnComplete: true,
         }
       );
 
@@ -319,7 +321,7 @@ export const streamWorker = {
     // ═══════════════════════════════════════════════════════════
     // HANDLE: chat:message-deleted
     // ═══════════════════════════════════════════════════════════
-    if (type === "chat:message-deleted") {
+    if (type === ChatDownstreamEvent.MessageDeleted) {
       // 1. Fan-out to subscribed clients
       const downstreamMsg = JSON.stringify({
         type,
@@ -349,10 +351,15 @@ export const streamWorker = {
     // ═══════════════════════════════════════════════════════════
     // HANDLE: chat:reaction-added & chat:reaction-removed
     // ═══════════════════════════════════════════════════════════
-    if (type === "chat:reaction-added" || type === "chat:reaction-removed") {
+    if (
+      type === ChatDownstreamEvent.ReactionAdded ||
+      type === ChatDownstreamEvent.ReactionRemoved
+    ) {
       // Queue for batch persistence
       await queueReactionPersistence({
-        type: type as "chat:reaction-added" | "chat:reaction-removed",
+        type: type as
+          | ChatDownstreamEvent.ReactionAdded
+          | ChatDownstreamEvent.ReactionRemoved,
         messageId: rawPayload.messageId,
         userId: rawPayload.userId,
         emoji: rawPayload.emoji,

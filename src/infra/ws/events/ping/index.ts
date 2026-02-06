@@ -1,4 +1,4 @@
-import { RouteDefinition } from "../../types";
+import { RouteDefinition } from "../../core/types";
 import { pingHandler } from "./handler";
 import { pingSchema } from "./schema";
 

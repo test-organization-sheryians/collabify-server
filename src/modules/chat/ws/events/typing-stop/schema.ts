@@ -1,8 +1,13 @@
-import { z } from "zod";
+/**
+ * Typing Stop Schema
+ *
+ * Re-exports upstream contract from registry as single source of truth.
+ */
 
-export const typingStopSchema = z.object({
-  conversationId: z.string().min(1, "conversationId is required"),
-  nonce: z.string().optional(),
-});
+import {
+  TypingStopPayloadSchema,
+  TypingStopPayload,
+} from "@/shared/contracts/chat/upstream";
 
-export type TypingStopInput = z.infer<typeof typingStopSchema>;
+export const typingStopSchema = TypingStopPayloadSchema;
+export type TypingStopInput = TypingStopPayload;

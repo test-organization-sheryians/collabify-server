@@ -1,5 +1,6 @@
-import { WSHandlerContext } from "@/infra/ws/types";
-import { ChatWebSocket } from "@/infra/ws/types";
+import { WSHandlerContext } from "@/infra/ws/core/types";
+import { ChatDownstreamEvent } from "@/shared/contracts/chat/events";
+import { GenericWebSocket } from "@/infra/ws/core/types";
 import type { MarkReadInput } from "./schema";
 import { updateReadWatermark } from "@/modules/chat/domain/read-receipts/redis-ops";
 import { readReceiptQueue } from "@/modules/chat/jobs/queues";
@@ -7,7 +8,7 @@ import { logger } from "@/shared/logger";
 
 export const markReadHandler = async (
   ctx: WSHandlerContext,
-  socket: ChatWebSocket,
+  socket: GenericWebSocket,
   input: MarkReadInput
 ) => {
   const { conversationId, watermarkId } = input;
@@ -132,7 +133,7 @@ async function publishReadReceipt(
   targetUserIds: string[]
 ): Promise<void> {
   const event = {
-    type: "chat:message-read",
+    type: ChatDownstreamEvent.MessageRead,
     data: {
       conversationId,
       userId: readerId,

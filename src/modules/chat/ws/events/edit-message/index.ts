@@ -1,4 +1,4 @@
-import { RouteDefinition } from "@/infra/ws/types";
+import { RouteDefinition } from "@/infra/ws/core/types";
 import { editMessageHandler } from "./handler";
 import { editMessageSchema } from "./schema";
 

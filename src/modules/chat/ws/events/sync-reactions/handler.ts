@@ -1,14 +1,16 @@
+import { logger } from "@/shared/logger";
+import { ChatDownstreamEvent } from "@/shared/contracts/chat/events";
 import {
   WSHandlerContext,
-  ChatWebSocket,
+  GenericWebSocket,
   createSuccessFrame,
-} from "@/infra/ws/types";
+} from "@/infra/ws/core/types";
 import { SyncReactionsInput } from "./schema";
 import { syncReactionEvents } from "@/modules/chat/domain/reactions/redis-helpers";
 
 export const syncReactionsHandler = async (
   ctx: WSHandlerContext,
-  socket: ChatWebSocket,
+  socket: GenericWebSocket,
   input: SyncReactionsInput
 ) => {
   const { conversationId, lastEventId } = input;

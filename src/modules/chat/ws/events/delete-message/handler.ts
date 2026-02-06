@@ -1,9 +1,10 @@
-import { WSHandlerContext } from "@/infra/ws/types";
+import { WSHandlerContext } from "@/infra/ws/core/types";
+import { ChatDownstreamEvent } from "@/shared/contracts/chat/events";
 import {
-  ChatWebSocket,
+  GenericWebSocket,
   createSuccessFrame,
   createErrorFrame,
-} from "@/infra/ws/types";
+} from "@/infra/ws/core/types";
 import { DeleteMessageInput } from "./schema";
 import { logger } from "@/shared/logger";
 import { appRedis } from "@/infra/redis";
@@ -13,7 +14,7 @@ import { validateDeleteMessage } from "@/shared/validation/chat-permissions";
 
 export const deleteMessageHandler = async (
   ctx: WSHandlerContext,
-  socket: ChatWebSocket,
+  socket: GenericWebSocket,
   input: DeleteMessageInput
 ) => {
   const { messageId, nonce } = input;
@@ -90,7 +91,7 @@ export const deleteMessageHandler = async (
     // 4️⃣ PUBLISH TO STREAM
     const streamKey = KeyFactory.ConversationStream(message.conversationId);
     const downstreamPayload = {
-      type: "chat:message-deleted",
+      type: ChatDownstreamEvent.MessageDeleted,
       messageId,
       conversationId: message.conversationId,
       deletedAt: deletedAt.toISOString(),

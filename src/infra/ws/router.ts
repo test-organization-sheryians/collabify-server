@@ -1,12 +1,12 @@
 import { Context } from "hono";
 import { logger } from "../../shared/logger";
 import {
-  ChatWebSocket,
+  GenericWebSocket,
   createErrorFrame,
   InboundEnvelope,
   RouteMap,
   WSHandlerContext,
-} from "./types";
+} from "./core/types";
 import { env } from "../../shared/config/env";
 import { db } from "@/infra/db";
 import { redis } from "@/infra/redis";
@@ -51,7 +51,7 @@ export class WSRouter {
    */
   public async handleMessage(
     ctx: Context, // Hono Context for Dependency Injection
-    socket: ChatWebSocket,
+    socket: GenericWebSocket,
     rawData: string | Buffer
   ) {
     let envelope: InboundEnvelope;

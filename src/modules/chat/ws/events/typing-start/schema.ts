@@ -1,8 +1,13 @@
-import { z } from "zod";
+/**
+ * Typing Start Schema
+ *
+ * Re-exports upstream contract from registry as single source of truth.
+ */
 
-export const typingStartSchema = z.object({
-  conversationId: z.string().min(1, "conversationId is required"),
-  nonce: z.string().optional(), // For client-side ACK tracking
-});
+import {
+  TypingStartPayloadSchema,
+  TypingStartPayload,
+} from "@/shared/contracts/chat/upstream";
 
-export type TypingStartInput = z.infer<typeof typingStartSchema>;
+export const typingStartSchema = TypingStartPayloadSchema;
+export type TypingStartInput = TypingStartPayload;

@@ -1,5 +1,6 @@
 import { Context } from "hono";
-import { ChatWebSocket, createSuccessFrame } from "@/infra/ws/types";
+import { ChatDownstreamEvent } from "@/shared/contracts/chat/events";
+import { GenericWebSocket, createSuccessFrame } from "@/infra/ws/core/types";
 import { wsRegistry } from "@/infra/ws/subscription-registry";
 import { UnsubscribeConversationInput } from "./schema";
 import { logger } from "@/shared/logger";
@@ -12,7 +13,7 @@ import { KeyFactory } from "@/infra/redis/keys";
  */
 export const unsubscribeConversationHandler = async (
   ctx: Context,
-  socket: ChatWebSocket,
+  socket: GenericWebSocket,
   input: UnsubscribeConversationInput
 ) => {
   const { conversationId } = input;

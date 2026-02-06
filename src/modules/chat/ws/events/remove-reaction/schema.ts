@@ -1,12 +1,13 @@
-import { z } from "zod";
+/**
+ * Remove Reaction Schema
+ *
+ * Re-exports upstream contract from registry as single source of truth.
+ */
 
-export const removeReactionSchema = z.object({
-  messageId: z.string().uuid(),
-  emoji: z
-    .string()
-    .min(1)
-    .max(10)
-    .regex(/^[\p{Emoji}\p{Emoji_Component}]+$/u, "Invalid emoji format"),
-});
+import {
+  RemoveReactionPayloadSchema,
+  RemoveReactionPayload,
+} from "@/shared/contracts/chat/upstream";
 
-export type RemoveReactionInput = z.infer<typeof removeReactionSchema>;
+export const removeReactionSchema = RemoveReactionPayloadSchema;
+export type RemoveReactionInput = RemoveReactionPayload;

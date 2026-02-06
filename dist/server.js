@@ -102074,7 +102074,7 @@ var wsRegistry = {
 // src/infra/ws/router.ts
 init_logger();
 
-// src/infra/ws/types.ts
+// src/infra/ws/core/types.ts
 var createErrorFrame = (id, type, code, message, details) => {
   const frame = {
     id,
@@ -103708,7 +103708,7 @@ var subscribeConversationHandler = async (ctx, socket, input) => {
         if (missedMessages.length > 0) {
           logger.info({ userId, count: missedMessages.length }, "Replaying Hot Messages to Socket");
           missedMessages.forEach((msg) => {
-            socket.send(createSuccessFrame(undefined, "chat:new-message", {
+            socket.send(createSuccessFrame(undefined, "chat:new-message" /* NewMessage */, {
               ...msg,
               meta: { replay: true }
             }));
@@ -103716,20 +103716,20 @@ var subscribeConversationHandler = async (ctx, socket, input) => {
         }
         const isTruncated = missedMessages.length === 0 && diff > 0;
         if (diff > SYNC_THRESHOLD || !foundAll && diff > 0 || isTruncated) {
-          socket.send(createSuccessFrame(undefined, "chat:sync-required", {
+          socket.send(createSuccessFrame(undefined, "chat:sync-required" /* SyncRequired */, {
             conversationId,
             reason: isTruncated ? "stream_truncated" : "gap_too_large"
           }));
         }
       } else if (diff < 0) {
-        socket.send(createSuccessFrame(undefined, "chat:sync-required", {
+        socket.send(createSuccessFrame(undefined, "chat:sync-required" /* SyncRequired */, {
           conversationId,
           reason: "client_ahead"
         }));
       }
     } else {
       if (input.lastSequence > 0) {
-        socket.send(createSuccessFrame(undefined, "chat:sync-required", {
+        socket.send(createSuccessFrame(undefined, "chat:sync-required" /* SyncRequired */, {
           conversationId,
           reason: "server_amnesia"
         }));
@@ -103752,14 +103752,72 @@ var subscribeConversationHandler = async (ctx, socket, input) => {
   })));
 };
 
-// src/modules/chat/ws/events/subscribe-conversation/schema.ts
+// src/shared/contracts/chat/upstream.ts
 init_zod();
-var subscribeConversationSchema = exports_external.object({
+var SendMessagePayloadSchema = exports_external.object({
   conversationId: exports_external.string().min(1),
+  dedupeId: exports_external.string().uuid(),
+  content: exports_external.string().min(1).max(4000),
+  parentMessageId: exports_external.string().optional(),
+  conversationType: exports_external.enum(["CHANNEL", "DM", "GROUP_DM", "THREAD"]).optional()
+});
+var EditMessagePayloadSchema = exports_external.object({
+  messageId: exports_external.string(),
+  content: exports_external.string().min(1).max(4000),
+  nonce: exports_external.string()
+});
+var DeleteMessagePayloadSchema = exports_external.object({
+  messageId: exports_external.string(),
+  nonce: exports_external.string()
+});
+var SubscribeConversationPayloadSchema = exports_external.object({
+  conversationId: exports_external.string(),
   conversationType: exports_external.enum(["CHANNEL", "DM", "GROUP_DM", "THREAD"]),
   lastSequence: exports_external.number().optional(),
   epoch: exports_external.string().optional()
 });
+var UnsubscribeConversationPayloadSchema = exports_external.object({
+  conversationId: exports_external.string()
+});
+var AddReactionPayloadSchema = exports_external.object({
+  messageId: exports_external.string(),
+  emoji: exports_external.string(),
+  tempId: exports_external.string().optional()
+});
+var RemoveReactionPayloadSchema = exports_external.object({
+  messageId: exports_external.string(),
+  emoji: exports_external.string()
+});
+var TypingStartPayloadSchema = exports_external.object({
+  conversationId: exports_external.string(),
+  nonce: exports_external.string().optional()
+});
+var TypingStopPayloadSchema = exports_external.object({
+  conversationId: exports_external.string(),
+  nonce: exports_external.string().optional()
+});
+var MarkReadPayloadSchema = exports_external.object({
+  conversationId: exports_external.string(),
+  messageId: exports_external.string(),
+  watermarkId: exports_external.string(),
+  nonce: exports_external.string()
+});
+var ChatUpstreamSchemas = {
+  ["chat:send-message" /* SendMessage */]: SendMessagePayloadSchema,
+  ["chat:edit-message" /* EditMessage */]: EditMessagePayloadSchema,
+  ["chat:delete-message" /* DeleteMessage */]: DeleteMessagePayloadSchema,
+  ["chat:subscribe-conversation" /* SubscribeConversation */]: SubscribeConversationPayloadSchema,
+  ["chat:unsubscribe-conversation" /* UnsubscribeConversation */]: UnsubscribeConversationPayloadSchema,
+  ["chat:add-reaction" /* AddReaction */]: AddReactionPayloadSchema,
+  ["chat:remove-reaction" /* RemoveReaction */]: RemoveReactionPayloadSchema,
+  ["chat:typing-start" /* TypingStart */]: TypingStartPayloadSchema,
+  ["chat:typing-stop" /* TypingStop */]: TypingStopPayloadSchema,
+  ["chat:mark-read" /* MarkRead */]: MarkReadPayloadSchema,
+  ["chat:sync-reactions" /* SyncReactions */]: exports_external.object({ conversationId: exports_external.string() })
+};
+
+// src/modules/chat/ws/events/subscribe-conversation/schema.ts
+var subscribeConversationSchema = SubscribeConversationPayloadSchema;
 
 // src/modules/chat/ws/events/subscribe-conversation/index.ts
 var subscribeConversation = {
@@ -103787,10 +103845,7 @@ var unsubscribeConversationHandler = async (ctx, socket, input) => {
 };
 
 // src/modules/chat/ws/events/unsubscribe-conversation/schema.ts
-init_zod();
-var unsubscribeConversationSchema = exports_external.object({
-  conversationId: exports_external.string().min(1)
-});
+var unsubscribeConversationSchema = UnsubscribeConversationPayloadSchema;
 
 // src/modules/chat/ws/events/unsubscribe-conversation/index.ts
 var unsubscribeConversation = {
@@ -103964,7 +104019,7 @@ var sendMessageHandler = async (ctx, socket, input) => {
     });
     if (existing) {
       logger.warn({ dedupeId }, "Duplicate intent detected. Idempotent ACK.");
-      socket.send(createSuccessFrame(undefined, "chat:ack-message", {
+      socket.send(createSuccessFrame(undefined, "chat:ack-message" /* AckMessage */, {
         dedupeId,
         status: "duplicate",
         message: "Message already accepted"
@@ -103998,7 +104053,7 @@ var sendMessageHandler = async (ctx, socket, input) => {
     const seqKey = KeyFactory.ConversationSequence(conversationId);
     const basePayload = {
       conversationId,
-      type: "chat:new-message",
+      type: "chat:new-message" /* NewMessage */,
       payload: JSON.stringify(input),
       dedupeId,
       outboxId,
@@ -104056,7 +104111,7 @@ var sendMessageHandler = async (ctx, socket, input) => {
       throw new Error("Failed to publish after re-hydration attempt");
     }
     const { streamId, sequence } = result;
-    socket.send(createSuccessFrame(undefined, "chat:ack-message", {
+    socket.send(createSuccessFrame(undefined, "chat:ack-message" /* AckMessage */, {
       dedupeId,
       status: "sent",
       message: "Message sequenced",
@@ -104066,27 +104121,19 @@ var sendMessageHandler = async (ctx, socket, input) => {
   } catch (err) {
     logger.error({ err, dedupeId }, "Failed to process send-message");
     if (err.code === "P2002") {
-      socket.send(createSuccessFrame(undefined, "chat:ack-message", {
+      socket.send(createSuccessFrame(undefined, "chat:ack-message" /* AckMessage */, {
         dedupeId,
         status: "duplicate",
         message: "Message already processed"
       }));
       return;
     }
-    socket.send(createErrorFrame(undefined, "chat:ack-message", "INTERNAL_ERROR", "Failed to process message"));
+    socket.send(createErrorFrame(undefined, "chat:ack-message" /* AckMessage */, "INTERNAL_ERROR", "Failed to process message"));
   }
 };
 
 // src/modules/chat/ws/events/send-message/schema.ts
-init_zod();
-var sendMessageSchema = exports_external.object({
-  conversationId: exports_external.string().min(1),
-  conversationType: exports_external.enum(["CHANNEL", "DM", "GROUP_DM", "THREAD"]).optional(),
-  content: exports_external.string().min(1).max(4000),
-  dedupeId: exports_external.string().uuid(),
-  parentMessageId: exports_external.string().uuid().optional(),
-  metadata: exports_external.record(exports_external.string(), exports_external.unknown()).optional()
-});
+var sendMessageSchema = SendMessagePayloadSchema;
 
 // src/modules/chat/ws/events/send-message/index.ts
 var sendMessage = {
@@ -104160,7 +104207,7 @@ var editMessageHandler = async (ctx, socket, input) => {
     });
     const streamKey = KeyFactory.ConversationStream(message.conversationId);
     const downstreamPayload = {
-      type: "chat:message-edited",
+      type: "chat:message-edited" /* MessageEdited */,
       messageId,
       conversationId: message.conversationId,
       content,
@@ -104190,12 +104237,7 @@ var editMessageHandler = async (ctx, socket, input) => {
 };
 
 // src/modules/chat/ws/events/edit-message/schema.ts
-init_zod();
-var editMessageSchema = exports_external.object({
-  messageId: exports_external.string().min(1),
-  content: exports_external.string().min(1).max(4000),
-  nonce: exports_external.string().uuid()
-});
+var editMessageSchema = EditMessagePayloadSchema;
 
 // src/modules/chat/ws/events/edit-message/index.ts
 var editMessage = {
@@ -104257,7 +104299,7 @@ var deleteMessageHandler = async (ctx, socket, input) => {
     });
     const streamKey = KeyFactory.ConversationStream(message.conversationId);
     const downstreamPayload = {
-      type: "chat:message-deleted",
+      type: "chat:message-deleted" /* MessageDeleted */,
       messageId,
       conversationId: message.conversationId,
       deletedAt: deletedAt.toISOString(),
@@ -104285,11 +104327,7 @@ var deleteMessageHandler = async (ctx, socket, input) => {
 };
 
 // src/modules/chat/ws/events/delete-message/schema.ts
-init_zod();
-var deleteMessageSchema = exports_external.object({
-  messageId: exports_external.string().min(1),
-  nonce: exports_external.string().uuid()
-});
+var deleteMessageSchema = DeleteMessagePayloadSchema;
 
 // src/modules/chat/ws/events/delete-message/index.ts
 var deleteMessage = {
@@ -104325,7 +104363,7 @@ var typingStartHandler = async (ctx, socket, input) => {
     }
     await setTyping(conversationId, userId);
     const event = {
-      type: "chat:typing-start",
+      type: "chat:user-typing" /* UserTyping */,
       data: {
         conversationId,
         userId,
@@ -104357,11 +104395,7 @@ var typingStartHandler = async (ctx, socket, input) => {
 };
 
 // src/modules/chat/ws/events/typing-start/schema.ts
-init_zod();
-var typingStartSchema = exports_external.object({
-  conversationId: exports_external.string().min(1, "conversationId is required"),
-  nonce: exports_external.string().optional()
-});
+var typingStartSchema = TypingStartPayloadSchema;
 
 // src/modules/chat/ws/events/typing-start/index.ts
 var typingStart = {
@@ -104385,7 +104419,7 @@ var typingStopHandler = async (ctx, socket, input) => {
     }
     await clearTyping(conversationId, userId);
     const event = {
-      type: "chat:typing-stop",
+      type: "chat:user-stop-typing" /* UserStopTyping */,
       data: {
         conversationId,
         userId,
@@ -104417,11 +104451,7 @@ var typingStopHandler = async (ctx, socket, input) => {
 };
 
 // src/modules/chat/ws/events/typing-stop/schema.ts
-init_zod();
-var typingStopSchema = exports_external.object({
-  conversationId: exports_external.string().min(1, "conversationId is required"),
-  nonce: exports_external.string().optional()
-});
+var typingStopSchema = TypingStopPayloadSchema;
 
 // src/modules/chat/ws/events/typing-stop/index.ts
 var typingStop = {
@@ -104527,7 +104557,7 @@ var markReadHandler = async (ctx, socket, input) => {
 };
 async function publishReadReceipt(ctx, conversationId, readerId, watermarkId, sequence, targetUserIds) {
   const event = {
-    type: "chat:message-read",
+    type: "chat:message-read" /* MessageRead */,
     data: {
       conversationId,
       userId: readerId,
@@ -104543,12 +104573,7 @@ async function publishReadReceipt(ctx, conversationId, readerId, watermarkId, se
 }
 
 // src/modules/chat/ws/events/mark-read/schema.ts
-init_zod();
-var markReadSchema = exports_external.object({
-  conversationId: exports_external.string(),
-  watermarkId: exports_external.string(),
-  nonce: exports_external.string().uuid().optional()
-});
+var markReadSchema = MarkReadPayloadSchema;
 
 // src/modules/chat/ws/events/mark-read/index.ts
 var markRead = {
@@ -104557,12 +104582,7 @@ var markRead = {
 };
 
 // src/modules/chat/ws/events/add-reaction/schema.ts
-init_zod();
-var addReactionSchema = exports_external.object({
-  messageId: exports_external.string().uuid(),
-  emoji: exports_external.string().min(1).max(10).regex(/^[\p{Emoji}\p{Emoji_Component}]+$/u, "Invalid emoji format"),
-  tempId: exports_external.string().uuid().optional()
-});
+var addReactionSchema = AddReactionPayloadSchema;
 
 // src/modules/chat/ws/events/add-reaction/handler.ts
 init_logger();
@@ -104689,7 +104709,7 @@ var addReactionHandler = async (ctx, socket, input) => {
       const topic = KeyFactory.ConversationTopic(message.conversationId);
       try {
         await ctx.redis.publish(topic, JSON.stringify({
-          type: "chat:reaction-added",
+          type: "chat:reaction-added" /* ReactionAdded */,
           data: {
             messageId,
             userId,
@@ -104715,11 +104735,7 @@ var add_reaction_default = {
 };
 
 // src/modules/chat/ws/events/remove-reaction/schema.ts
-init_zod();
-var removeReactionSchema = exports_external.object({
-  messageId: exports_external.string().uuid(),
-  emoji: exports_external.string().min(1).max(10).regex(/^[\p{Emoji}\p{Emoji_Component}]+$/u, "Invalid emoji format")
-});
+var removeReactionSchema = RemoveReactionPayloadSchema;
 
 // src/modules/chat/ws/events/remove-reaction/handler.ts
 init_logger();
@@ -104750,7 +104766,7 @@ var removeReactionHandler = async (ctx, socket, input) => {
       const topic = KeyFactory.ConversationTopic(message.conversationId);
       try {
         await ctx.redis.publish(topic, JSON.stringify({
-          type: "chat:reaction-removed",
+          type: "chat:reaction-removed" /* ReactionRemoved */,
           data: {
             messageId,
             userId,
@@ -104778,8 +104794,8 @@ var remove_reaction_default = {
 // src/modules/chat/ws/events/sync-reactions/schema.ts
 init_zod();
 var syncReactionsSchema = exports_external.object({
-  conversationId: exports_external.string().uuid(),
-  lastEventId: exports_external.string().default("0-0")
+  conversationId: exports_external.string(),
+  lastEventId: exports_external.string().optional()
 });
 
 // src/modules/chat/ws/events/sync-reactions/handler.ts
@@ -104800,17 +104816,17 @@ var sync_reactions_default = {
 
 // src/modules/chat/ws/router.ts
 var chatWSRoutes = {
-  "chat:subscribe-conversation": subscribeConversation,
-  "chat:unsubscribe-conversation": unsubscribeConversation,
-  "chat:send-message": sendMessage,
-  "chat:edit-message": editMessage,
-  "chat:delete-message": deleteMessage,
-  "chat:add-reaction": add_reaction_default,
-  "chat:remove-reaction": remove_reaction_default,
-  "chat:sync-reactions": sync_reactions_default,
-  "chat:typing-start": typingStart,
-  "chat:typing-stop": typingStop,
-  "chat:mark-read": markRead
+  ["chat:subscribe-conversation" /* SubscribeConversation */]: subscribeConversation,
+  ["chat:unsubscribe-conversation" /* UnsubscribeConversation */]: unsubscribeConversation,
+  ["chat:send-message" /* SendMessage */]: sendMessage,
+  ["chat:edit-message" /* EditMessage */]: editMessage,
+  ["chat:delete-message" /* DeleteMessage */]: deleteMessage,
+  ["chat:add-reaction" /* AddReaction */]: add_reaction_default,
+  ["chat:remove-reaction" /* RemoveReaction */]: remove_reaction_default,
+  ["chat:sync-reactions" /* SyncReactions */]: sync_reactions_default,
+  ["chat:typing-start" /* TypingStart */]: typingStart,
+  ["chat:typing-stop" /* TypingStop */]: typingStop,
+  ["chat:mark-read" /* MarkRead */]: markRead
 };
 
 // src/infra/ws/ws-routes.ts
@@ -118254,26 +118270,23 @@ var streamWorker = {
       logger.error({ parseError: parseError3, payloadStr, conversationId }, "Failed to parse event payload JSON");
       throw new Error("INVALID_JSON_PAYLOAD");
     }
-    if (type === "chat:message-edited") {
+    if (type === "chat:message-edited" /* MessageEdited */) {
       const downstreamMsg2 = JSON.stringify({
         type,
         data: rawPayload
       });
-      await publishSafe(topic, downstreamMsg2);
-      await persistenceQueue.add("persist-message-edit", {
-        outboxId,
-        messageId: rawPayload.messageId,
-        content: rawPayload.content,
-        editedAt: rawPayload.editedAt,
-        editorUserId: rawPayload.editorUserId
-      }, {
+      try {
+        await publishSafe(topic, downstreamMsg2);
+      } catch (err) {
+        logger.error({ conversationId, type, err }, "Failed to publish edited message");
+      }
+      await persistenceQueue.add("persist-edit", { rawPayload }, {
         attempts: 3,
-        backoff: { type: "exponential", delay: 2000 },
-        removeOnComplete: true
+        backoff: { type: "exponential", delay: 2000 }
       });
       return;
     }
-    if (type === "chat:message-deleted") {
+    if (type === "chat:message-deleted" /* MessageDeleted */) {
       const downstreamMsg2 = JSON.stringify({
         type,
         data: rawPayload
@@ -118291,7 +118304,7 @@ var streamWorker = {
       });
       return;
     }
-    if (type === "chat:reaction-added" || type === "chat:reaction-removed") {
+    if (type === "chat:reaction-added" /* ReactionAdded */ || type === "chat:reaction-removed" /* ReactionRemoved */) {
       await queueReactionPersistence({
         type,
         messageId: rawPayload.messageId,
@@ -118622,7 +118635,10 @@ var handler26 = async (input, ctx) => {
     }
     return await ctx.db.chatConversation.update({
       where: { id: input.channelId },
-      data: { isArchived: true }
+      data: {
+        isArchived: true,
+        deletedAt: new Date
+      }
     });
   } catch (error48) {
     if (error48 instanceof AppError)
@@ -119230,17 +119246,6 @@ var handler35 = async (input, ctx) => {
   await ctx.db.chatConversation.delete({
     where: { id: channelId }
   });
-  await Promise.all(members.map(async (member) => {
-    await ctx.redis.publish(`user:${member.userId}:events`, JSON.stringify({
-      type: "chat:channel-deleted",
-      payload: {
-        channelId,
-        workspaceId,
-        deletedBy: userId,
-        timestamp: new Date().toISOString()
-      }
-    }));
-  }));
   return {
     success: true,
     channelId
@@ -120768,7 +120773,11 @@ var getChannelMembersSchema = exports_external.object({
 // src/modules/chat/queries/get-channel-members/type-defs.ts
 var typeDefs43 = `
   extend type Query {
-    getChannelMembers(channelId: ID!, limit: Int, offset: Int): [ChatMember!]!
+    getChannelMembers(
+      channelId: ID!
+      limit: Int
+      offset: Int
+    ): [ChatMemberRecord!]!
   }
 `;
 // src/modules/chat/queries/get-last-read-message/index.ts
@@ -121245,23 +121254,32 @@ __export(exports_get_user_conversations, {
 
 // src/modules/chat/queries/get-user-conversations/handler.ts
 init_errors3();
+
+// src/modules/chat/queries/get-user-conversations/schema.ts
+init_zod();
+var getUserConversationsSchema = exports_external.object({
+  workspaceId: exports_external.string().cuid(),
+  projectId: exports_external.string().cuid(),
+  type: exports_external.enum(["CHANNEL", "DM", "GROUP_DM"]).optional(),
+  includeArchived: exports_external.boolean().optional(),
+  limit: exports_external.number().min(1).max(100).optional(),
+  cursor: exports_external.string().optional()
+});
+
+// src/modules/chat/queries/get-user-conversations/handler.ts
 var handler73 = async (input, ctx) => {
   const { userId } = ctx.auth;
   if (!userId) {
     throw AppError.unauthorized("User not authenticated");
   }
-  const { workspaceId, projectId, type, includeArchived, limit, cursor } = input;
-  const projectMembership = await ctx.db.projectMember.findUnique({
-    where: {
-      projectId_userId: {
-        projectId,
-        userId
-      }
-    }
-  });
-  if (!projectMembership) {
-    throw AppError.forbidden("You are not a member of this project");
-  }
+  const {
+    workspaceId,
+    projectId,
+    type,
+    includeArchived = false,
+    limit = 50,
+    cursor
+  } = getUserConversationsSchema.parse(input);
   const where = {
     workspaceId,
     projectId,
@@ -121271,9 +121289,11 @@ var handler73 = async (input, ctx) => {
   };
   if (type) {
     where.type = type;
+  } else {
+    where.type = { in: ["CHANNEL", "DM", "GROUP_DM"] };
   }
   if (!includeArchived) {
-    where.deletedAt = null;
+    where.isArchived = false;
   }
   if (cursor) {
     where.updatedAt = {
@@ -121329,13 +121349,17 @@ var handler73 = async (input, ctx) => {
       id: conv.id,
       type: conv.type,
       name: conv.name,
-      description: conv.topic,
+      topic: conv.topic,
       isPublic: conv.type === "CHANNEL" && !conv.name?.startsWith("#private-"),
       workspaceId: conv.workspaceId,
       projectId: conv.projectId,
+      parentMessageId: conv.parentMessageId,
+      createdBy: null,
+      isArchived: conv.isArchived,
       memberCount: conv.members.length,
       unreadCount,
-      lastMessage,
+      members: [],
+      lastMessage: lastMessage || null,
       createdAt: conv.createdAt,
       updatedAt: conv.updatedAt,
       deletedAt: conv.deletedAt
@@ -121349,16 +121373,6 @@ var handler73 = async (input, ctx) => {
     }
   };
 };
-// src/modules/chat/queries/get-user-conversations/schema.ts
-init_zod();
-var getUserConversationsSchema = exports_external.object({
-  workspaceId: exports_external.string().cuid(),
-  projectId: exports_external.string().cuid(),
-  type: exports_external.enum(["CHANNEL", "DM", "GROUP", "THREAD"]).optional(),
-  includeArchived: exports_external.boolean().optional().default(false),
-  limit: exports_external.number().min(1).max(100).optional().default(50),
-  cursor: exports_external.string().optional()
-});
 // src/modules/chat/queries/get-user-conversations/type-defs.ts
 var typeDefs51 = `
   extend type Query {
@@ -121373,31 +121387,8 @@ var typeDefs51 = `
   }
 
   type ConversationConnection {
-    edges: [ConversationEdge!]!
+    edges: [Conversation!]!
     pageInfo: PageInfo!
-  }
-
-  type ConversationEdge {
-    id: ID!
-    type: ConversationType!
-    name: String
-    description: String
-    isPublic: Boolean!
-    workspaceId: ID!
-    projectId: ID
-    memberCount: Int!
-    unreadCount: Int!
-    lastMessage: LastMessagePreview
-    createdAt: DateTime!
-    updatedAt: DateTime!
-    deletedAt: DateTime
-  }
-
-  type LastMessagePreview {
-    id: ID!
-    content: JSON!
-    authorUserId: ID!
-    createdAt: DateTime!
   }
 
   type PageInfo {
@@ -121426,8 +121417,7 @@ var handler74 = async (input, ctx) => {
       id: conversationId,
       members: {
         some: { userId }
-      },
-      deletedAt: null
+      }
     },
     include: {
       members: {
@@ -121474,12 +121464,13 @@ var handler74 = async (input, ctx) => {
     id: conversation.id,
     type: conversation.type,
     name: conversation.name,
-    description: conversation.topic,
+    topic: conversation.topic,
     isPublic: conversation.type === "CHANNEL",
     workspaceId: conversation.workspaceId,
     projectId: conversation.projectId,
     parentMessageId: conversation.parentMessageId,
     createdBy: null,
+    isArchived: conversation.isArchived,
     memberCount: conversation.members.length,
     unreadCount,
     members: conversation.members.map((m) => ({
@@ -121492,7 +121483,7 @@ var handler74 = async (input, ctx) => {
         fullName: m.user.fullName || "Unknown"
       }
     })),
-    lastMessage,
+    lastMessage: lastMessage || null,
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
     deletedAt: conversation.deletedAt
@@ -121506,41 +121497,7 @@ var getConversationSchema = exports_external.object({
 // src/modules/chat/queries/get-conversation/type-defs.ts
 var typeDefs52 = `
   extend type Query {
-    getConversation(conversationId: ID!): ConversationDetails!
-  }
-
-  type ConversationDetails {
-    id: ID!
-    type: ConversationType!
-    name: String
-    description: String
-    isPublic: Boolean!
-    workspaceId: ID!
-    projectId: ID
-    parentMessageId: ID
-    createdBy: ID
-    memberCount: Int!
-    unreadCount: Int!
-    members: [ConversationMemberDetails!]!
-    lastMessage: LastMessagePreview
-    createdAt: DateTime!
-    updatedAt: DateTime!
-    deletedAt: DateTime
-  }
-
-  type ConversationMemberDetails {
-    userId: ID!
-    role: String!
-    isMuted: Boolean!
-    joinedAt: DateTime!
-    user: UserBasic!
-  }
-
-  type UserBasic {
-    id: ID!
-    fullName: String!
-    email: String!
-    avatarUrl: String
+    getConversation(conversationId: ID!): Conversation!
   }
 `;
 // src/modules/chat/queries/get-dm-by-users/index.ts
@@ -121654,6 +121611,46 @@ var typeDefs53 = `
     user: UserBasic!
   }
 `;
+// src/modules/chat/queries/get-users-by-ids/index.ts
+var exports_get_users_by_ids = {};
+__export(exports_get_users_by_ids, {
+  typeDefs: () => typeDefs54,
+  handler: () => handler76,
+  getUsersByIdsSchema: () => getUsersByIdsSchema
+});
+
+// src/modules/chat/queries/get-users-by-ids/type-defs.ts
+var typeDefs54 = `
+  extend type Query {
+    getUsersByIds(userIds: [ID!]!): [UserBasic!]!
+  }
+`;
+// src/modules/chat/queries/get-users-by-ids/schema.ts
+init_zod();
+var getUsersByIdsSchema = exports_external.object({
+  userIds: exports_external.array(exports_external.string()).min(1).max(100)
+});
+// src/modules/chat/queries/get-users-by-ids/handler.ts
+var handler76 = async (input, ctx) => {
+  const { userIds } = input;
+  const users = await ctx.db.user.findMany({
+    where: {
+      id: { in: userIds }
+    },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      avatarUrl: true
+    }
+  });
+  return users.map((u) => ({
+    id: u.id,
+    fullName: u.fullName || "Unknown User",
+    email: u.email,
+    avatarUrl: u.avatarUrl
+  }));
+};
 // src/modules/chat/graphql/type-defs.ts
 var sharedTypeDefs = `
   type Conversation {
@@ -121663,14 +121660,18 @@ var sharedTypeDefs = `
     type: ConversationType!
     name: String
     topic: String
+    isPublic: Boolean!
+    parentMessageId: ID
+    createdBy: ID
     isArchived: Boolean!
+    unreadCount: Int!
+    memberCount: Int!
     createdAt: DateTime!
     updatedAt: DateTime!
     deletedAt: DateTime
     # Computed/Loaded fields
-    members: [ChatMember!]
-    lastMessage: ChatMessage
-    memberCount: Int!
+    members: [ConversationMember!]
+    lastMessage: LastMessagePreview
   }
 
   enum ConversationType {
@@ -121680,7 +121681,29 @@ var sharedTypeDefs = `
     THREAD
   }
 
-  type ChatMember {
+  type ConversationMember {
+    userId: ID!
+    role: String!
+    isMuted: Boolean!
+    joinedAt: DateTime!
+    user: UserBasic!
+  }
+
+  type UserBasic {
+    id: ID!
+    fullName: String!
+    email: String!
+    avatarUrl: String
+  }
+
+  type LastMessagePreview {
+    id: ID!
+    content: JSON!
+    authorUserId: ID!
+    createdAt: DateTime!
+  }
+
+  type ChatMemberRecord {
     id: ID!
     conversationId: ID!
     userId: ID!
@@ -121735,7 +121758,7 @@ var sharedTypeDefs = `
     OFFLINE
   }
 `;
-var typeDefs54 = [
+var typeDefs55 = [
   sharedTypeDefs,
   typeDefs14,
   typeDefs15,
@@ -121776,7 +121799,8 @@ var typeDefs54 = [
   typeDefs50,
   typeDefs51,
   typeDefs52,
-  typeDefs53
+  typeDefs53,
+  typeDefs54
 ];
 // src/modules/chat/graphql/resolvers.ts
 var resolvers5 = {
@@ -121850,6 +121874,11 @@ var resolvers5 = {
       await requireUser(ctx);
       const input = exports_get_dm_by_users.getDmByUsersSchema.parse(args);
       return exports_get_dm_by_users.handler(input, ctx);
+    },
+    getUsersByIds: async (_2, args, ctx) => {
+      await requireUser(ctx);
+      const input = exports_get_users_by_ids.getUsersByIdsSchema.parse(args);
+      return exports_get_users_by_ids.handler(input, ctx);
     },
     reactionUsers: async (_2, args, ctx) => {
       await requireUser(ctx);
@@ -121985,17 +122014,32 @@ var resolvers5 = {
     }
   },
   Conversation: {
+    isPublic: (parent2) => {
+      return parent2.type === "CHANNEL";
+    },
+    unreadCount: (parent2) => {
+      if (parent2.unreadCount !== undefined)
+        return parent2.unreadCount;
+      return 0;
+    },
     members: (parent2, _args, ctx) => {
+      if (parent2.members && parent2.members.length > 0) {
+        return parent2.members;
+      }
       if (!ctx.dataloaders.chat)
         throw new Error("Chat dataloaders not initialized");
       return ctx.dataloaders.chat.membersByChannelId.load(parent2.id);
     },
     lastMessage: (parent2, _args, ctx) => {
+      if (parent2.lastMessage)
+        return parent2.lastMessage;
       if (!ctx.dataloaders.chat)
         throw new Error("Chat dataloaders not initialized");
       return ctx.dataloaders.chat.lastMessageByChannelId.load(parent2.id);
     },
     memberCount: (parent2, _args, ctx) => {
+      if (parent2.memberCount !== undefined)
+        return parent2.memberCount;
       if (!ctx.dataloaders.chat)
         throw new Error("Chat dataloaders not initialized");
       return ctx.dataloaders.chat.memberCountByChannelId.load(parent2.id);
@@ -122049,11 +122093,33 @@ var import_dataloader6 = __toESM(require_dataloader(), 1);
 var createMembersByChannelIdLoader = () => new import_dataloader6.default(async (channelIds) => {
   const HARD_LIMIT_PER_CHANNEL = 50;
   const results = await Promise.all(channelIds.map(async (id) => {
-    return db.chatMember.findMany({
+    const members = await db.chatMember.findMany({
       where: { conversationId: id },
       take: HARD_LIMIT_PER_CHANNEL,
-      orderBy: { joinedAt: "asc" }
+      orderBy: { joinedAt: "asc" },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            avatarUrl: true
+          }
+        }
+      }
     });
+    return members.map((m) => ({
+      userId: m.userId,
+      role: m.role,
+      isMuted: m.isMuted,
+      joinedAt: m.joinedAt,
+      user: {
+        id: m.user.id,
+        fullName: m.user.fullName || "Unknown",
+        email: m.user.email,
+        avatarUrl: m.user.avatarUrl
+      }
+    }));
   }));
   return results;
 });
@@ -122177,7 +122243,7 @@ var schema37 = createSchema({
     typeDefs4,
     typeDefs5,
     typeDefs13,
-    typeDefs54
+    typeDefs55
   ],
   resolvers: [
     {

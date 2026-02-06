@@ -1,4 +1,5 @@
-import { RouteMap } from "@/infra/ws/types";
+import { RouteMap } from "@/infra/ws/core/types";
+import { ChatUpstreamEvent } from "@/shared/contracts/chat/events";
 import { subscribeConversation } from "./events/subscribe-conversation";
 import { unsubscribeConversation } from "./events/unsubscribe-conversation";
 import { sendMessage } from "./events/send-message";
@@ -13,23 +14,23 @@ import syncReactions from "./events/sync-reactions";
 
 export const chatWSRoutes: RouteMap = {
   // Unified Subscription Cycle (All Conversation Types)
-  "chat:subscribe-conversation": subscribeConversation,
-  "chat:unsubscribe-conversation": unsubscribeConversation,
+  [ChatUpstreamEvent.SubscribeConversation]: subscribeConversation,
+  [ChatUpstreamEvent.UnsubscribeConversation]: unsubscribeConversation,
 
   // Message Actions
-  "chat:send-message": sendMessage,
-  "chat:edit-message": editMessage,
-  "chat:delete-message": deleteMessage,
+  [ChatUpstreamEvent.SendMessage]: sendMessage,
+  [ChatUpstreamEvent.EditMessage]: editMessage,
+  [ChatUpstreamEvent.DeleteMessage]: deleteMessage,
 
   // Reactions
-  "chat:add-reaction": addReaction,
-  "chat:remove-reaction": removeReaction,
-  "chat:sync-reactions": syncReactions,
+  [ChatUpstreamEvent.AddReaction]: addReaction,
+  [ChatUpstreamEvent.RemoveReaction]: removeReaction,
+  [ChatUpstreamEvent.SyncReactions]: syncReactions,
 
   // Ephemeral State (Typing Indicators)
-  "chat:typing-start": typingStart,
-  "chat:typing-stop": typingStop,
+  [ChatUpstreamEvent.TypingStart]: typingStart,
+  [ChatUpstreamEvent.TypingStop]: typingStop,
 
   // Read Receipts
-  "chat:mark-read": markRead,
+  [ChatUpstreamEvent.MarkRead]: markRead,
 };

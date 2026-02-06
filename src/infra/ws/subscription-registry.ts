@@ -1,6 +1,6 @@
-import { ChatWebSocket } from "./types";
+import { GenericWebSocket } from "./core/types";
 import { redisSubscriber } from "./redis-subscriber";
-import { logger } from "../../shared/logger";
+import { logger } from "@/shared/logger";
 
 /**
  * In-Memory Subscription Registry with Redis Reference Counting
@@ -32,7 +32,7 @@ const socketIndex = new Map<
 const userSockets = new Map<string, Set<string>>();
 
 // Global Registry: SocketId -> Socket Object (For actual sending)
-const globalSocketMap = new Map<string, ChatWebSocket>();
+const globalSocketMap = new Map<string, GenericWebSocket>();
 
 /**
  * Simple Mutex logic to serialize topic operations
@@ -85,7 +85,7 @@ export const wsRegistry = {
   /**
    * Called on WS Open
    */
-  startSession(socket: ChatWebSocket) {
+  startSession(socket: GenericWebSocket) {
     const { socketId, userId } = socket.data;
 
     globalSocketMap.set(socketId, socket);
@@ -247,11 +247,11 @@ export const wsRegistry = {
   /**
    * Get all sockets for a User (Multi-tab broadcast)
    */
-  getUserSockets(userId: string): ChatWebSocket[] {
+  getUserSockets(userId: string): GenericWebSocket[] {
     const ids = userSockets.get(userId);
     if (!ids) return [];
 
-    const sockets: ChatWebSocket[] = [];
+    const sockets: GenericWebSocket[] = [];
     for (const id of ids) {
       const socket = globalSocketMap.get(id);
       if (socket) sockets.push(socket);

@@ -1,9 +1,10 @@
-import { WSHandlerContext } from "@/infra/ws/types";
+import { WSHandlerContext } from "@/infra/ws/core/types";
+import { ChatDownstreamEvent } from "@/shared/contracts/chat/events";
 import {
-  ChatWebSocket,
+  GenericWebSocket,
   createSuccessFrame,
   createErrorFrame,
-} from "@/infra/ws/types";
+} from "@/infra/ws/core/types";
 import { EditMessageInput } from "./schema";
 import { logger } from "@/shared/logger";
 import { appRedis } from "@/infra/redis";
@@ -14,7 +15,7 @@ import { createHash } from "crypto";
 
 export const editMessageHandler = async (
   ctx: WSHandlerContext,
-  socket: ChatWebSocket,
+  socket: GenericWebSocket,
   input: EditMessageInput
 ) => {
   const { messageId, content, nonce } = input;
@@ -109,7 +110,7 @@ export const editMessageHandler = async (
     // 4️⃣ PUBLISH TO STREAM
     const streamKey = KeyFactory.ConversationStream(message.conversationId);
     const downstreamPayload = {
-      type: "chat:message-edited",
+      type: ChatDownstreamEvent.MessageEdited,
       messageId,
       conversationId: message.conversationId,
       content,
