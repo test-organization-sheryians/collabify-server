@@ -1,8 +1,13 @@
-import { z } from "zod";
+/**
+ * Delete Message Schema
+ *
+ * Re-exports upstream contract from registry as single source of truth.
+ */
 
-export const deleteMessageSchema = z.object({
-  messageId: z.string().min(1),
-  nonce: z.string().uuid(), // Client-generated UUID for idempotency
-});
+import {
+  DeleteMessagePayloadSchema,
+  DeleteMessagePayload,
+} from "@/shared/contracts/chat/upstream";
 
-export type DeleteMessageInput = z.infer<typeof deleteMessageSchema>;
+export const deleteMessageSchema = DeleteMessagePayloadSchema;
+export type DeleteMessageInput = DeleteMessagePayload;

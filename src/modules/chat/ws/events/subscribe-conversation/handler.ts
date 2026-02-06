@@ -1,5 +1,6 @@
-import { ChatWebSocket, createSuccessFrame } from "@/infra/ws/types";
-import { WSHandlerContext } from "@/infra/ws/types";
+import { GenericWebSocket, createSuccessFrame } from "@/infra/ws/core/types";
+import { ChatDownstreamEvent } from "@/shared/contracts/chat/events";
+import { WSHandlerContext } from "@/infra/ws/core/types";
 import { SubscribeConversationInput } from "./schema";
 import { wsRegistry } from "@/infra/ws/subscription-registry";
 import { logger } from "@/shared/logger";
@@ -13,7 +14,7 @@ import { appRedis } from "@/infra/redis";
  */
 export const subscribeConversationHandler = async (
   ctx: WSHandlerContext,
-  socket: ChatWebSocket,
+  socket: GenericWebSocket,
   input: SubscribeConversationInput
 ) => {
   const { conversationId, conversationType } = input;
@@ -124,7 +125,7 @@ export const subscribeConversationHandler = async (
           );
           missedMessages.forEach((msg) => {
             socket.send(
-              createSuccessFrame(undefined, "chat:new-message", {
+              createSuccessFrame(undefined, ChatDownstreamEvent.NewMessage, {
                 ...msg,
                 meta: { replay: true },
               })
@@ -137,7 +138,7 @@ export const subscribeConversationHandler = async (
 
         if (diff > SYNC_THRESHOLD || (!foundAll && diff > 0) || isTruncated) {
           socket.send(
-            createSuccessFrame(undefined, "chat:sync-required", {
+            createSuccessFrame(undefined, ChatDownstreamEvent.SyncRequired, {
               conversationId,
               reason: isTruncated ? "stream_truncated" : "gap_too_large",
             })
@@ -146,7 +147,7 @@ export const subscribeConversationHandler = async (
       } else if (diff < 0) {
         // Client Ahead of Server
         socket.send(
-          createSuccessFrame(undefined, "chat:sync-required", {
+          createSuccessFrame(undefined, ChatDownstreamEvent.SyncRequired, {
             conversationId,
             reason: "client_ahead",
           })
@@ -156,7 +157,7 @@ export const subscribeConversationHandler = async (
       // Server Amnesia: No sequence key
       if (input.lastSequence > 0) {
         socket.send(
-          createSuccessFrame(undefined, "chat:sync-required", {
+          createSuccessFrame(undefined, ChatDownstreamEvent.SyncRequired, {
             conversationId,
             reason: "server_amnesia",
           })

@@ -1,9 +1,10 @@
+import { ChatDownstreamEvent } from "@/shared/contracts/chat/events";
 import {
   WSHandlerContext,
-  ChatWebSocket,
+  GenericWebSocket,
   createSuccessFrame,
   createErrorFrame,
-} from "@/infra/ws/types";
+} from "@/infra/ws/core/types";
 import { RemoveReactionInput } from "./schema";
 import { logger } from "@/shared/logger";
 import { removeReaction } from "@/modules/chat/domain/reactions/redis-helpers";
@@ -11,7 +12,7 @@ import { KeyFactory } from "@/infra/redis/keys";
 
 export const removeReactionHandler = async (
   ctx: WSHandlerContext,
-  socket: ChatWebSocket,
+  socket: GenericWebSocket,
   input: RemoveReactionInput
 ) => {
   const { messageId, emoji } = input;
@@ -61,7 +62,7 @@ export const removeReactionHandler = async (
         await ctx.redis.publish(
           topic,
           JSON.stringify({
-            type: "chat:reaction-removed",
+            type: ChatDownstreamEvent.ReactionRemoved,
             data: {
               messageId,
               userId,

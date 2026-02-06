@@ -1,9 +1,10 @@
+import { ChatDownstreamEvent } from "@/shared/contracts/chat/events";
 import {
   WSHandlerContext,
-  ChatWebSocket,
+  GenericWebSocket,
   createSuccessFrame,
   createErrorFrame,
-} from "@/infra/ws/types";
+} from "@/infra/ws/core/types";
 import { AddReactionInput } from "./schema";
 import { logger } from "@/shared/logger";
 import { addReaction } from "@/modules/chat/domain/reactions/redis-helpers";
@@ -11,7 +12,7 @@ import { KeyFactory } from "@/infra/redis/keys";
 
 export const addReactionHandler = async (
   ctx: WSHandlerContext,
-  socket: ChatWebSocket,
+  socket: GenericWebSocket,
   input: AddReactionInput
 ) => {
   const { messageId, emoji, tempId } = input;
@@ -83,7 +84,7 @@ export const addReactionHandler = async (
         await ctx.redis.publish(
           topic,
           JSON.stringify({
-            type: "chat:reaction-added",
+            type: ChatDownstreamEvent.ReactionAdded,
             data: {
               messageId,
               userId,
