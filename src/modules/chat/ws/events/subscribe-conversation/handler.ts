@@ -186,11 +186,9 @@ export const subscribeConversationHandler = async (
 
   // Success Response
   socket.send(
-    JSON.stringify(
-      createSuccessFrame(undefined, "chat:subscribe-success", {
-        conversationId,
-        conversationType,
-      })
-    )
+    createSuccessFrame(undefined, "chat:subscribe-success", {
+      conversationId,
+      conversationType,
+    })
   );
 };
