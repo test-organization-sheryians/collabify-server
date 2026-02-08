@@ -4,6 +4,7 @@ import { UserLoaders } from "../modules/user";
 import { WorkspaceLoaders } from "../modules/workspace";
 import { NotificationLoaders } from "../modules/notification/dataloaders";
 import { ChatLoaders } from "../modules/chat/loaders";
+import { WhiteboardLoaders } from "../modules/whiteboard/dataloaders";
 import { YogaInitialContext } from "graphql-yoga";
 import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
@@ -22,6 +23,7 @@ export interface ApplicationContext {
     notification: NotificationLoaders;
     project: ProjectLoaders;
     chat: ChatLoaders;
+    whiteboard: WhiteboardLoaders;
   };
 }
 

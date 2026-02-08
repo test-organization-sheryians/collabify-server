@@ -12,6 +12,10 @@ import {
   chatTypeDefs,
   chatResolvers,
 } from "../modules/chat";
+import {
+  whiteboardTypeDefs,
+  whiteboardResolvers,
+} from "../modules/whiteboard";
 
 import { ServiceContext } from "./types";
 export const schema = createSchema<ServiceContext>({
@@ -37,6 +41,7 @@ export const schema = createSchema<ServiceContext>({
     notificationTypeDefs,
     projectTypeDefs,
     chatTypeDefs,
+    ...whiteboardTypeDefs,
   ],
   resolvers: [
     {
@@ -51,5 +56,6 @@ export const schema = createSchema<ServiceContext>({
     notificationResolvers,
     projectResolvers,
     chatResolvers,
+    whiteboardResolvers,
   ],
 });

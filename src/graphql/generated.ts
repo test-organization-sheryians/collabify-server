@@ -29,6 +29,22 @@ export type AcceptInviteInput = {
   userId?: InputMaybe<Scalars['String']['input']>;
 };
 
+export type ActiveCollaborator = {
+  __typename?: 'ActiveCollaborator';
+  connectionId: Scalars['ID']['output'];
+  cursorPosition?: Maybe<CursorPosition>;
+  joinedAt: Scalars['DateTime']['output'];
+  lastSeenAt: Scalars['DateTime']['output'];
+  userId: Scalars['ID']['output'];
+};
+
+export type AddBoardCollaboratorsResult = {
+  __typename?: 'AddBoardCollaboratorsResult';
+  addedCount: Scalars['Int']['output'];
+  skippedCount: Scalars['Int']['output'];
+  success: Scalars['Boolean']['output'];
+};
+
 export type AddChannelMembersResult = {
   __typename?: 'AddChannelMembersResult';
   addedCount: Scalars['Int']['output'];
@@ -55,6 +71,27 @@ export type AvailabilityResponse = {
   message?: Maybe<Scalars['String']['output']>;
   reason?: Maybe<Scalars['String']['output']>;
   reservationId?: Maybe<Scalars['String']['output']>;
+};
+
+export type BoardCollaborator = {
+  __typename?: 'BoardCollaborator';
+  joinedAt: Scalars['DateTime']['output'];
+  user: UserBasic;
+  userId: Scalars['ID']['output'];
+};
+
+export type BoardConnection = {
+  __typename?: 'BoardConnection';
+  boards: Array<Whiteboard>;
+  nextCursor?: Maybe<Scalars['ID']['output']>;
+};
+
+export type BoardSnapshot = {
+  __typename?: 'BoardSnapshot';
+  boardId: Scalars['ID']['output'];
+  lastStreamId?: Maybe<Scalars['String']['output']>;
+  snapshot: Scalars['String']['output'];
+  snapshotTimestamp?: Maybe<Scalars['DateTime']['output']>;
 };
 
 export type ChannelAvailabilityResponse = {
@@ -163,6 +200,13 @@ export type ConversationUnreadCount = {
   unreadCount: Scalars['Int']['output'];
 };
 
+export type CreateBoardInput = {
+  description?: InputMaybe<Scalars['String']['input']>;
+  projectId?: InputMaybe<Scalars['ID']['input']>;
+  title: Scalars['String']['input'];
+  workspaceId: Scalars['ID']['input'];
+};
+
 export type CreateChannelInput = {
   memberUserIds?: InputMaybe<Array<Scalars['ID']['input']>>;
   name?: InputMaybe<Scalars['String']['input']>;
@@ -196,6 +240,18 @@ export type CreateThreadInput = {
   messageId: Scalars['ID']['input'];
   projectId: Scalars['ID']['input'];
   workspaceId: Scalars['ID']['input'];
+};
+
+export type CursorPosition = {
+  __typename?: 'CursorPosition';
+  x: Scalars['Float']['output'];
+  y: Scalars['Float']['output'];
+};
+
+export type DeleteBoardResult = {
+  __typename?: 'DeleteBoardResult';
+  boardId: Scalars['ID']['output'];
+  success: Scalars['Boolean']['output'];
 };
 
 export type DeleteChannelResult = {
@@ -305,13 +361,16 @@ export type Mutation = {
   __typename?: 'Mutation';
   _health?: Maybe<Scalars['String']['output']>;
   acceptWorkspaceInvite: JoinResponse;
+  addBoardCollaborators: AddBoardCollaboratorsResult;
   addChannelMembers: AddChannelMembersResult;
   addGroupMembers: AddGroupMembersResult;
+  archiveBoard: Whiteboard;
   archiveChannel: Conversation;
   checkChannelAvailability: ChannelAvailabilityResponse;
   checkProjectSlugAvailability: AvailabilityResponse;
   checkSlugAvailability: AvailabilityResponse;
   closeThread: CloseThreadResult;
+  createBoard: Whiteboard;
   createChannel: Conversation;
   createDm: Conversation;
   createGroup: Conversation;
@@ -319,27 +378,34 @@ export type Mutation = {
   createProject: Project;
   createThread: Conversation;
   createWorkspace: Workspace;
+  deleteBoard: DeleteBoardResult;
   deleteChannel: DeleteChannelResult;
   deleteDm: DeleteDmResult;
   deleteGroup: DeleteGroupResult;
   deleteThread: DeleteThreadResult;
   inviteToWorkspace: InviteResponse;
   leaveGroup: LeaveGroupResult;
+  lockBoard: Whiteboard;
   /** Mark all notifications as read. */
   markAllNotificationsRead: Scalars['Boolean']['output'];
   /** Mark specific notifications as read. */
   markNotificationRead: Scalars['Boolean']['output'];
   muteConversation: MuteConversationResult;
+  removeBoardCollaborator: RemoveBoardCollaboratorResult;
   removeChannelMember: RemoveChannelMemberResult;
   removeGroupMember: RemoveGroupMemberResult;
   removeWorkspaceMember: InviteResponse;
+  renameBoard: Whiteboard;
   renameChannel: Conversation;
   renameGroup: RenameGroupResult;
   reopenThread: ReopenThreadResult;
   subscribeThread: SubscribeThreadResult;
   syncUser: User;
+  unarchiveBoard: Whiteboard;
   unarchiveChannel: UnarchiveChannelResult;
+  unlockBoard: Whiteboard;
   unsubscribeThread: UnsubscribeThreadResult;
+  updateBoardDescription: Whiteboard;
   updateChannelDescription: UpdateChannelDescriptionResult;
   updateChannelVisibility: UpdateChannelVisibilityResult;
   updateWorkspaceMemberRole: WorkspaceMember;
@@ -348,6 +414,12 @@ export type Mutation = {
 
 export type MutationAcceptWorkspaceInviteArgs = {
   input: AcceptInviteInput;
+};
+
+
+export type MutationAddBoardCollaboratorsArgs = {
+  boardId: Scalars['ID']['input'];
+  userIds: Array<Scalars['ID']['input']>;
 };
 
 
@@ -362,6 +434,11 @@ export type MutationAddGroupMembersArgs = {
   groupId: Scalars['ID']['input'];
   userIds: Array<Scalars['ID']['input']>;
   workspaceId: Scalars['ID']['input'];
+};
+
+
+export type MutationArchiveBoardArgs = {
+  boardId: Scalars['ID']['input'];
 };
 
 
@@ -389,6 +466,11 @@ export type MutationCheckSlugAvailabilityArgs = {
 export type MutationCloseThreadArgs = {
   threadId: Scalars['ID']['input'];
   workspaceId: Scalars['ID']['input'];
+};
+
+
+export type MutationCreateBoardArgs = {
+  input: CreateBoardInput;
 };
 
 
@@ -421,6 +503,11 @@ export type MutationCreateThreadArgs = {
 export type MutationCreateWorkspaceArgs = {
   name: Scalars['String']['input'];
   slug: Scalars['String']['input'];
+};
+
+
+export type MutationDeleteBoardArgs = {
+  boardId: Scalars['ID']['input'];
 };
 
 
@@ -459,6 +546,11 @@ export type MutationLeaveGroupArgs = {
 };
 
 
+export type MutationLockBoardArgs = {
+  boardId: Scalars['ID']['input'];
+};
+
+
 export type MutationMarkNotificationReadArgs = {
   ids: Array<Scalars['ID']['input']>;
 };
@@ -467,6 +559,12 @@ export type MutationMarkNotificationReadArgs = {
 export type MutationMuteConversationArgs = {
   conversationId: Scalars['ID']['input'];
   isMuted: Scalars['Boolean']['input'];
+};
+
+
+export type MutationRemoveBoardCollaboratorArgs = {
+  boardId: Scalars['ID']['input'];
+  userId: Scalars['ID']['input'];
 };
 
 
@@ -487,6 +585,12 @@ export type MutationRemoveGroupMemberArgs = {
 export type MutationRemoveWorkspaceMemberArgs = {
   memberId: Scalars['ID']['input'];
   workspaceId: Scalars['ID']['input'];
+};
+
+
+export type MutationRenameBoardArgs = {
+  boardId: Scalars['ID']['input'];
+  title: Scalars['String']['input'];
 };
 
 
@@ -522,14 +626,30 @@ export type MutationSyncUserArgs = {
 };
 
 
+export type MutationUnarchiveBoardArgs = {
+  boardId: Scalars['ID']['input'];
+};
+
+
 export type MutationUnarchiveChannelArgs = {
   channelId: Scalars['ID']['input'];
   workspaceId: Scalars['ID']['input'];
 };
 
 
+export type MutationUnlockBoardArgs = {
+  boardId: Scalars['ID']['input'];
+};
+
+
 export type MutationUnsubscribeThreadArgs = {
   threadId: Scalars['ID']['input'];
+};
+
+
+export type MutationUpdateBoardDescriptionArgs = {
+  boardId: Scalars['ID']['input'];
+  description?: InputMaybe<Scalars['String']['input']>;
 };
 
 
@@ -643,6 +763,10 @@ export type ProjectMember = {
 
 export type Query = {
   __typename?: 'Query';
+  activeCollaborators: Array<ActiveCollaborator>;
+  board?: Maybe<Whiteboard>;
+  boardCollaborators: Array<BoardCollaborator>;
+  boardSnapshot: BoardSnapshot;
   getChannelMembers: Array<ChatMemberRecord>;
   getConversation: Conversation;
   getDmByUsers?: Maybe<DmConversation>;
@@ -667,12 +791,35 @@ export type Query = {
   notifications: NotificationConnection;
   onboardingStatus: OnboardingStatus;
   project?: Maybe<Project>;
+  projectBoards: BoardConnection;
   projectBySlug?: Maybe<Project>;
   reactionUsers: ReactionUsersConnection;
   /** Get count of unread notifications. */
   unreadNotificationCount: Scalars['Int']['output'];
+  userBoards: BoardConnection;
+  workspaceBoards: BoardConnection;
   workspaceBySlug: Workspace;
   workspaceMembers: Array<WorkspaceMember>;
+};
+
+
+export type QueryActiveCollaboratorsArgs = {
+  boardId: Scalars['ID']['input'];
+};
+
+
+export type QueryBoardArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryBoardCollaboratorsArgs = {
+  boardId: Scalars['ID']['input'];
+};
+
+
+export type QueryBoardSnapshotArgs = {
+  boardId: Scalars['ID']['input'];
 };
 
 
@@ -794,6 +941,13 @@ export type QueryProjectArgs = {
 };
 
 
+export type QueryProjectBoardsArgs = {
+  cursor?: InputMaybe<Scalars['ID']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  projectId: Scalars['ID']['input'];
+};
+
+
 export type QueryProjectBySlugArgs = {
   slug: Scalars['String']['input'];
   workspaceId: Scalars['ID']['input'];
@@ -804,6 +958,21 @@ export type QueryReactionUsersArgs = {
   cursor?: InputMaybe<Scalars['Int']['input']>;
   emoji: Scalars['String']['input'];
   messageId: Scalars['ID']['input'];
+};
+
+
+export type QueryUserBoardsArgs = {
+  cursor?: InputMaybe<Scalars['ID']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  workspaceId: Scalars['ID']['input'];
+};
+
+
+export type QueryWorkspaceBoardsArgs = {
+  cursor?: InputMaybe<Scalars['ID']['input']>;
+  includeArchived?: InputMaybe<Scalars['Boolean']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  workspaceId: Scalars['ID']['input'];
 };
 
 
@@ -834,6 +1003,11 @@ export type ReadReceiptsResponse = {
   readBy: Array<ReadReceiptUser>;
   totalMembers: Scalars['Int']['output'];
   totalReads: Scalars['Int']['output'];
+};
+
+export type RemoveBoardCollaboratorResult = {
+  __typename?: 'RemoveBoardCollaboratorResult';
+  success: Scalars['Boolean']['output'];
 };
 
 export type RemoveChannelMemberResult = {
@@ -941,6 +1115,25 @@ export type UserPresence = {
   userId: Scalars['ID']['output'];
 };
 
+export type Whiteboard = {
+  __typename?: 'Whiteboard';
+  collaborators?: Maybe<Array<BoardCollaborator>>;
+  createdAt: Scalars['DateTime']['output'];
+  createdBy: Scalars['ID']['output'];
+  creator: UserBasic;
+  deletedAt?: Maybe<Scalars['DateTime']['output']>;
+  description?: Maybe<Scalars['String']['output']>;
+  elementCount: Scalars['Int']['output'];
+  fileSizeBytes: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  isArchived: Scalars['Boolean']['output'];
+  isLocked: Scalars['Boolean']['output'];
+  projectId?: Maybe<Scalars['ID']['output']>;
+  title: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  workspaceId: Scalars['ID']['output'];
+};
+
 export type Workspace = {
   __typename?: 'Workspace';
   createdAt: Scalars['String']['output'];
@@ -1042,10 +1235,15 @@ export type DirectiveResolverFn<TResult = Record<PropertyKey, never>, TParent = 
 /** Mapping between all available schema types and the resolvers types */
 export type ResolversTypes = ResolversObject<{
   AcceptInviteInput: AcceptInviteInput;
+  ActiveCollaborator: ResolverTypeWrapper<ActiveCollaborator>;
+  AddBoardCollaboratorsResult: ResolverTypeWrapper<AddBoardCollaboratorsResult>;
   AddChannelMembersResult: ResolverTypeWrapper<AddChannelMembersResult>;
   AddGroupMembersResult: ResolverTypeWrapper<AddGroupMembersResult>;
   ArchiveChannelInput: ArchiveChannelInput;
   AvailabilityResponse: ResolverTypeWrapper<AvailabilityResponse>;
+  BoardCollaborator: ResolverTypeWrapper<BoardCollaborator>;
+  BoardConnection: ResolverTypeWrapper<BoardConnection>;
+  BoardSnapshot: ResolverTypeWrapper<BoardSnapshot>;
   Boolean: ResolverTypeWrapper<Scalars['Boolean']['output']>;
   ChannelAvailabilityResponse: ResolverTypeWrapper<ChannelAvailabilityResponse>;
   ChannelMemberInfo: ResolverTypeWrapper<ChannelMemberInfo>;
@@ -1058,18 +1256,22 @@ export type ResolversTypes = ResolversObject<{
   ConversationMember: ResolverTypeWrapper<PrismaChatMember>;
   ConversationType: ConversationType;
   ConversationUnreadCount: ResolverTypeWrapper<ConversationUnreadCount>;
+  CreateBoardInput: CreateBoardInput;
   CreateChannelInput: CreateChannelInput;
   CreateDmInput: CreateDmInput;
   CreateGroupInput: CreateGroupInput;
   CreateProjectInput: CreateProjectInput;
   CreateThreadInput: CreateThreadInput;
+  CursorPosition: ResolverTypeWrapper<CursorPosition>;
   DateTime: ResolverTypeWrapper<Scalars['DateTime']['output']>;
+  DeleteBoardResult: ResolverTypeWrapper<DeleteBoardResult>;
   DeleteChannelResult: ResolverTypeWrapper<DeleteChannelResult>;
   DeleteDmResult: ResolverTypeWrapper<DeleteDmResult>;
   DeleteGroupResult: ResolverTypeWrapper<DeleteGroupResult>;
   DeleteThreadResult: ResolverTypeWrapper<DeleteThreadResult>;
   DmConversation: ResolverTypeWrapper<DmConversation>;
   DmMember: ResolverTypeWrapper<DmMember>;
+  Float: ResolverTypeWrapper<Scalars['Float']['output']>;
   GroupMemberInfo: ResolverTypeWrapper<GroupMemberInfo>;
   HistoryPayload: ResolverTypeWrapper<Omit<HistoryPayload, 'messages'> & { messages: Array<ResolversTypes['ChatMessage']> }>;
   ID: ResolverTypeWrapper<Scalars['ID']['output']>;
@@ -1097,6 +1299,7 @@ export type ResolversTypes = ResolversObject<{
   ReactionUsersConnection: ResolverTypeWrapper<Omit<ReactionUsersConnection, 'users'> & { users: Array<ResolversTypes['User']> }>;
   ReadReceiptUser: ResolverTypeWrapper<ReadReceiptUser>;
   ReadReceiptsResponse: ResolverTypeWrapper<ReadReceiptsResponse>;
+  RemoveBoardCollaboratorResult: ResolverTypeWrapper<RemoveBoardCollaboratorResult>;
   RemoveChannelMemberResult: ResolverTypeWrapper<RemoveChannelMemberResult>;
   RemoveGroupMemberResult: ResolverTypeWrapper<RemoveGroupMemberResult>;
   RenameChannelInput: RenameChannelInput;
@@ -1113,6 +1316,7 @@ export type ResolversTypes = ResolversObject<{
   User: ResolverTypeWrapper<PrismaUser>;
   UserBasic: ResolverTypeWrapper<UserBasic>;
   UserPresence: ResolverTypeWrapper<UserPresence>;
+  Whiteboard: ResolverTypeWrapper<Whiteboard>;
   Workspace: ResolverTypeWrapper<PrismaWorkspace>;
   WorkspaceInviteInfo: ResolverTypeWrapper<WorkspaceInviteInfo>;
   WorkspaceMember: ResolverTypeWrapper<PrismaWorkspaceMember>;
@@ -1121,10 +1325,15 @@ export type ResolversTypes = ResolversObject<{
 /** Mapping between all available schema types and the resolvers parents */
 export type ResolversParentTypes = ResolversObject<{
   AcceptInviteInput: AcceptInviteInput;
+  ActiveCollaborator: ActiveCollaborator;
+  AddBoardCollaboratorsResult: AddBoardCollaboratorsResult;
   AddChannelMembersResult: AddChannelMembersResult;
   AddGroupMembersResult: AddGroupMembersResult;
   ArchiveChannelInput: ArchiveChannelInput;
   AvailabilityResponse: AvailabilityResponse;
+  BoardCollaborator: BoardCollaborator;
+  BoardConnection: BoardConnection;
+  BoardSnapshot: BoardSnapshot;
   Boolean: Scalars['Boolean']['output'];
   ChannelAvailabilityResponse: ChannelAvailabilityResponse;
   ChannelMemberInfo: ChannelMemberInfo;
@@ -1136,18 +1345,22 @@ export type ResolversParentTypes = ResolversObject<{
   ConversationConnection: Omit<ConversationConnection, 'edges'> & { edges: Array<ResolversParentTypes['Conversation']> };
   ConversationMember: PrismaChatMember;
   ConversationUnreadCount: ConversationUnreadCount;
+  CreateBoardInput: CreateBoardInput;
   CreateChannelInput: CreateChannelInput;
   CreateDmInput: CreateDmInput;
   CreateGroupInput: CreateGroupInput;
   CreateProjectInput: CreateProjectInput;
   CreateThreadInput: CreateThreadInput;
+  CursorPosition: CursorPosition;
   DateTime: Scalars['DateTime']['output'];
+  DeleteBoardResult: DeleteBoardResult;
   DeleteChannelResult: DeleteChannelResult;
   DeleteDmResult: DeleteDmResult;
   DeleteGroupResult: DeleteGroupResult;
   DeleteThreadResult: DeleteThreadResult;
   DmConversation: DmConversation;
   DmMember: DmMember;
+  Float: Scalars['Float']['output'];
   GroupMemberInfo: GroupMemberInfo;
   HistoryPayload: Omit<HistoryPayload, 'messages'> & { messages: Array<ResolversParentTypes['ChatMessage']> };
   ID: Scalars['ID']['output'];
@@ -1174,6 +1387,7 @@ export type ResolversParentTypes = ResolversObject<{
   ReactionUsersConnection: Omit<ReactionUsersConnection, 'users'> & { users: Array<ResolversParentTypes['User']> };
   ReadReceiptUser: ReadReceiptUser;
   ReadReceiptsResponse: ReadReceiptsResponse;
+  RemoveBoardCollaboratorResult: RemoveBoardCollaboratorResult;
   RemoveChannelMemberResult: RemoveChannelMemberResult;
   RemoveGroupMemberResult: RemoveGroupMemberResult;
   RenameChannelInput: RenameChannelInput;
@@ -1190,9 +1404,24 @@ export type ResolversParentTypes = ResolversObject<{
   User: PrismaUser;
   UserBasic: UserBasic;
   UserPresence: UserPresence;
+  Whiteboard: Whiteboard;
   Workspace: PrismaWorkspace;
   WorkspaceInviteInfo: WorkspaceInviteInfo;
   WorkspaceMember: PrismaWorkspaceMember;
+}>;
+
+export type ActiveCollaboratorResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ActiveCollaborator'] = ResolversParentTypes['ActiveCollaborator']> = ResolversObject<{
+  connectionId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  cursorPosition?: Resolver<Maybe<ResolversTypes['CursorPosition']>, ParentType, ContextType>;
+  joinedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  lastSeenAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  userId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+}>;
+
+export type AddBoardCollaboratorsResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['AddBoardCollaboratorsResult'] = ResolversParentTypes['AddBoardCollaboratorsResult']> = ResolversObject<{
+  addedCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  skippedCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  success?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
 }>;
 
 export type AddChannelMembersResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['AddChannelMembersResult'] = ResolversParentTypes['AddChannelMembersResult']> = ResolversObject<{
@@ -1214,6 +1443,24 @@ export type AvailabilityResponseResolvers<ContextType = ServiceContext, ParentTy
   message?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   reason?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   reservationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+}>;
+
+export type BoardCollaboratorResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['BoardCollaborator'] = ResolversParentTypes['BoardCollaborator']> = ResolversObject<{
+  joinedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  user?: Resolver<ResolversTypes['UserBasic'], ParentType, ContextType>;
+  userId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+}>;
+
+export type BoardConnectionResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['BoardConnection'] = ResolversParentTypes['BoardConnection']> = ResolversObject<{
+  boards?: Resolver<Array<ResolversTypes['Whiteboard']>, ParentType, ContextType>;
+  nextCursor?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
+}>;
+
+export type BoardSnapshotResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['BoardSnapshot'] = ResolversParentTypes['BoardSnapshot']> = ResolversObject<{
+  boardId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  lastStreamId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  snapshot?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  snapshotTimestamp?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
 }>;
 
 export type ChannelAvailabilityResponseResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ChannelAvailabilityResponse'] = ResolversParentTypes['ChannelAvailabilityResponse']> = ResolversObject<{
@@ -1301,9 +1548,19 @@ export type ConversationUnreadCountResolvers<ContextType = ServiceContext, Paren
   unreadCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
 }>;
 
+export type CursorPositionResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['CursorPosition'] = ResolversParentTypes['CursorPosition']> = ResolversObject<{
+  x?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+  y?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+}>;
+
 export interface DateTimeScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes['DateTime'], any> {
   name: 'DateTime';
 }
+
+export type DeleteBoardResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['DeleteBoardResult'] = ResolversParentTypes['DeleteBoardResult']> = ResolversObject<{
+  boardId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  success?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+}>;
 
 export type DeleteChannelResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['DeleteChannelResult'] = ResolversParentTypes['DeleteChannelResult']> = ResolversObject<{
   channelId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
@@ -1396,13 +1653,16 @@ export type MessagesDeltaResolvers<ContextType = ServiceContext, ParentType exte
 export type MutationResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Mutation'] = ResolversParentTypes['Mutation']> = ResolversObject<{
   _health?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   acceptWorkspaceInvite?: Resolver<ResolversTypes['JoinResponse'], ParentType, ContextType, RequireFields<MutationAcceptWorkspaceInviteArgs, 'input'>>;
+  addBoardCollaborators?: Resolver<ResolversTypes['AddBoardCollaboratorsResult'], ParentType, ContextType, RequireFields<MutationAddBoardCollaboratorsArgs, 'boardId' | 'userIds'>>;
   addChannelMembers?: Resolver<ResolversTypes['AddChannelMembersResult'], ParentType, ContextType, RequireFields<MutationAddChannelMembersArgs, 'channelId' | 'userIds' | 'workspaceId'>>;
   addGroupMembers?: Resolver<ResolversTypes['AddGroupMembersResult'], ParentType, ContextType, RequireFields<MutationAddGroupMembersArgs, 'groupId' | 'userIds' | 'workspaceId'>>;
+  archiveBoard?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType, RequireFields<MutationArchiveBoardArgs, 'boardId'>>;
   archiveChannel?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<MutationArchiveChannelArgs, 'input'>>;
   checkChannelAvailability?: Resolver<ResolversTypes['ChannelAvailabilityResponse'], ParentType, ContextType, RequireFields<MutationCheckChannelAvailabilityArgs, 'input'>>;
   checkProjectSlugAvailability?: Resolver<ResolversTypes['AvailabilityResponse'], ParentType, ContextType, RequireFields<MutationCheckProjectSlugAvailabilityArgs, 'slug' | 'workspaceId'>>;
   checkSlugAvailability?: Resolver<ResolversTypes['AvailabilityResponse'], ParentType, ContextType, RequireFields<MutationCheckSlugAvailabilityArgs, 'slug'>>;
   closeThread?: Resolver<ResolversTypes['CloseThreadResult'], ParentType, ContextType, RequireFields<MutationCloseThreadArgs, 'threadId' | 'workspaceId'>>;
+  createBoard?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType, RequireFields<MutationCreateBoardArgs, 'input'>>;
   createChannel?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<MutationCreateChannelArgs, 'input'>>;
   createDm?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<MutationCreateDmArgs, 'input'>>;
   createGroup?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<MutationCreateGroupArgs, 'input'>>;
@@ -1410,25 +1670,32 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   createProject?: Resolver<ResolversTypes['Project'], ParentType, ContextType, RequireFields<MutationCreateProjectArgs, 'input' | 'workspaceId'>>;
   createThread?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<MutationCreateThreadArgs, 'input'>>;
   createWorkspace?: Resolver<ResolversTypes['Workspace'], ParentType, ContextType, RequireFields<MutationCreateWorkspaceArgs, 'name' | 'slug'>>;
+  deleteBoard?: Resolver<ResolversTypes['DeleteBoardResult'], ParentType, ContextType, RequireFields<MutationDeleteBoardArgs, 'boardId'>>;
   deleteChannel?: Resolver<ResolversTypes['DeleteChannelResult'], ParentType, ContextType, RequireFields<MutationDeleteChannelArgs, 'channelId' | 'workspaceId'>>;
   deleteDm?: Resolver<ResolversTypes['DeleteDmResult'], ParentType, ContextType, RequireFields<MutationDeleteDmArgs, 'dmId' | 'workspaceId'>>;
   deleteGroup?: Resolver<ResolversTypes['DeleteGroupResult'], ParentType, ContextType, RequireFields<MutationDeleteGroupArgs, 'groupId' | 'workspaceId'>>;
   deleteThread?: Resolver<ResolversTypes['DeleteThreadResult'], ParentType, ContextType, RequireFields<MutationDeleteThreadArgs, 'threadId' | 'workspaceId'>>;
   inviteToWorkspace?: Resolver<ResolversTypes['InviteResponse'], ParentType, ContextType, RequireFields<MutationInviteToWorkspaceArgs, 'input'>>;
   leaveGroup?: Resolver<ResolversTypes['LeaveGroupResult'], ParentType, ContextType, RequireFields<MutationLeaveGroupArgs, 'groupId' | 'workspaceId'>>;
+  lockBoard?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType, RequireFields<MutationLockBoardArgs, 'boardId'>>;
   markAllNotificationsRead?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   markNotificationRead?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationMarkNotificationReadArgs, 'ids'>>;
   muteConversation?: Resolver<ResolversTypes['MuteConversationResult'], ParentType, ContextType, RequireFields<MutationMuteConversationArgs, 'conversationId' | 'isMuted'>>;
+  removeBoardCollaborator?: Resolver<ResolversTypes['RemoveBoardCollaboratorResult'], ParentType, ContextType, RequireFields<MutationRemoveBoardCollaboratorArgs, 'boardId' | 'userId'>>;
   removeChannelMember?: Resolver<ResolversTypes['RemoveChannelMemberResult'], ParentType, ContextType, RequireFields<MutationRemoveChannelMemberArgs, 'channelId' | 'userId' | 'workspaceId'>>;
   removeGroupMember?: Resolver<ResolversTypes['RemoveGroupMemberResult'], ParentType, ContextType, RequireFields<MutationRemoveGroupMemberArgs, 'groupId' | 'userId' | 'workspaceId'>>;
   removeWorkspaceMember?: Resolver<ResolversTypes['InviteResponse'], ParentType, ContextType, RequireFields<MutationRemoveWorkspaceMemberArgs, 'memberId' | 'workspaceId'>>;
+  renameBoard?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType, RequireFields<MutationRenameBoardArgs, 'boardId' | 'title'>>;
   renameChannel?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<MutationRenameChannelArgs, 'input'>>;
   renameGroup?: Resolver<ResolversTypes['RenameGroupResult'], ParentType, ContextType, RequireFields<MutationRenameGroupArgs, 'groupId' | 'name' | 'workspaceId'>>;
   reopenThread?: Resolver<ResolversTypes['ReopenThreadResult'], ParentType, ContextType, RequireFields<MutationReopenThreadArgs, 'threadId' | 'workspaceId'>>;
   subscribeThread?: Resolver<ResolversTypes['SubscribeThreadResult'], ParentType, ContextType, RequireFields<MutationSubscribeThreadArgs, 'threadId'>>;
   syncUser?: Resolver<ResolversTypes['User'], ParentType, ContextType, RequireFields<MutationSyncUserArgs, 'clerkId' | 'email'>>;
+  unarchiveBoard?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType, RequireFields<MutationUnarchiveBoardArgs, 'boardId'>>;
   unarchiveChannel?: Resolver<ResolversTypes['UnarchiveChannelResult'], ParentType, ContextType, RequireFields<MutationUnarchiveChannelArgs, 'channelId' | 'workspaceId'>>;
+  unlockBoard?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType, RequireFields<MutationUnlockBoardArgs, 'boardId'>>;
   unsubscribeThread?: Resolver<ResolversTypes['UnsubscribeThreadResult'], ParentType, ContextType, RequireFields<MutationUnsubscribeThreadArgs, 'threadId'>>;
+  updateBoardDescription?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType, RequireFields<MutationUpdateBoardDescriptionArgs, 'boardId'>>;
   updateChannelDescription?: Resolver<ResolversTypes['UpdateChannelDescriptionResult'], ParentType, ContextType, RequireFields<MutationUpdateChannelDescriptionArgs, 'channelId' | 'workspaceId'>>;
   updateChannelVisibility?: Resolver<ResolversTypes['UpdateChannelVisibilityResult'], ParentType, ContextType, RequireFields<MutationUpdateChannelVisibilityArgs, 'channelId' | 'isPublic' | 'workspaceId'>>;
   updateWorkspaceMemberRole?: Resolver<ResolversTypes['WorkspaceMember'], ParentType, ContextType, RequireFields<MutationUpdateWorkspaceMemberRoleArgs, 'memberId' | 'role' | 'workspaceId'>>;
@@ -1508,6 +1775,10 @@ export type ProjectMemberResolvers<ContextType = ServiceContext, ParentType exte
 }>;
 
 export type QueryResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Query'] = ResolversParentTypes['Query']> = ResolversObject<{
+  activeCollaborators?: Resolver<Array<ResolversTypes['ActiveCollaborator']>, ParentType, ContextType, RequireFields<QueryActiveCollaboratorsArgs, 'boardId'>>;
+  board?: Resolver<Maybe<ResolversTypes['Whiteboard']>, ParentType, ContextType, RequireFields<QueryBoardArgs, 'id'>>;
+  boardCollaborators?: Resolver<Array<ResolversTypes['BoardCollaborator']>, ParentType, ContextType, RequireFields<QueryBoardCollaboratorsArgs, 'boardId'>>;
+  boardSnapshot?: Resolver<ResolversTypes['BoardSnapshot'], ParentType, ContextType, RequireFields<QueryBoardSnapshotArgs, 'boardId'>>;
   getChannelMembers?: Resolver<Array<ResolversTypes['ChatMemberRecord']>, ParentType, ContextType, RequireFields<QueryGetChannelMembersArgs, 'channelId'>>;
   getConversation?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<QueryGetConversationArgs, 'conversationId'>>;
   getDmByUsers?: Resolver<Maybe<ResolversTypes['DmConversation']>, ParentType, ContextType, RequireFields<QueryGetDmByUsersArgs, 'otherUserId' | 'projectId' | 'workspaceId'>>;
@@ -1531,9 +1802,12 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   notifications?: Resolver<ResolversTypes['NotificationConnection'], ParentType, ContextType, Partial<QueryNotificationsArgs>>;
   onboardingStatus?: Resolver<ResolversTypes['OnboardingStatus'], ParentType, ContextType>;
   project?: Resolver<Maybe<ResolversTypes['Project']>, ParentType, ContextType, RequireFields<QueryProjectArgs, 'id'>>;
+  projectBoards?: Resolver<ResolversTypes['BoardConnection'], ParentType, ContextType, RequireFields<QueryProjectBoardsArgs, 'projectId'>>;
   projectBySlug?: Resolver<Maybe<ResolversTypes['Project']>, ParentType, ContextType, RequireFields<QueryProjectBySlugArgs, 'slug' | 'workspaceId'>>;
   reactionUsers?: Resolver<ResolversTypes['ReactionUsersConnection'], ParentType, ContextType, RequireFields<QueryReactionUsersArgs, 'emoji' | 'messageId'>>;
   unreadNotificationCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  userBoards?: Resolver<ResolversTypes['BoardConnection'], ParentType, ContextType, RequireFields<QueryUserBoardsArgs, 'workspaceId'>>;
+  workspaceBoards?: Resolver<ResolversTypes['BoardConnection'], ParentType, ContextType, RequireFields<QueryWorkspaceBoardsArgs, 'workspaceId'>>;
   workspaceBySlug?: Resolver<ResolversTypes['Workspace'], ParentType, ContextType, RequireFields<QueryWorkspaceBySlugArgs, 'slug'>>;
   workspaceMembers?: Resolver<Array<ResolversTypes['WorkspaceMember']>, ParentType, ContextType, RequireFields<QueryWorkspaceMembersArgs, 'workspaceId'>>;
 }>;
@@ -1553,6 +1827,10 @@ export type ReadReceiptsResponseResolvers<ContextType = ServiceContext, ParentTy
   readBy?: Resolver<Array<ResolversTypes['ReadReceiptUser']>, ParentType, ContextType>;
   totalMembers?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   totalReads?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+}>;
+
+export type RemoveBoardCollaboratorResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['RemoveBoardCollaboratorResult'] = ResolversParentTypes['RemoveBoardCollaboratorResult']> = ResolversObject<{
+  success?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
 }>;
 
 export type RemoveChannelMemberResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['RemoveChannelMemberResult'] = ResolversParentTypes['RemoveChannelMemberResult']> = ResolversObject<{
@@ -1641,6 +1919,24 @@ export type UserPresenceResolvers<ContextType = ServiceContext, ParentType exten
   userId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
 }>;
 
+export type WhiteboardResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Whiteboard'] = ResolversParentTypes['Whiteboard']> = ResolversObject<{
+  collaborators?: Resolver<Maybe<Array<ResolversTypes['BoardCollaborator']>>, ParentType, ContextType>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  createdBy?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  creator?: Resolver<ResolversTypes['UserBasic'], ParentType, ContextType>;
+  deletedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  elementCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  fileSizeBytes?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  isArchived?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  isLocked?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  projectId?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
+  title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  workspaceId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+}>;
+
 export type WorkspaceResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Workspace'] = ResolversParentTypes['Workspace']> = ResolversObject<{
   createdAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   domainWhitelist?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
@@ -1665,9 +1961,14 @@ export type WorkspaceMemberResolvers<ContextType = ServiceContext, ParentType ex
 }>;
 
 export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
+  ActiveCollaborator?: ActiveCollaboratorResolvers<ContextType>;
+  AddBoardCollaboratorsResult?: AddBoardCollaboratorsResultResolvers<ContextType>;
   AddChannelMembersResult?: AddChannelMembersResultResolvers<ContextType>;
   AddGroupMembersResult?: AddGroupMembersResultResolvers<ContextType>;
   AvailabilityResponse?: AvailabilityResponseResolvers<ContextType>;
+  BoardCollaborator?: BoardCollaboratorResolvers<ContextType>;
+  BoardConnection?: BoardConnectionResolvers<ContextType>;
+  BoardSnapshot?: BoardSnapshotResolvers<ContextType>;
   ChannelAvailabilityResponse?: ChannelAvailabilityResponseResolvers<ContextType>;
   ChannelMemberInfo?: ChannelMemberInfoResolvers<ContextType>;
   ChatMemberRecord?: ChatMemberRecordResolvers<ContextType>;
@@ -1677,7 +1978,9 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   ConversationConnection?: ConversationConnectionResolvers<ContextType>;
   ConversationMember?: ConversationMemberResolvers<ContextType>;
   ConversationUnreadCount?: ConversationUnreadCountResolvers<ContextType>;
+  CursorPosition?: CursorPositionResolvers<ContextType>;
   DateTime?: GraphQLScalarType;
+  DeleteBoardResult?: DeleteBoardResultResolvers<ContextType>;
   DeleteChannelResult?: DeleteChannelResultResolvers<ContextType>;
   DeleteDmResult?: DeleteDmResultResolvers<ContextType>;
   DeleteGroupResult?: DeleteGroupResultResolvers<ContextType>;
@@ -1707,6 +2010,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   ReactionUsersConnection?: ReactionUsersConnectionResolvers<ContextType>;
   ReadReceiptUser?: ReadReceiptUserResolvers<ContextType>;
   ReadReceiptsResponse?: ReadReceiptsResponseResolvers<ContextType>;
+  RemoveBoardCollaboratorResult?: RemoveBoardCollaboratorResultResolvers<ContextType>;
   RemoveChannelMemberResult?: RemoveChannelMemberResultResolvers<ContextType>;
   RemoveGroupMemberResult?: RemoveGroupMemberResultResolvers<ContextType>;
   RenameGroupResult?: RenameGroupResultResolvers<ContextType>;
@@ -1721,6 +2025,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   User?: UserResolvers<ContextType>;
   UserBasic?: UserBasicResolvers<ContextType>;
   UserPresence?: UserPresenceResolvers<ContextType>;
+  Whiteboard?: WhiteboardResolvers<ContextType>;
   Workspace?: WorkspaceResolvers<ContextType>;
   WorkspaceInviteInfo?: WorkspaceInviteInfoResolvers<ContextType>;
   WorkspaceMember?: WorkspaceMemberResolvers<ContextType>;
