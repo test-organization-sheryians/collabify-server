@@ -1,5 +1,6 @@
 import { wsRouter } from "./router";
 import { chatWSRoutes } from "../../modules/chat/ws/router";
+import { whiteboardWSRoutes } from "../../modules/whiteboard/ws/router";
 
 /**
  * Global WebSocket Route Registration
@@ -9,5 +10,6 @@ import { chatWSRoutes } from "../../modules/chat/ws/router";
 
 export const registerGlobalWSRoutes = () => {
   wsRouter.registerModule("chat", chatWSRoutes);
+  wsRouter.registerModule("whiteboard", whiteboardWSRoutes);
   // Future: wsRouter.registerModule("notifications", notifRoutes);
 };
