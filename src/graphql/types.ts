@@ -4,10 +4,11 @@ import { UserLoaders } from "../modules/user";
 import { WorkspaceLoaders } from "../modules/workspace";
 import { NotificationLoaders } from "../modules/notification/dataloaders";
 import { ChatLoaders } from "../modules/chat/loaders";
-import { WhiteboardLoaders } from "../modules/whiteboard/dataloaders";
+import { WhiteboardLoaders } from "../modules/whiteboard/loaders";
 import { YogaInitialContext } from "graphql-yoga";
 import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
+import { S3Client } from "@aws-sdk/client-s3";
 
 export interface ApplicationContext {
   c: HonoContext;
@@ -17,6 +18,7 @@ export interface ApplicationContext {
   };
   db: PrismaClient;
   redis: Redis;
+  s3: S3Client;
   dataloaders: {
     user: UserLoaders;
     workspace: WorkspaceLoaders;

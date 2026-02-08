@@ -4,62 +4,73 @@
  * Wrapper around AWS S3 SDK for snapshot operations
  */
 
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { s3Client } from "@/infra/aws/s3";
+import { env } from "@/shared/config/env";
+import { logger } from "@/shared/logger";
+
 export type S3SnapshotMetadata = {
   boardId: string;
   streamId: string;
-  timestamp: string;
+  timestamp: number;
+  elementCount: number;
+};
+
+/**
+ * Generate S3 key for board snapshot
+ * Format: boards/{boardId}/snapshots/{timestamp}.yjs
+ */
+export const generateSnapshotKey = (
+  boardId: string,
+  timestamp: number
+): string => {
+  return `boards/${boardId}/snapshots/${timestamp}.yjs`;
 };
 
 /**
  * Upload snapshot to S3
  */
 export const uploadSnapshot = async (
-  s3Key: string,
+  boardId: string,
   binary: Uint8Array,
   metadata: S3SnapshotMetadata
-): Promise<void> => {
-  // TODO: V4 Architecture - S3 Upload
-  // ============================================
-  //
-  // STEP 1: Initialize S3 Client
-  // ----------------------------
-  // import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-  // const s3 = new S3Client({ region: env.AWS_REGION });
-  //
-  // STEP 2: Prepare Upload Command
-  // ------------------------------
-  // const command = new PutObjectCommand({
-  //   Bucket: env.S3_WHITEBOARD_BUCKET,
-  //   Key: s3Key,
-  //   Body: binary,
-  //   ContentType: "application/octet-stream",
-  //   Metadata: {
-  //     boardId: metadata.boardId,
-  //     streamId: metadata.streamId,
-  //     timestamp: metadata.timestamp,
-  //   },
-  //   StorageClass: "STANDARD", // Can use GLACIER for old snapshots
-  // });
-  //
-  // STEP 3: Upload with Retries
-  // ---------------------------
-  // - Try upload with exponential backoff
-  // - Retry up to 3 times on transient failures
-  // - await s3.send(command);
-  //
-  // STEP 4: Verify Upload
-  // --------------------
-  // - Optional: HeadObjectCommand to verify existence
-  // - Verify size matches original binary
-  //
-  // ERROR HANDLING:
-  // - Network failure → retry
-  // - Quota exceeded → throw "STORAGE_QUOTA_EXCEEDED"
-  // - Invalid credentials → throw "S3_AUTH_FAILED"
-  //
-  // ============================================
+): Promise<string> => {
+  const s3Key = generateSnapshotKey(boardId, metadata.timestamp);
 
-  throw new Error("TODO: Implement uploadSnapshot");
+  try {
+    const command = new PutObjectCommand({
+      Bucket: env.S3_WHITEBOARD_BUCKET,
+      Key: s3Key,
+      Body: binary,
+      ContentType: "application/octet-stream",
+      Metadata: {
+        boardId: metadata.boardId,
+        streamId: metadata.streamId,
+        timestamp: metadata.timestamp.toString(),
+        elementCount: metadata.elementCount.toString(),
+      },
+      StorageClass: "STANDARD",
+    });
+
+    await s3Client.send(command);
+
+    logger.info({
+      msg: "Snapshot uploaded to S3",
+      boardId,
+      s3Key,
+      sizeBytes: binary.byteLength,
+    });
+
+    return s3Key;
+  } catch (error) {
+    logger.error({
+      err: error,
+      msg: "Failed to upload snapshot to S3",
+      boardId,
+      s3Key,
+    });
+    throw error;
+  }
 };
 
 /**

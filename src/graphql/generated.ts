@@ -86,6 +86,13 @@ export type BoardConnection = {
   nextCursor?: Maybe<Scalars['ID']['output']>;
 };
 
+export type BoardPayload = {
+  __typename?: 'BoardPayload';
+  /** Collaborators that were successfully added (may be fewer than requested if some failed validation) */
+  addedCollaborators: Array<BoardCollaborator>;
+  board: Whiteboard;
+};
+
 export type BoardSnapshot = {
   __typename?: 'BoardSnapshot';
   boardId: Scalars['ID']['output'];
@@ -201,6 +208,8 @@ export type ConversationUnreadCount = {
 };
 
 export type CreateBoardInput = {
+  /** Optional: Add workspace members as collaborators during board creation */
+  collaboratorIds?: InputMaybe<Array<Scalars['ID']['input']>>;
   description?: InputMaybe<Scalars['String']['input']>;
   projectId?: InputMaybe<Scalars['ID']['input']>;
   title: Scalars['String']['input'];
@@ -370,7 +379,7 @@ export type Mutation = {
   checkProjectSlugAvailability: AvailabilityResponse;
   checkSlugAvailability: AvailabilityResponse;
   closeThread: CloseThreadResult;
-  createBoard: Whiteboard;
+  createBoard: BoardPayload;
   createChannel: Conversation;
   createDm: Conversation;
   createGroup: Conversation;
@@ -1243,6 +1252,7 @@ export type ResolversTypes = ResolversObject<{
   AvailabilityResponse: ResolverTypeWrapper<AvailabilityResponse>;
   BoardCollaborator: ResolverTypeWrapper<BoardCollaborator>;
   BoardConnection: ResolverTypeWrapper<BoardConnection>;
+  BoardPayload: ResolverTypeWrapper<BoardPayload>;
   BoardSnapshot: ResolverTypeWrapper<BoardSnapshot>;
   Boolean: ResolverTypeWrapper<Scalars['Boolean']['output']>;
   ChannelAvailabilityResponse: ResolverTypeWrapper<ChannelAvailabilityResponse>;
@@ -1333,6 +1343,7 @@ export type ResolversParentTypes = ResolversObject<{
   AvailabilityResponse: AvailabilityResponse;
   BoardCollaborator: BoardCollaborator;
   BoardConnection: BoardConnection;
+  BoardPayload: BoardPayload;
   BoardSnapshot: BoardSnapshot;
   Boolean: Scalars['Boolean']['output'];
   ChannelAvailabilityResponse: ChannelAvailabilityResponse;
@@ -1454,6 +1465,11 @@ export type BoardCollaboratorResolvers<ContextType = ServiceContext, ParentType 
 export type BoardConnectionResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['BoardConnection'] = ResolversParentTypes['BoardConnection']> = ResolversObject<{
   boards?: Resolver<Array<ResolversTypes['Whiteboard']>, ParentType, ContextType>;
   nextCursor?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
+}>;
+
+export type BoardPayloadResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['BoardPayload'] = ResolversParentTypes['BoardPayload']> = ResolversObject<{
+  addedCollaborators?: Resolver<Array<ResolversTypes['BoardCollaborator']>, ParentType, ContextType>;
+  board?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType>;
 }>;
 
 export type BoardSnapshotResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['BoardSnapshot'] = ResolversParentTypes['BoardSnapshot']> = ResolversObject<{
@@ -1662,7 +1678,7 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   checkProjectSlugAvailability?: Resolver<ResolversTypes['AvailabilityResponse'], ParentType, ContextType, RequireFields<MutationCheckProjectSlugAvailabilityArgs, 'slug' | 'workspaceId'>>;
   checkSlugAvailability?: Resolver<ResolversTypes['AvailabilityResponse'], ParentType, ContextType, RequireFields<MutationCheckSlugAvailabilityArgs, 'slug'>>;
   closeThread?: Resolver<ResolversTypes['CloseThreadResult'], ParentType, ContextType, RequireFields<MutationCloseThreadArgs, 'threadId' | 'workspaceId'>>;
-  createBoard?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType, RequireFields<MutationCreateBoardArgs, 'input'>>;
+  createBoard?: Resolver<ResolversTypes['BoardPayload'], ParentType, ContextType, RequireFields<MutationCreateBoardArgs, 'input'>>;
   createChannel?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<MutationCreateChannelArgs, 'input'>>;
   createDm?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<MutationCreateDmArgs, 'input'>>;
   createGroup?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<MutationCreateGroupArgs, 'input'>>;
@@ -1968,6 +1984,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   AvailabilityResponse?: AvailabilityResponseResolvers<ContextType>;
   BoardCollaborator?: BoardCollaboratorResolvers<ContextType>;
   BoardConnection?: BoardConnectionResolvers<ContextType>;
+  BoardPayload?: BoardPayloadResolvers<ContextType>;
   BoardSnapshot?: BoardSnapshotResolvers<ContextType>;
   ChannelAvailabilityResponse?: ChannelAvailabilityResponseResolvers<ContextType>;
   ChannelMemberInfo?: ChannelMemberInfoResolvers<ContextType>;

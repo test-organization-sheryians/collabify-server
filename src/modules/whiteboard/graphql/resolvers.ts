@@ -63,8 +63,20 @@ export const resolvers: Resolvers = {
     createBoard: async (_, args, ctx) => {
       await requireUser(ctx);
       const input = services.createBoard.createBoardSchema.parse(args.input);
-      const prismaBoard = await services.createBoard.handler(input, ctx);
-      return toGraphQLWhiteboard(prismaBoard);
+      const result = await services.createBoard.handler(input, ctx);
+      return {
+        board: toGraphQLWhiteboard(result.board),
+        addedCollaborators: result.addedCollaborators.map((collab) => ({
+          userId: collab.userId,
+          joinedAt: collab.joinedAt,
+          user: {
+            id: collab.user.id,
+            fullName: collab.user.fullName ?? "",
+            email: collab.user.email ?? "",
+            avatarUrl: collab.user.avatarUrl,
+          },
+        })),
+      };
     },
     deleteBoard: async (_, args, ctx) => {
       await requireUser(ctx);

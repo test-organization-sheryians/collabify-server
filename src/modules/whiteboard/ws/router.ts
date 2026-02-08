@@ -6,11 +6,13 @@ import { cursorMove } from "./events/cursor-move";
 import { selectionChange } from "./events/selection-change";
 import { pointerDown } from "./events/pointer-down";
 import { pointerUp } from "./events/pointer-up";
-import { requestSnapshot } from "./events/request-snapshot";
 
 /**
  * Whiteboard WebSocket Route Map
  * Maps event names to their handlers
+ *
+ * NOTE: Snapshot data is fetched via GraphQL query `getBoardSnapshot`,
+ * not through WebSocket events.
  */
 export const whiteboardWSRoutes: RouteMap = {
   // Session Management
@@ -25,7 +27,4 @@ export const whiteboardWSRoutes: RouteMap = {
   "whiteboard:selection-change": selectionChange,
   "whiteboard:pointer-down": pointerDown,
   "whiteboard:pointer-up": pointerUp,
-
-  // Recovery
-  "whiteboard:request-snapshot": requestSnapshot,
 };

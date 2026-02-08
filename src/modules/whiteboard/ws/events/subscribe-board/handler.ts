@@ -1,125 +1,316 @@
 import { WSHandlerContext } from "@/infra/ws/types";
-import {
-  ChatWebSocket,
-  createSuccessFrame,
-  createErrorFrame,
-} from "@/infra/ws/types";
+import { ChatWebSocket, createSuccessFrame } from "@/infra/ws/types";
 import { SubscribeBoardInput } from "./schema";
+import { wsRegistry } from "@/infra/ws/subscription-registry";
 import { logger } from "@/shared/logger";
+import { WhiteboardKeys } from "@/modules/whiteboard/infra/whiteboard-keys";
+import { appRedis } from "@/infra/redis";
+import {
+  executePresenceTracking,
+  executeBoardActivation,
+} from "@/modules/whiteboard/infra/lua-scripts";
 
 /**
- * Subscribe Board Handler
+ * Subscribe Board Handler (V4 Snapshot-Primary Architecture)
  *
- * User joins a whiteboard session and receives initial state
+ * DESIGN PHILOSOPHY:
+ * - Gateway is stateless (I-5): No S3, no Y.Doc, no state merging
+ * - Separation of concerns: GraphQL owns state fetching, WebSocket owns real-time
+ * - Client must fetch snapshot via GraphQL BEFORE subscribing
+ * - This handler ONLY manages: presence tracking + pub/sub subscriptions
+ *
+ * ARCHITECTURAL DECISION:
+ * V4 removed hot replay from WebSocket layer because:
+ * 1. Stream IDs not safely comparable (lexicographic "9-0" > "10-0" bug)
+ * 2. Streams can be trimmed (snapshot-aware), causing gap detection failures
+ * 3. GraphQL state vector sync is CRDT-correct and handles all gap scenarios
+ * 4. Keeps gateway horizontally scalable (no S3/Y.Doc dependencies)
+ *
+ * PERFORMANCE OPTIMIZATION:
+ * - Uses Lua scripts for atomic Redis operations (5 RTTs → 1 RTT)
+ * - Eliminates race conditions in presence tracking
  */
 export const subscribeBoardHandler = async (
   ctx: WSHandlerContext,
   socket: ChatWebSocket,
   input: SubscribeBoardInput
 ) => {
-  const { boardId, stateVector } = input;
-  const { userId } = socket.data;
+  const { boardId } = input;
+  const { userId, socketId } = socket.data;
 
-  logger.info({
-    msg: "Processing Subscribe Board",
-    userId,
-    boardId,
+  // ==========================================
+  // Authorization: Verify Collaborator Status
+  // ==========================================
+
+  const collaborator = await ctx.db.whiteboardCollaborator.findFirst({
+    where: {
+      whiteboardId: boardId,
+      userId,
+    },
+    select: {
+      id: true,
+      whiteboard: {
+        select: {
+          id: true,
+          deletedAt: true,
+          isArchived: true,
+          isLocked: true,
+        },
+      },
+    },
   });
 
-  try {
-    // TODO: V4 Architecture - Subscribe Board
-    // ============================================
-    //
-    // STEP 1: Authorization Check
-    // ---------------------------
-    // - Validate user is a collaborator on this board
-    // - Query: WhiteboardCollaborator.findFirst({ where: { userId, whiteboardId: boardId } })
-    // - If not found → send error "UNAUTHORIZED" and return
-    // - Also check board.deletedAt is null (not soft-deleted)
-    //
-    // STEP 2: Add User to Subscribers (Redis)
-    // ---------------------------------------
-    // - Add user to Redis ZSET: board:{boardId}:subscribers
-    // - Use ZADD with current timestamp as score
-    // - Command: ZADD board:{boardId}:subscribers ${Date.now()} ${userId}
-    // - Set TTL on ZSET: EXPIRE board:{boardId}:subscribers 86400 (24 hours)
-    //
-    // STEP 3: Fetch Initial State
-    // ---------------------------
-    // 3a. Fetch Last S3 Snapshot:
-    //     - Get board.lastSnapshotStreamId and board.s3Key from Prisma
-    //     - Download snapshot from S3 using s3Client.downloadSnapshot(s3Key)
-    //     - Decode Y.Doc binary from S3
-    //
-    // 3b. Fetch Redis Stream Updates:
-    //     - Read from Redis stream: board:{boardId}:stream
-    //     - If lastSnapshotStreamId exists:
-    //       - XRANGE board:{boardId}:stream ${lastSnapshotStreamId} +
-    //     - If no snapshot (new board):
-    //       - XRANGE board:{boardId}:stream - +
-    //
-    // 3c. Merge Updates:
-    //     - Use domain/board-state/merge-updates.ts
-    //     - Apply each stream update to base Y.Doc
-    //     - Result: Final Y.Doc state as Uint8Array
-    //
-    // 3d. Optional: Compute State Vector Diff
-    //     - If client sent stateVector:
-    //       - Use domain/board-state/state-vector-diff.ts
-    //       - Compute minimal diff between server state and client state
-    //       - Only send the diff (optimization)
-    //
-    // STEP 4: Fetch Active Collaborators
-    // ----------------------------------
-    // - ZRANGE board:{boardId}:subscribers 0 -1 WITHSCORES
-    // - Get list of active userIds
-    // - Batch fetch user info using DataLoader: ctx.dataloaders.whiteboard.userById
-    // - Format as: [{ userId, fullName, avatarUrl }]
-    //
-    // STEP 5: Send Initial State to Client
-    // ------------------------------------
-    // - Send event: "whiteboard:board-init"
-    // - Payload:
-    //   {
-    //     boardId,
-    //     snapshot: base64(finalYDocBinary),
-    //     streamId: currentStreamId, // Latest stream ID
-    //     elementCount: board.elementCount,
-    //     collaborators: [...activeCollaborators]
-    //   }
-    //
-    // STEP 6: Broadcast User Joined
-    // -----------------------------
-    // - Broadcast to all OTHER subscribers (not sender):
-    //   - Event: "whiteboard:user-joined"
-    //   - Payload: { boardId, userId, fullName, avatarUrl, timestamp }
-    // - Use Redis Pub/Sub channel: board:{boardId}:events
-    //
-    // STEP 7: Update Presence Tracking
-    // --------------------------------
-    // - Set Redis Hash: board:{boardId}:user:{userId}:state
-    // - Value: { isOnline: true, lastSeen: timestamp }
-    // - TTL: 60 seconds (auto-refresh with heartbeat)
-    //
-    // ERROR HANDLING:
-    // - Board not found → "BOARD_NOT_FOUND"
-    // - User not collaborator → "UNAUTHORIZED"
-    // - S3 download failure → "SNAPSHOT_LOAD_FAILED"
-    // - Redis stream failure → retry 3x, then fallback to S3 only
-    //
-    // ============================================
-
-    throw new Error("TODO: Implement subscribe-board handler");
-  } catch (err: unknown) {
-    logger.error({ err, boardId }, "Failed to subscribe to board");
-
+  if (!collaborator) {
     socket.send(
-      createErrorFrame(
-        undefined,
-        "whiteboard:subscribe-board",
-        "INTERNAL_ERROR",
-        "Failed to subscribe to board"
-      )
+      JSON.stringify({
+        type: "whiteboard:subscribe-error",
+        error: {
+          code: "FORBIDDEN",
+          message: "You are not a collaborator on this board",
+        },
+      })
     );
+    return;
+  }
+
+  const board = collaborator.whiteboard;
+
+  if (board.deletedAt) {
+    socket.send(
+      JSON.stringify({
+        type: "whiteboard:subscribe-error",
+        error: {
+          code: "NOT_FOUND",
+          message: "Board has been deleted",
+        },
+      })
+    );
+    return;
+  }
+
+  // DESIGN: Allow archived board subscriptions (read-only enforced in board-update handler)
+  // Rationale: Users should be able to view archived boards, enforcement happens at write time
+
+  // ==========================================
+  // Presence Tracking: Atomic Lua Script
+  // ==========================================
+  // PERFORMANCE: 5 Redis calls → 1 Redis call (Lua script)
+  // CORRECTNESS: Eliminates race conditions between NX check and timestamp update
+  //
+  // Old approach (5 RTTs):
+  //   1. ZADD NX
+  //   2. Check result
+  //   3. ZADD (conditional)
+  //   4. EXPIRE
+  //   5. ZCARD
+  //
+  // New approach (1 RTT):
+  //   - Lua script executes all operations atomically
+
+  const timestamp = Date.now();
+
+  // TODO: Get script SHA from global cache (loaded at startup)
+  // For now, execute inline (will optimize with script loading in production)
+  const presenceScript = `
+    local key = KEYS[1]
+    local timestamp = tonumber(ARGV[1])
+    local userId = ARGV[2]
+    local ttl = tonumber(ARGV[3])
+    
+    local isFirstJoin = redis.call('ZADD', key, 'NX', timestamp, userId)
+    if isFirstJoin == 0 then
+      redis.call('ZADD', key, timestamp, userId)
+    end
+    redis.call('EXPIRE', key, ttl)
+    local subscriberCount = redis.call('ZCARD', key)
+    
+    return {isFirstJoin, subscriberCount}
+  `;
+
+  const [isFirstJoin, subscriberCount] = (await appRedis.eval(
+    presenceScript,
+    1,
+    WhiteboardKeys.BoardSubscribers(boardId),
+    timestamp.toString(),
+    userId,
+    "86400"
+  )) as [number, number];
+
+  logger.info({
+    msg: "User Presence Updated (Lua)",
+    userId,
+    boardId,
+    subscriberCount,
+    isFirstJoin: isFirstJoin === 1,
+  });
+
+  // ==========================================
+  // Board Activation: Atomic Lua Script
+  // ==========================================
+  // PERFORMANCE: 2 Redis calls → 1 Redis call (Lua script)
+  //
+  // Old approach (2 RTTs):
+  //   1. ZADD sys:boards:active
+  //   2. INCR sys:boards:epoch
+  //
+  // New approach (1 RTT):
+  //   - Lua script executes both atomically
+
+  if (subscriberCount === 1) {
+    const activationScript = `
+      local activeKey = KEYS[1]
+      local epochKey = KEYS[2]
+      local timestamp = tonumber(ARGV[1])
+      local boardId = ARGV[2]
+      
+      redis.call('ZADD', activeKey, timestamp, boardId)
+      local newEpoch = redis.call('INCR', epochKey)
+      
+      return newEpoch
+    `;
+
+    const newEpoch = (await appRedis.eval(
+      activationScript,
+      2,
+      "sys:boards:active",
+      "sys:boards:epoch",
+      timestamp.toString(),
+      boardId
+    )) as number;
+
+    logger.info({
+      msg: "Board Activated (Lua)",
+      boardId,
+      newEpoch,
+    });
+  }
+
+  // ==========================================
+  // Pub/Sub Subscription: Real-Time Event Channel
+  // ==========================================
+  // DESIGN: Subscribe BEFORE sending collaborators list
+  // Ensures client receives all events that happen during snapshot → subscribe window
+
+  const topic = WhiteboardKeys.BoardEvents(boardId);
+  await wsRegistry.subscribe(socketId, topic);
+
+  logger.info({
+    msg: "Socket Subscribed to Board Events",
+    userId,
+    boardId,
+    socketId,
+    topic,
+  });
+
+  // ==========================================
+  // Fetch Active Collaborators (Batch Query)
+  // ==========================================
+  // DESIGN: Direct db.user.findMany (no DataLoader)
+  // Rationale: WebSocket handlers are per-connection, DataLoaders are per-request (GraphQL)
+  // Single batch query is sufficient, no N+1 risk
+
+  const activeCollaboratorIds = await appRedis.zrange(
+    WhiteboardKeys.BoardSubscribers(boardId),
+    0,
+    -1
+  );
+
+  const users = await ctx.db.user.findMany({
+    where: {
+      id: { in: activeCollaboratorIds },
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      fullName: true,
+      avatarUrl: true,
+    },
+  });
+
+  const collaborators = users.map((user) => ({
+    userId: user.id,
+    name: user.fullName || "Unknown",
+    avatar: user.avatarUrl ?? "",
+  }));
+
+  // ==========================================
+  // Send Success Response
+  // ==========================================
+  // DESIGN: Minimal payload (<1KB)
+  // - No snapshot data (GraphQL responsibility)
+  // - Only metadata: collaborators, lock/archive status
+
+  socket.send(
+    createSuccessFrame(undefined, "whiteboard:subscribe-success", {
+      boardId,
+      collaborators,
+      isLocked: board.isLocked,
+      isArchived: board.isArchived, // Client shows read-only banner
+    })
+  );
+
+  logger.info({
+    msg: "Subscribe Success Sent",
+    userId,
+    boardId,
+    collaboratorCount: collaborators.length,
+  });
+
+  // ==========================================
+  // Broadcast User Joined (Conditional)
+  // ==========================================
+  // DESIGN: Only broadcast on first join (isFirstJoin = true)
+  // Prevents notification spam when user:
+  // - Refreshes page
+  // - Reconnects after network drop
+  // - Opens multiple tabs (each gets separate socketId but same userId)
+
+  if (isFirstJoin === 1) {
+    const user = await ctx.db.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        fullName: true,
+        avatarUrl: true,
+      },
+    });
+
+    if (!user) {
+      logger.warn({
+        msg: "User Not Found for Join Broadcast",
+        userId,
+        boardId,
+      });
+      return; // Graceful degradation: skip broadcast if user deleted mid-request
+    }
+
+    await appRedis.publish(
+      WhiteboardKeys.BoardEvents(boardId),
+      JSON.stringify({
+        type: "whiteboard:user-joined",
+        payload: {
+          boardId,
+          user: {
+            userId: user.id,
+            name: user.fullName || "Unknown",
+            avatar: user.avatarUrl ?? "",
+          },
+          timestamp: Date.now(),
+        },
+      })
+    );
+
+    logger.info({
+      msg: "User Joined Event Broadcast",
+      userId,
+      boardId,
+      subscriberCount,
+    });
+  } else {
+    logger.info({
+      msg: "User Reconnected (No Join Broadcast)",
+      userId,
+      boardId,
+    });
   }
 };

@@ -9,6 +9,7 @@ import { createWhiteboardLoaders } from "../modules/whiteboard/loaders";
 import { ApplicationContext } from "./types";
 import { db } from "@/infra/db";
 import { redis } from "@/infra/redis";
+import { s3Client } from "@/infra/aws/s3";
 
 export const createContext = (c: Context): ApplicationContext => {
   const auth = getAuth(c);
@@ -21,6 +22,7 @@ export const createContext = (c: Context): ApplicationContext => {
     },
     db,
     redis,
+    s3: s3Client,
     dataloaders: {} as ApplicationContext["dataloaders"],
   };
 
