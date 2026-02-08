@@ -36,6 +36,7 @@ export const WhiteboardKeys = {
     `board:${boardId}:dedupe:${dedupeId}`,
 
   // Locks
+  BoardLock: (boardId: string) => `board:${boardId}:lock`,
   SnapshotLock: (boardId: string) => `board:${boardId}:snapshot:lock`,
 
   // Cached Snapshots (for performance)
@@ -51,6 +52,7 @@ export const WhiteboardTTLs = {
   CURSOR_POSITION: 5, // 5 seconds
   USER_SELECTION: 10, // 10 seconds
   DEDUPE_KEY: 60, // 1 minute
+  BOARD_LOCK: 3600, // 1 hour
   SNAPSHOT_LOCK: 300, // 5 minutes
   CACHED_SNAPSHOT: 300, // 5 minutes
 } as const;
