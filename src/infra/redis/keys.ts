@@ -21,6 +21,13 @@ export const KeyFactory = {
    */
   ActiveConversations: "sys:conversations:active",
 
+  /**
+   * Set of whiteboard boards that are active.
+   * The Coordinator watches this ZSET to assign board streams to workers.
+   * Format: sys:active:whiteboards
+   */
+  ActiveBoards: "sys:active:whiteboards",
+
   // --- Control Plane (Coordination) ---
 
   /**

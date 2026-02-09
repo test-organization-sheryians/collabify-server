@@ -1,80 +1,81 @@
+import { Y } from "@/shared/yjs";
+import { logger } from "@/shared/logger";
+
 /**
- * Y.Doc Encoding/Decoding Helpers
+ * Y.Doc Encoding/Decoding Helpers (V4 Architecture)
  *
- * Utilities for working with Y.Doc binary format
+ *  **Purpose:** Convert between Y.js binary and Base64 for WebSocket transport
  */
+
+const MAX_UPDATE_SIZE = 10 * 1024 * 1024; // 10MB
 
 /**
  * Validate Y.Doc update binary
+ *
+ * **Checks:** Valid Uint8Array, size limits, Y.js parseable
  */
 export const validateYDocUpdate = (binary: Uint8Array): boolean => {
-  // TODO: V4 Architecture - Validate Y.Doc Update
-  // ============================================
-  //
-  // STEP 1: Check Binary Format
-  // ---------------------------
-  // - Verify it's a valid Uint8Array
-  // - Check length > 0
-  // - Check max size (e.g., 10MB limit)
-  //
-  // STEP 2: Try to Parse with Y.js
-  // ------------------------------
-  // import * as Y from 'yjs';
-  // try {
-  //   const ydoc = new Y.Doc();
-  //   Y.applyUpdate(ydoc, binary);
-  //   return true;
-  // } catch (err) {
-  //   return false;
-  // }
-  //
-  // ============================================
+  if (!(binary instanceof Uint8Array)) {
+    return false;
+  }
 
-  throw new Error("TODO: Implement validateYDocUpdate");
+  if (binary.length === 0 || binary.length > MAX_UPDATE_SIZE) {
+    return false;
+  }
+
+  // Attempt to parse with Y.js
+  try {
+    const ydoc = new Y.Doc();
+    Y.applyUpdate(ydoc, binary);
+    return true;
+  } catch (error) {
+    logger.warn({ error, size: binary.length }, "Invalid Y.Doc update");
+    return false;
+  }
 };
 
 /**
  * Encode Y.Doc to Base64 string
+ *
+ * **Use Case:** Send over WebSocket (JSON transport)
  */
 export const encodeYDocToBase64 = (binary: Uint8Array): string => {
-  // TODO: Implement Base64 encoding
-  // return Buffer.from(binary).toString('base64');
-
-  throw new Error("TODO: Implement encodeYDocToBase64");
+  return Buffer.from(binary).toString("base64");
 };
 
 /**
  * Decode Base64 string to Y.Doc binary
+ *
+ * **Use Case:** Receive from WebSocket
  */
 export const decodeBase64ToYDoc = (base64: string): Uint8Array => {
-  // TODO: Implement Base64 decoding
-  // return new Uint8Array(Buffer.from(base64, 'base64'));
-
-  throw new Error("TODO: Implement decodeBase64ToYDoc");
+  return new Uint8Array(Buffer.from(base64, "base64"));
 };
 
 /**
  * Count elements in Y.Doc
+ *
+ * **Note:** Generic implementation - counts all top-level Y types
+ * **For Excalidraw:** Would inspect `ydoc.getArray('elements').length`
  */
 export const countYDocElements = (binary: Uint8Array): number => {
-  // TODO: V4 Architecture - Count Elements
-  // ============================================
-  //
-  // STEP 1: Parse Y.Doc
-  // ------------------
-  // import * as Y from 'yjs';
-  // const ydoc = new Y.Doc();
-  // Y.applyUpdate(ydoc, binary);
-  //
-  // STEP 2: Count Elements (Excalidraw-specific)
-  // --------------------------------------------
-  // - Access Excalidraw elements array: ydoc.getArray('elements')
-  // - Return elements.length
-  //
-  // NOTE: This implementation is Excalidraw-specific
-  // For other whiteboard types, adjust accordingly
-  //
-  // ============================================
+  try {
+    const ydoc = new Y.Doc();
+    Y.applyUpdate(ydoc, binary);
 
-  throw new Error("TODO: Implement countYDocElements");
+    // Count all top-level shared types
+    let count = 0;
+    ydoc.share.forEach((value) => {
+      if (value instanceof Y.Array) {
+        count += value.length;
+      } else if (value instanceof Y.Map) {
+        count += value.size;
+      }
+    });
+
+    return count;
+  } catch (error) {
+    logger.error({ error }, "Failed to count Y.Doc elements");
+    return 0;
+  }
 };

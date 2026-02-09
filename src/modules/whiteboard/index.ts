@@ -8,5 +8,20 @@ export * as queries from "./queries";
 export { resolvers as whiteboardResolvers } from "./graphql/resolvers";
 export { typeDefs as whiteboardTypeDefs } from "./graphql/type-defs";
 
-// TODO: WebSocket Router (for later)
-// export { whiteboardRouter } from "./ws/router";
+// Infrastructure
+import { whiteboardStreamWorker } from "./infra/whiteboard-stream-worker";
+import { logger } from "@/shared/logger";
+
+export const WhiteboardModule = {
+  /**
+   * Start the Whiteboard Engine (Background Processes)
+   */
+  startEngine: async () => {
+    logger.info("Starting Whiteboard Module Engine...");
+
+    // Start Stream Worker (Y.js CRDT processor)
+    await whiteboardStreamWorker.init();
+
+    logger.info("Whiteboard Module Engine Started");
+  },
+};

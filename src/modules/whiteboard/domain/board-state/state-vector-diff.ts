@@ -1,11 +1,18 @@
+import { Y } from "@/shared/yjs";
+import { logger } from "@/shared/logger";
+
 /**
- * Y.Doc State Vector Diff Calculator
+ * State Vector Diff Calculator (V4 Architecture)
  *
- * Computes the minimal diff between two Y.Doc state vectors
+ * **Purpose:** Compute minimal diff between client and server state
+ * **Use Case:** `board:subscribe` - send only missing updates
  */
 
 /**
  * Compute diff between server state and client state
+ *
+ * **Pattern:** Server full state - Client state vector → Minimal update
+ * **Benefit:** Reduces network payload (only send delta)
  *
  * @param serverState - Current server Y.Doc state
  * @param clientStateVector - Client's state vector (Base64 encoded)
@@ -15,39 +22,52 @@ export const computeStateVectorDiff = (
   serverState: Uint8Array,
   clientStateVector: string
 ): Uint8Array => {
-  // TODO: V4 Architecture - State Vector Diff
-  // ============================================
-  //
-  // STEP 1: Decode Client State Vector
-  // ----------------------------------
-  // - Decode Base64: Buffer.from(clientStateVector, 'base64')
-  // - Parse as Y.js state vector
-  //
-  // STEP 2: Create Y.Doc from Server State
-  // --------------------------------------
-  // import * as Y from 'yjs';
-  // const ydoc = new Y.Doc();
-  // Y.applyUpdate(ydoc, serverState);
-  //
-  // STEP 3: Compute Diff
-  // -------------------
-  // const clientVector = Y.decodeStateVector(decodedClientVector);
-  // const diff = Y.encodeStateAsUpdate(ydoc, clientVector);
-  //
-  // STEP 4: Return Minimal Update
-  // -----------------------------
-  // return diff; // Only contains what client is missing
-  //
-  // BENEFITS:
-  // - Reduces network payload (only send delta, not full state)
-  // - Faster sync for clients with recent state
-  // - Essential for mobile/low-bandwidth scenarios
-  //
-  // ERROR HANDLING:
-  // - Invalid state vector → fallback to full state
-  // - Y.js exception → log error, return full state
-  //
-  // ============================================
+  const ydoc = new Y.Doc();
 
-  throw new Error("TODO: Implement computeStateVectorDiff");
+  try {
+    // Apply server state
+    Y.applyUpdate(ydoc, serverState);
+  } catch (error) {
+    logger.error({ error }, "Invalid server state");
+    throw new Error("Failed to apply server state");
+  }
+
+  try {
+    // Decode client state vector
+    const clientVectorBytes = Buffer.from(clientStateVector, "base64");
+
+    // Compute diff: only what client is missing
+    return Y.encodeStateAsUpdate(ydoc, clientVectorBytes);
+  } catch (error) {
+    // Fallback: send full state if state vector invalid
+    logger.warn({ error }, "Invalid client state vector, sending full state");
+    return Y.encodeStateAsUpdate(ydoc);
+  }
 };
+
+/**
+ * Encode state vector from Y.Doc
+ *
+ * **State Vector:** Compact representation of "what updates I have"
+ */
+export function encodeStateVector(ydoc: Y.Doc): Uint8Array {
+  try {
+    return Y.encodeStateVector(ydoc);
+  } catch (error) {
+    logger.error({ error }, "Failed to encode state vector");
+    throw new Error("Failed to encode state vector");
+  }
+}
+
+/**
+ * Check if client is up-to-date
+ *
+ * **Logic:** If diff is empty, client has all updates
+ */
+export function isClientUpToDate(
+  serverDoc: Y.Doc,
+  clientStateVector: Uint8Array
+): boolean {
+  const diff = Y.encodeStateAsUpdate(serverDoc, clientStateVector);
+  return diff.length === 0;
+}

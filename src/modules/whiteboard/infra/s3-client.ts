@@ -8,6 +8,7 @@ import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { s3Client } from "@/infra/aws/s3";
 import { env } from "@/shared/config/env";
 import { logger } from "@/shared/logger";
+import { WhiteboardKeys } from "./whiteboard-keys";
 
 export type S3SnapshotMetadata = {
   boardId: string;
@@ -18,13 +19,14 @@ export type S3SnapshotMetadata = {
 
 /**
  * Generate S3 key for board snapshot
- * Format: boards/{boardId}/snapshots/{timestamp}.yjs
+ *
+ * @deprecated Use WhiteboardKeys.S3SnapshotTimestamped() directly
  */
 export const generateSnapshotKey = (
   boardId: string,
   timestamp: number
 ): string => {
-  return `boards/${boardId}/snapshots/${timestamp}.yjs`;
+  return WhiteboardKeys.S3SnapshotTimestamped(boardId, timestamp);
 };
 
 /**

@@ -10,6 +10,7 @@ import { logger } from "../shared/logger";
 import { createGraphQLApp } from "./graphql/yoga";
 import webhookRoutes from "./routes/webhooks";
 import { ChatModule } from "../modules/chat";
+import { WhiteboardModule } from "../modules/whiteboard";
 import { wsRegistry } from "../infra/ws/subscription-registry";
 
 const app = new Hono();
@@ -22,6 +23,10 @@ void checkConnection(); // Check DB
 
 ChatModule.startEngine().catch((err) => {
   logger.error({ err }, "Failed to start Chat Engine");
+});
+
+WhiteboardModule.startEngine().catch((err) => {
+  logger.error({ err }, "Failed to start Whiteboard Engine");
 });
 
 // Start Subscription Janitor

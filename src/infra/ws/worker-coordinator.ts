@@ -56,6 +56,13 @@ export const workerCoordinator = {
         now - CONVERSATION_TTL_MS
       );
 
+      // Prune Stale Whiteboard Boards (ZSET) - NEW
+      await appRedis.zremrangebyscore(
+        KeyFactory.ActiveBoards,
+        "-inf",
+        now - CONVERSATION_TTL_MS // 24h idle TTL
+      );
+
       // Prune Zombies
       await appRedis.zremrangebyscore(
         KeyFactory.WorkerRegistry,
@@ -138,6 +145,7 @@ export const workerCoordinator = {
 
   /**
    * core Logic: Rendezvous Hash + Durable Hashes
+   * Handles both chat conversations AND whiteboard boards
    */
   async performRebalance(workers: string[]) {
     // 1. Fetch Active Conversations (ZRANGE instead of SMEMBERS) (L.3)
@@ -147,21 +155,37 @@ export const workerCoordinator = {
       -1
     );
 
-    if (activeConversations.length === 0 || workers.length === 0) return;
+    // 2. Fetch Active Whiteboard Boards (NEW)
+    const activeBoards = await appRedis.zrange(KeyFactory.ActiveBoards, 0, -1);
 
-    // 2. Calculate Assignments
-    const assignments: Record<string, string[]> = {};
-    workers.forEach((w) => (assignments[w] = []));
+    if (workers.length === 0) return;
+
+    // 3. Calculate Conversation Assignments
+    const conversationAssignments: Record<string, string[]> = {};
+    workers.forEach((w) => (conversationAssignments[w] = []));
 
     for (const conversationId of activeConversations) {
       const assignedWorker = this.rendezvousHash(conversationId, workers);
       if (assignedWorker) {
-        assignments[assignedWorker].push(conversationId);
+        conversationAssignments[assignedWorker].push(conversationId);
       }
     }
 
-    // 3. Apply Assignments with Durable Diffing (L.2)
-    for (const [workerId, channels] of Object.entries(assignments)) {
+    // 4. Calculate Board Assignments (NEW)
+    const boardAssignments: Record<string, string[]> = {};
+    workers.forEach((w) => (boardAssignments[w] = []));
+
+    for (const boardId of activeBoards) {
+      const assignedWorker = this.rendezvousHash(boardId, workers);
+      if (assignedWorker) {
+        boardAssignments[assignedWorker].push(boardId);
+      }
+    }
+
+    // 5. Apply Conversation Assignments with Durable Diffing
+    for (const [workerId, channels] of Object.entries(
+      conversationAssignments
+    )) {
       const assignmentKey = KeyFactory.WorkerAssignment(workerId);
       const hashKey = KeyFactory.AssignmentHash(workerId);
 
@@ -185,6 +209,34 @@ export const workerCoordinator = {
           .exec();
       } else {
         await appRedis.multi().del(assignmentKey).del(hashKey).exec();
+      }
+    }
+
+    // 6. Apply Board Assignments with Durable Diffing (NEW)
+    for (const [workerId, boards] of Object.entries(boardAssignments)) {
+      const boardsKey = `worker:${workerId}:boards`;
+      const hashKey = `worker:${workerId}:boards_hash`;
+
+      boards.sort();
+      const newHash = createHash("md5")
+        .update(JSON.stringify(boards))
+        .digest("hex");
+
+      const lastHash = await appRedis.get(hashKey);
+
+      if (lastHash === newHash) {
+        continue;
+      }
+
+      if (boards.length > 0) {
+        await appRedis
+          .multi()
+          .del(boardsKey)
+          .sadd(boardsKey, ...boards)
+          .set(hashKey, newHash)
+          .exec();
+      } else {
+        await appRedis.multi().del(boardsKey).del(hashKey).exec();
       }
     }
   },

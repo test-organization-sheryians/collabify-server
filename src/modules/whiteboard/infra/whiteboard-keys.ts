@@ -12,6 +12,12 @@ export const WhiteboardKeys = {
   BoardStream: (boardId: string) => `board:${boardId}:stream`,
   BoardSequence: (boardId: string) => `board:${boardId}:sequence`,
 
+  // State Cache (Worker)
+  BoardSnapshot: (boardId: string) => `board:${boardId}:snapshot`, // Redis cache of Y.Doc state
+
+  // Backpressure & Health
+  BoardCircuitBreaker: (boardId: string) => `board:${boardId}:circuit_breaker`,
+
   // Subscribers & Presence
   BoardSubscribers: (boardId: string) => `board:${boardId}:subscribers`,
   UserState: (boardId: string, userId: string) =>
@@ -41,6 +47,11 @@ export const WhiteboardKeys = {
 
   // Cached Snapshots (for performance)
   CachedSnapshot: (s3Key: string) => `snapshot:${s3Key}`,
+
+  // S3 Keys (Snapshot Storage)
+  S3SnapshotTimestamped: (boardId: string, timestamp: number) =>
+    `boards/${boardId}/snapshots/${timestamp}.yjs`,
+  S3SnapshotLatest: (boardId: string) => `boards/${boardId}/latest.yjs`,
 } as const;
 
 /**
