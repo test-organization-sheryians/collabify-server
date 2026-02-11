@@ -14,7 +14,6 @@ import { typeDefs as unlockBoardTypeDefs } from "../services/unlock-board/type-d
 import { typeDefs as getBoardTypeDefs } from "../queries/get-board/type-defs";
 import { typeDefs as getUserBoardsTypeDefs } from "../queries/get-user-boards/type-defs";
 import { typeDefs as getBoardCollaboratorsTypeDefs } from "../queries/get-board-collaborators/type-defs";
-import { typeDefs as getProjectBoardsTypeDefs } from "../queries/get-project-boards/type-defs";
 import { typeDefs as getWorkspaceBoardsTypeDefs } from "../queries/get-workspace-boards/type-defs";
 import { typeDefs as getBoardSnapshotTypeDefs } from "../queries/get-board-snapshot/type-defs";
 import { typeDefs as getActiveCollaboratorsTypeDefs } from "../queries/get-active-collaborators/type-defs";
@@ -72,7 +71,6 @@ export const typeDefs = [
   getBoardTypeDefs,
   getUserBoardsTypeDefs,
   getBoardCollaboratorsTypeDefs,
-  getProjectBoardsTypeDefs,
   getWorkspaceBoardsTypeDefs,
   getBoardSnapshotTypeDefs,
   getActiveCollaboratorsTypeDefs,

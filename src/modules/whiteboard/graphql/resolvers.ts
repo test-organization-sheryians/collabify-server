@@ -28,15 +28,6 @@ export const resolvers: Resolvers = {
         queries.getBoardCollaborators.getBoardCollaboratorsSchema.parse(args);
       return queries.getBoardCollaborators.handler(input, ctx);
     },
-    projectBoards: async (_, args, ctx) => {
-      await requireUser(ctx);
-      const input = queries.getProjectBoards.getProjectBoardsSchema.parse(args);
-      const result = await queries.getProjectBoards.handler(input, ctx);
-      return {
-        boards: result.boards.map(toGraphQLWhiteboard),
-        nextCursor: result.nextCursor,
-      };
-    },
     workspaceBoards: async (_, args, ctx) => {
       await requireUser(ctx);
       const input =

@@ -1,7 +1,6 @@
 // Core Board Queries
 export * as getBoard from "./get-board";
 export * as getUserBoards from "./get-user-boards";
-export * as getProjectBoards from "./get-project-boards";
 export * as getWorkspaceBoards from "./get-workspace-boards";
 
 // Collaborator Queries

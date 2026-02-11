@@ -5,6 +5,7 @@ import { s3Client } from "./s3-client-wrapper";
 import { Y } from "@/shared/yjs";
 import * as os from "os";
 import { LRUCache } from "lru-cache";
+import { LockingService } from "@/services/locking/locking.service";
 
 /**
  * CRITICAL: Use single Redis connection for ALL stream operations
@@ -44,11 +45,12 @@ function extractStreamTimestamp(streamId: string): number {
 interface BoardState {
   ydoc: Y.Doc;
   lastUpdate: number;
-  streamIdWhenLoaded: string;
+  streamIdWhenLoaded: string; // 🔥 FIXED: Now updated after each processed update
   isDirty: boolean;
   pendingSnapshot: boolean;
   updatesSinceSnapshot: number;
   lastSnapshotTime: number; // For time-based trigger
+  approxSize: number; // 🔥 NEW: Approximate size tracking (avoids expensive encode on LRU)
 }
 
 /**
@@ -82,8 +84,11 @@ export const whiteboardStreamWorker = {
   boardCache: new LRUCache<string, BoardState>({
     max: 1000, // Max 1000 boards
     maxSize: 2_000_000_000, // 2GB limit
+    // 🔥 PERFORMANCE FIX: Use tracked approxSize instead of expensive encode
+    // Old: Y.encodeStateAsUpdate(state.ydoc).length (serializes full doc!)
+    // New: Tracked incrementally + corrected on cache/snapshot writes
     sizeCalculation: (state) => {
-      return Y.encodeStateAsUpdate(state.ydoc).length;
+      return state.approxSize || 10000; // Default 10KB if not yet tracked
     },
     dispose: (value, key) => {
       // 1. On eviction: snapshot if dirty (fire-and-forget)
@@ -361,6 +366,13 @@ export const whiteboardStreamWorker = {
     state.isDirty = true;
     state.updatesSinceSnapshot++;
 
+    // 🔥 CRITICAL FIX: Update streamIdWhenLoaded after each processed update
+    // This ensures cache versioning is accurate
+    state.streamIdWhenLoaded = id;
+
+    // 🔥 FIX: Do NOT accumulate approxSize per update (Yjs deltas compress)
+    // approxSize is updated only on snapshot encode (debounced every 5s)
+
     // 3. Schedule debounced cache update (5s window)
     this.scheduleCacheUpdate(boardId, state);
 
@@ -452,6 +464,7 @@ export const whiteboardStreamWorker = {
       pendingSnapshot: false,
       updatesSinceSnapshot: 0,
       lastSnapshotTime: Date.now(), // Initialize for time-based triggers
+      approxSize: Y.encodeStateAsUpdate(ydoc).length, // Initial size
     };
   },
 
@@ -466,16 +479,10 @@ export const whiteboardStreamWorker = {
       try {
         const snapshot = Y.encodeStateAsUpdate(state.ydoc);
 
-        // Get last stream ID for version tracking
-        const streamKey = WhiteboardKeys.BoardStream(boardId);
-        const lastEntry = await streamRedis.xrevrange(
-          streamKey,
-          "+",
-          "-",
-          "COUNT",
-          1
-        );
-        const streamId = lastEntry[0]?.[0] || state.streamIdWhenLoaded;
+        // 🔥 CRITICAL FIX: Use tracked streamIdWhenLoaded, NOT xrevrange
+        // xrevrange returns latest stream ID (which may not be processed yet)
+        // We must use the last APPLIED stream ID from state
+        const streamId = state.streamIdWhenLoaded;
 
         // CRITICAL: Versioned cache for validation
         const versionedCache = {
@@ -490,6 +497,9 @@ export const whiteboardStreamWorker = {
           "EX",
           7 * 24 * 60 * 60 // 7-day TTL
         );
+
+        // Update accurate size after encode
+        state.approxSize = snapshot.length;
 
         this.cacheUpdateTimers.delete(boardId);
         logger.debug({ boardId, streamId }, "Redis cache updated (versioned)");
@@ -506,29 +516,28 @@ export const whiteboardStreamWorker = {
    * CRITICAL: All three triggers must be checked to prevent idle boards never snapshotting
    */
   async evaluateSnapshotTriggers(boardId: string, state: BoardState) {
+    // CRITICAL: Prevents concurrent snapshots for same board
     if (state.pendingSnapshot) return;
 
-    const now = Date.now();
-    const timeSinceSnapshot = now - state.lastSnapshotTime;
-    const snapshotSize = Y.encodeStateAsUpdate(state.ydoc).length;
-    const snapshotSizeMB = snapshotSize / (1024 * 1024);
+    // Count trigger: Snapshot every N updates
+    if (state.updatesSinceSnapshot >= SNAPSHOT_CONFIG.COUNT_THRESHOLD) {
+      await this.createSnapshot(boardId, state, "count-threshold");
+      return;
+    }
 
-    // Check all three triggers
-    const triggers = {
-      count: state.updatesSinceSnapshot >= SNAPSHOT_CONFIG.COUNT_THRESHOLD,
-      time: timeSinceSnapshot >= SNAPSHOT_CONFIG.TIME_INTERVAL_MS,
-      memory: snapshotSizeMB >= SNAPSHOT_CONFIG.MEMORY_THRESHOLD_MB,
-    };
+    // Time trigger: Snapshot every N minutes
+    const timeSinceSnapshot = Date.now() - state.lastSnapshotTime;
+    if (timeSinceSnapshot >= SNAPSHOT_CONFIG.TIME_INTERVAL_MS) {
+      await this.createSnapshot(boardId, state, "time-threshold");
+      return;
+    }
 
-    const shouldSnapshot = triggers.count || triggers.time || triggers.memory;
-
-    if (shouldSnapshot) {
-      const reason = triggers.count
-        ? "count-threshold"
-        : triggers.time
-          ? "time-interval"
-          : "memory-threshold";
-      await this.createSnapshot(boardId, state, reason);
+    // 🔥 PERFORMANCE FIX: Memory trigger uses approxSize (avoids expensive encode)
+    // approxSize is updated on every snapshot/cache encode for accuracy
+    const snapshotSizeMB = state.approxSize / (1024 * 1024);
+    if (snapshotSizeMB >= SNAPSHOT_CONFIG.MEMORY_THRESHOLD_MB) {
+      await this.createSnapshot(boardId, state, "memory-threshold");
+      return;
     }
   },
 
@@ -538,16 +547,18 @@ export const whiteboardStreamWorker = {
    * CRITICAL: Writes are ordered: timestamped → latest → trim for crash safety
    */
   async createSnapshot(boardId: string, state: BoardState, reason: string) {
+    // 🔥 CRITICAL FIX #1: Set pendingSnapshot BEFORE lock attempt
+    state.pendingSnapshot = true;
+
     const lockKey = WhiteboardKeys.SnapshotLock(boardId);
 
-    // Try acquire lock (60s TTL for crash recovery)
-    const acquired = await streamRedis.setnx(lockKey, CONSUMER_NAME);
-    if (acquired) {
-      await streamRedis.expire(lockKey, 60); // Set TTL after acquisition
-    }
+    // 🔥 Use centralized LockingService (atomic SET NX EX via Lua)
+    const acquired = await LockingService.acquire(lockKey, CONSUMER_NAME, 60);
 
     if (!acquired) {
       logger.debug({ boardId }, "Snapshot already in progress");
+      // 🔥 CRITICAL FIX #4: Reset pendingSnapshot on lock failure
+      state.pendingSnapshot = false;
       return;
     }
 
@@ -555,16 +566,14 @@ export const whiteboardStreamWorker = {
       const snapshot = Y.encodeStateAsUpdate(state.ydoc);
       const timestamp = Date.now();
 
-      // Get last stream ID
+      // 🔥 CRITICAL FIX #2: Update approxSize on snapshot encode
+      state.approxSize = snapshot.length;
+
+      // 🔥 CRITICAL FIX #3: Use applied streamId, NOT xrevrange
+      // xrevrange returns stream head (may not be applied yet)
+      // We MUST snapshot at the version we actually applied
       const streamKey = WhiteboardKeys.BoardStream(boardId);
-      const lastEntry = await appRedis.xrevrange(
-        streamKey,
-        "+",
-        "-",
-        "COUNT",
-        1
-      );
-      const streamId = lastEntry[0]?.[0] || "0-0";
+      const streamId = state.streamIdWhenLoaded;
 
       // Write to S3 with metadata
       const s3Key = WhiteboardKeys.S3SnapshotTimestamped(boardId, timestamp);
@@ -579,45 +588,49 @@ export const whiteboardStreamWorker = {
       await s3Client.putSnapshot(
         boardId,
         snapshot,
-        {
-          streamId,
-          timestamp: new Date(timestamp).toISOString(),
-        },
-        true
+        { streamId, timestamp: new Date(timestamp).toISOString() },
+        true // isLatest flag
       );
 
-      // Trim stream (MINID - safe trimming)
-      await appRedis.xtrim(streamKey, "MINID", streamId);
-
-      logger.info(
-        { boardId, streamId, size: snapshot.length, reason },
-        "S3 snapshot created + stream trimmed"
+      // Update Prisma metadata
+      await appRedis.publish(
+        "whiteboard:snapshot:created",
+        JSON.stringify({ boardId, s3Key, streamId, timestamp })
       );
 
-      // Update state tracking
+      // Reset dirty state
       state.isDirty = false;
       state.updatesSinceSnapshot = 0;
-      state.lastSnapshotTime = Date.now(); // CRITICAL: Track for time-based triggers
-
-      // Release lock on success
-      await streamRedis.del(lockKey);
-    } catch (error) {
-      logger.error({ error, boardId, reason }, "Snapshot creation failed");
-      // Lock auto-expires on crash (60s TTL)
-
-      // Enqueue to DLQ for retry
-      await appRedis.xadd(
-        "whiteboard:snapshot:dlq",
-        "*",
-        "boardId",
-        boardId,
-        "error",
-        String(error),
-        "timestamp",
-        Date.now().toString()
-      );
-    } finally {
+      state.lastSnapshotTime = timestamp;
       state.pendingSnapshot = false;
+
+      logger.info(
+        {
+          boardId,
+          s3Key,
+          streamId,
+          sizeKB: Math.round(snapshot.length / 1024),
+          reason,
+        },
+        "Snapshot created"
+      );
+
+      // Safe trimming: MINID streamId
+      // 🔥 Use streamRedis for consistency
+      await streamRedis.xtrim(streamKey, "MINID", streamId);
+    } catch (error) {
+      logger.error({ error, boardId }, "Snapshot creation failed");
+
+      // DLQ for manual intervention
+      await streamRedis.rpush(
+        "whiteboard:snapshot:failed",
+        JSON.stringify({ boardId, error: String(error), timestamp: Date.now() })
+      );
+
+      state.pendingSnapshot = false;
+    } finally {
+      // 🔥 Always release lock (cleanup)
+      await LockingService.release(lockKey, CONSUMER_NAME);
     }
   },
 

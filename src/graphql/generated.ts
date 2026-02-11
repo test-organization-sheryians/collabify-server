@@ -800,7 +800,6 @@ export type Query = {
   notifications: NotificationConnection;
   onboardingStatus: OnboardingStatus;
   project?: Maybe<Project>;
-  projectBoards: BoardConnection;
   projectBySlug?: Maybe<Project>;
   reactionUsers: ReactionUsersConnection;
   /** Get count of unread notifications. */
@@ -948,13 +947,6 @@ export type QueryNotificationsArgs = {
 
 export type QueryProjectArgs = {
   id: Scalars['ID']['input'];
-};
-
-
-export type QueryProjectBoardsArgs = {
-  cursor?: InputMaybe<Scalars['ID']['input']>;
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  projectId: Scalars['ID']['input'];
 };
 
 
@@ -1819,7 +1811,6 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   notifications?: Resolver<ResolversTypes['NotificationConnection'], ParentType, ContextType, Partial<QueryNotificationsArgs>>;
   onboardingStatus?: Resolver<ResolversTypes['OnboardingStatus'], ParentType, ContextType>;
   project?: Resolver<Maybe<ResolversTypes['Project']>, ParentType, ContextType, RequireFields<QueryProjectArgs, 'id'>>;
-  projectBoards?: Resolver<ResolversTypes['BoardConnection'], ParentType, ContextType, RequireFields<QueryProjectBoardsArgs, 'projectId'>>;
   projectBySlug?: Resolver<Maybe<ResolversTypes['Project']>, ParentType, ContextType, RequireFields<QueryProjectBySlugArgs, 'slug' | 'workspaceId'>>;
   reactionUsers?: Resolver<ResolversTypes['ReactionUsersConnection'], ParentType, ContextType, RequireFields<QueryReactionUsersArgs, 'emoji' | 'messageId'>>;
   unreadNotificationCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
