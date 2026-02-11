@@ -12,13 +12,13 @@ export const handler = async (input: GetBoardInput, ctx: ServiceContext) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
 
-  const { id } = input;
+  const { boardId } = input;
 
   try {
     // Check if user is a collaborator or creator
     const board = await ctx.db.whiteboard.findFirst({
       where: {
-        id,
+        id: boardId,
         OR: [
           { createdBy: userId },
           {

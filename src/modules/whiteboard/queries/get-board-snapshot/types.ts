@@ -5,7 +5,7 @@ export type GetBoardSnapshotInput = z.infer<typeof getBoardSnapshotSchema>;
 
 export type BoardSnapshot = {
   boardId: string;
-  snapshot: string; // Base64-encoded Y.Doc state
+  snapshot: string;
   lastStreamId: string | null;
   snapshotTimestamp: Date | null;
 };

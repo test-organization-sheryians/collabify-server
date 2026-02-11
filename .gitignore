@@ -6,6 +6,6 @@ node_modules/
 .gitignore
 test/
 scripts/
-dist/server.js
+dist/
 ssl/server.crt
 ssl/server.key

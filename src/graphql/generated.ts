@@ -773,9 +773,9 @@ export type ProjectMember = {
 export type Query = {
   __typename?: 'Query';
   activeCollaborators: Array<ActiveCollaborator>;
-  board?: Maybe<Whiteboard>;
   boardCollaborators: Array<BoardCollaborator>;
-  boardSnapshot: BoardSnapshot;
+  getBoard?: Maybe<Whiteboard>;
+  getBoardSnapshot: BoardSnapshot;
   getChannelMembers: Array<ChatMemberRecord>;
   getConversation: Conversation;
   getDmByUsers?: Maybe<DmConversation>;
@@ -817,18 +817,19 @@ export type QueryActiveCollaboratorsArgs = {
 };
 
 
-export type QueryBoardArgs = {
-  id: Scalars['ID']['input'];
-};
-
-
 export type QueryBoardCollaboratorsArgs = {
   boardId: Scalars['ID']['input'];
 };
 
 
-export type QueryBoardSnapshotArgs = {
+export type QueryGetBoardArgs = {
   boardId: Scalars['ID']['input'];
+};
+
+
+export type QueryGetBoardSnapshotArgs = {
+  boardId: Scalars['ID']['input'];
+  stateVector?: InputMaybe<Scalars['String']['input']>;
 };
 
 
@@ -1792,9 +1793,9 @@ export type ProjectMemberResolvers<ContextType = ServiceContext, ParentType exte
 
 export type QueryResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Query'] = ResolversParentTypes['Query']> = ResolversObject<{
   activeCollaborators?: Resolver<Array<ResolversTypes['ActiveCollaborator']>, ParentType, ContextType, RequireFields<QueryActiveCollaboratorsArgs, 'boardId'>>;
-  board?: Resolver<Maybe<ResolversTypes['Whiteboard']>, ParentType, ContextType, RequireFields<QueryBoardArgs, 'id'>>;
   boardCollaborators?: Resolver<Array<ResolversTypes['BoardCollaborator']>, ParentType, ContextType, RequireFields<QueryBoardCollaboratorsArgs, 'boardId'>>;
-  boardSnapshot?: Resolver<ResolversTypes['BoardSnapshot'], ParentType, ContextType, RequireFields<QueryBoardSnapshotArgs, 'boardId'>>;
+  getBoard?: Resolver<Maybe<ResolversTypes['Whiteboard']>, ParentType, ContextType, RequireFields<QueryGetBoardArgs, 'boardId'>>;
+  getBoardSnapshot?: Resolver<ResolversTypes['BoardSnapshot'], ParentType, ContextType, RequireFields<QueryGetBoardSnapshotArgs, 'boardId'>>;
   getChannelMembers?: Resolver<Array<ResolversTypes['ChatMemberRecord']>, ParentType, ContextType, RequireFields<QueryGetChannelMembersArgs, 'channelId'>>;
   getConversation?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<QueryGetConversationArgs, 'conversationId'>>;
   getDmByUsers?: Resolver<Maybe<ResolversTypes['DmConversation']>, ParentType, ContextType, RequireFields<QueryGetDmByUsersArgs, 'otherUserId' | 'projectId' | 'workspaceId'>>;

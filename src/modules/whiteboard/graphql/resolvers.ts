@@ -7,7 +7,7 @@ import { CollaboratorWithUser } from "../loaders";
 
 export const resolvers: Resolvers = {
   Query: {
-    board: async (_, args, ctx) => {
+    getBoard: async (_, args, ctx) => {
       await requireUser(ctx);
       const input = queries.getBoard.getBoardSchema.parse(args);
       const prismaBoard = await queries.getBoard.handler(input, ctx);
@@ -47,7 +47,7 @@ export const resolvers: Resolvers = {
         nextCursor: result.nextCursor,
       };
     },
-    boardSnapshot: async (_, args, ctx) => {
+    getBoardSnapshot: async (_, args, ctx) => {
       await requireUser(ctx);
       const input = queries.getBoardSnapshot.getBoardSnapshotSchema.parse(args);
       return queries.getBoardSnapshot.handler(input, ctx);
