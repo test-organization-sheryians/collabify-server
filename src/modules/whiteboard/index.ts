@@ -8,7 +8,7 @@ export * as queries from "./queries";
 export { resolvers as whiteboardResolvers } from "./graphql/resolvers";
 export { typeDefs as whiteboardTypeDefs } from "./graphql/type-defs";
 
-import { whiteboardStreamWorker } from "./infra/whiteboard-stream-worker";
+import { whiteboardStreamWorker } from "./infra/stream-worker";
 import { createLogger } from "@/shared/lib/logger";
 
 const logger = createLogger("whiteboard:engine");

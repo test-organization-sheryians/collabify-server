@@ -56,19 +56,78 @@ const getGroup = (flag: string): GroupFlag | null => {
 };
 
 /**
+ * Flow-based group mappings
+ * Maps file flags to their related flow groups
+ */
+const FLOW_GROUPS: Record<string, GroupFlag[]> = {
+  // Whiteboard Stream Worker Flow
+  "whiteboard:infra:stream-worker": ["whiteboard-stream-worker"],
+  "whiteboard:stream-worker:board-init": [
+    "whiteboard-stream-worker",
+    "whiteboard-cold-start",
+  ],
+  "whiteboard:stream-worker:snapshot": [
+    "whiteboard-stream-worker",
+    "whiteboard-snapshot-flow",
+  ],
+  "whiteboard:stream-worker:cache": ["whiteboard-stream-worker"],
+  "whiteboard:stream-worker:processor": [
+    "whiteboard-stream-worker",
+    "whiteboard-board-update-flow",
+    "whiteboard-cold-start",
+  ],
+  "whiteboard:stream-worker:loops": ["whiteboard-stream-worker"],
+  "whiteboard:stream-worker:health": ["whiteboard-stream-worker"],
+
+  // Whiteboard WebSocket Flow
+  "whiteboard:ws:subscribe": ["whiteboard-ws"],
+  "whiteboard:ws:unsubscribe": ["whiteboard-ws"],
+  "whiteboard:ws:board-update": [
+    "whiteboard-ws",
+    "whiteboard-board-update-flow",
+  ],
+  "whiteboard:ws:cursor": ["whiteboard-ws"],
+  "whiteboard:ws:selection": ["whiteboard-ws"],
+
+  // Whiteboard Snapshot Flow
+  "whiteboard:infra:s3": ["whiteboard-snapshot-flow", "whiteboard-cold-start"],
+
+  // Chat Message Flow
+  "chat:ws:send-message": ["chat-message-flow"],
+  "chat:jobs:persist-message": ["chat-message-flow"],
+  "chat:jobs:persist-message-edit": ["chat-message-flow"],
+  "chat:jobs:persist-message-delete": ["chat-message-flow"],
+  "chat:jobs:cleanup-outbox": ["chat-message-flow"],
+  "chat:jobs:recover-stuck-outbox": ["chat-message-flow"],
+
+  // Chat Reactions Flow
+  "chat:ws:add-reaction": ["chat-reactions"],
+  "chat:ws:remove-reaction": ["chat-reactions"],
+  "chat:jobs:persist-reactions": ["chat-reactions"],
+  "chat:jobs:reconcile-reactions": ["chat-reactions"],
+  "chat:domain:reactions:batch": ["chat-reactions"],
+  "chat:domain:reactions:helpers": ["chat-reactions"],
+  "chat:domain:reactions:metrics": ["chat-reactions"],
+};
+
+/**
  * Check if logging is enabled for a given flag
- * Resolution: FILE > GROUP > ALL
+ * Resolution: FILE > FLOW_GROUP > MODULE_GROUP > ALL
  */
 const isEnabled = (flag: string): boolean => {
-  // File-level override
+  // 1. File-level override (highest priority)
   const fileFlag = FILES[flag];
   if (fileFlag !== undefined) return fileFlag;
 
-  // Group-level
+  // 2. Flow-based group (e.g., "whiteboard-stream-worker")
+  const flowGroups = FLOW_GROUPS[flag];
+  if (flowGroups?.some((flowGroup) => GROUPS[flowGroup])) return true;
+
+  // 3. Module-level group (e.g., "chat", "whiteboard")
   const group = getGroup(flag);
   if (group && GROUPS[group]) return true;
 
-  // ALL flag
+  // 4. ALL flag (lowest priority)
   return ALL;
 };
 

@@ -6,4 +6,4 @@ export {
   deleteSnapshot,
 } from "./s3-client";
 export type { S3SnapshotMetadata } from "./s3-client";
-export { startWhiteboardStreamWorker } from "./whiteboard-stream-worker";
+export { startWhiteboardStreamWorker } from "./stream-worker";
