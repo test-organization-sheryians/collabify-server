@@ -104,14 +104,19 @@ export const handler = async (input: CreateBoardInput, ctx: ServiceContext) => {
       }
     }
 
-    // Step 4: Initialize Y.Doc
+    // Step 4: Initialize Y.Doc with y-excalidraw structure
     const Y = await import("yjs");
     const ydoc = new Y.Doc();
 
-    // Initialize Excalidraw structure
-    const yExcalidrawData = ydoc.getMap("excalidraw");
-    yExcalidrawData.set("elements", new Y.Array());
-    yExcalidrawData.set("appState", new Y.Map());
+    // ✅ CRITICAL: Initialize at root level for y-excalidraw library
+    // y-excalidraw expects:
+    // - ydoc.getArray('elements') → Y.Array<Y.Map<any>> (root level)
+    // - ydoc.getMap('assets') → Y.Map (root level)
+    //
+    // OLD (WRONG): nested under 'excalidraw' map
+    // NEW (CORRECT): root level access
+    ydoc.getArray("elements"); // Creates empty Y.Array
+    ydoc.getMap("assets"); // Creates empty Y.Map
 
     // Encode to binary
     const initialState = Y.encodeStateAsUpdate(ydoc);
@@ -160,7 +165,6 @@ export const handler = async (input: CreateBoardInput, ctx: ServiceContext) => {
           data: validCollaboratorIds.map((collaboratorId) => ({
             whiteboardId: board.id,
             userId: collaboratorId,
-            addedBy: userId,
           })),
           skipDuplicates: true,
         });

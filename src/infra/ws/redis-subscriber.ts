@@ -18,9 +18,25 @@ export const redisSubscriber = {
    */
   async init() {
     subRedis.on("message", (channel, message) => {
-      // 1. Dispatch Logic (No business logic here, just transport)
-      // The "channel" here corresponds to the Topic.
-      wsRegistry.dispatch(channel, message);
+      // Parse message format:
+      // New: { message: "...", originSocketId: "socket-123" }
+      // Old: "plain string" (chat module, backward compatible)
+      try {
+        const parsed = JSON.parse(message);
+
+        // Check if new format with originSocketId
+        if (parsed.message && typeof parsed.message === "string") {
+          const actualMessage = parsed.message;
+          const excludeSocketId = parsed.originSocketId;
+          wsRegistry.dispatch(channel, actualMessage, excludeSocketId);
+        } else {
+          // Parsed but not our format, treat as plain string
+          wsRegistry.dispatch(channel, message);
+        }
+      } catch (err) {
+        // Not JSON, treat as plain string (chat module)
+        wsRegistry.dispatch(channel, message);
+      }
     });
 
     logger.info("RedisSubscriber initialized");

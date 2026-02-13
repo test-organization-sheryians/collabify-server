@@ -6,6 +6,7 @@ import {
 } from "@/infra/ws/types";
 import { UnsubscribeBoardInput } from "./schema";
 import { logger } from "@/shared/logger";
+import { WhiteboardKeys } from "@/modules/whiteboard/infra/whiteboard-keys";
 
 /**
  * Unsubscribe Board Handler
@@ -27,47 +28,39 @@ export const unsubscribeBoardHandler = async (
   });
 
   try {
-    // TODO: V4 Architecture - Unsubscribe Board
-    // ============================================
-    //
-    // STEP 1: Remove from Subscribers (Redis)
-    // ---------------------------------------
-    // - Remove user from Redis ZSET: board:{boardId}:subscribers
-    // - Command: ZREM board:{boardId}:subscribers ${userId}
-    //
-    // STEP 2: Clean Up User State
-    // ---------------------------
-    // - Delete Redis Hash: board:{boardId}:user:{userId}:state
-    // - Command: DEL board:{boardId}:user:{userId}:state
-    //
-    // STEP 3: Broadcast User Left
-    // ---------------------------
-    // - Broadcast to remaining subscribers:
-    //   - Event: "whiteboard:user-left"
-    //   - Payload: { boardId, userId, timestamp }
-    // - Use Redis Pub/Sub channel: board:{boardId}:events
-    //
-    // STEP 4: Check Board Idle State
-    // ------------------------------
-    // - Get subscriber count: ZCARD board:{boardId}:subscribers
-    // - If count === 0 (no active users):
-    //   - Check last update time from Redis stream: XREVRANGE limit 1
-    //   - If no updates in last 5 minutes:
-    //     - Trigger cleanup job (queue: whiteboard-cleanup)
-    //     - Job will: create snapshot, trim stream, archive if needed
-    //
-    // STEP 5: Send Acknowledgment
-    // ---------------------------
-    // - Send success frame to client confirming unsubscribe
-    // - No ACK needed (fire-and-forget acceptable)
-    //
-    // ERROR HANDLING:
-    // - Redis failure → log error but don't fail (client already leaving)
-    // - Cleanup job failure → log error, retry in background
-    //
-    // ============================================
+    // Step 1: Remove from subscribers list
+    const subscribersKey = WhiteboardKeys.BoardSubscribers(boardId);
+    await ctx.redis.zrem(subscribersKey, userId);
 
-    throw new Error("TODO: Implement unsubscribe-board handler");
+    // Step 2: Clean up user state
+    const userStateKey = WhiteboardKeys.UserState(boardId, userId);
+    await ctx.redis.del(userStateKey);
+
+    // Step 3: Update subscriber count
+    const presenceKey = WhiteboardKeys.BoardPresence(boardId);
+    await ctx.redis.hincrby(presenceKey, "subscriberCount", -1);
+
+    // Step 4: Broadcast user-left event to remaining subscribers
+    const pubSubChannel = WhiteboardKeys.BoardEvents(boardId);
+    const userLeftFrame = createSuccessFrame(
+      undefined, // No request ID for broadcasts
+      "whiteboard:user-left",
+      {
+        boardId,
+        userId,
+        timestamp: Date.now(),
+      }
+    );
+
+    await ctx.redis.publish(pubSubChannel, userLeftFrame);
+
+    logger.info({
+      msg: "User unsubscribed from board",
+      userId,
+      boardId,
+    });
+
+    // Note: Don't send ACK to client - they're leaving anyway
   } catch (err: unknown) {
     logger.error({ err, boardId }, "Failed to unsubscribe from board");
 

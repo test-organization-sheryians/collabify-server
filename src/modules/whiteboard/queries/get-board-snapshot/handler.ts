@@ -57,6 +57,8 @@ export const handler = async (
 
   const { boardId, stateVector } = input;
 
+  logger.info({ boardId, userId }, "📥 get-board-snapshot: Handler entry");
+
   // 🔥 CRITICAL FIX: Request-unique lock owner (NOT userId)
   // Multiple tabs from same user = same userId = lock interference
   const lockOwner = `req-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -78,13 +80,24 @@ export const handler = async (
     });
 
     if (!board) {
+      logger.warn({ boardId, userId }, "❌ Board not found or access denied");
       throw AppError.forbidden(
         "Whiteboard not found or you do not have access"
       );
     }
 
+    logger.info(
+      {
+        boardId,
+        s3Key: board.s3Key,
+        lastSnapshotStreamId: board.lastSnapshotStreamId,
+      },
+      "✅ Board found and access granted"
+    );
+
     // 2. Try Redis cache (worker-maintained, but may be 0-5s stale)
     const cacheKey = WhiteboardKeys.BoardSnapshot(board.id);
+    logger.info({ cacheKey }, "🔍 Checking Redis cache");
     const cachedJSON = await ctx.redis.get(cacheKey);
 
     let baseDoc: InstanceType<typeof Y.Doc>;
@@ -177,14 +190,23 @@ export const handler = async (
       }
     } else {
       // CACHE MISS: Cold start from S3, then merge ALL stream delta
+      logger.warn({ boardId }, "❌ Cache MISS - initiating cold start");
       baseDoc = new Y.Doc();
       startStreamId = board.lastSnapshotStreamId || "0-0";
 
       // 🔥 FIX #1: Cold-start lock (thundering herd prevention) via LockingService
       const lockKey = `lock:board:snapshot:${boardId}`;
+      logger.info(
+        { lockKey, lockOwner },
+        "🔒 Attempting to acquire cold-start lock"
+      );
       const lockAcquired = await LockingService.acquire(lockKey, lockOwner, 10);
 
       if (!lockAcquired) {
+        logger.info(
+          { boardId },
+          "⏳ Lock not acquired - waiting for other request"
+        );
         // 🔥 CRITICAL FIX: Proper retry loop (not single 100ms wait)
         // Poll for cache up to lock TTL (10s) with exponential backoff
         for (let attempt = 0; attempt < 10; attempt++) {
@@ -224,8 +246,16 @@ export const handler = async (
         }
       } else {
         // We own the lock, proceed with S3 cold start
+        logger.info(
+          { boardId, s3Key: board.s3Key },
+          "✅ Lock acquired - proceeding with S3 download"
+        );
         try {
           if (board.s3Key) {
+            logger.info(
+              { boardId, s3Key: board.s3Key },
+              "☁️  Downloading snapshot from S3"
+            );
             // 🔥 FIX #5: S3 timeout protection (10s max)
             const s3Binary = await Promise.race([
               downloadSnapshot(board.s3Key),
@@ -234,6 +264,15 @@ export const handler = async (
               ),
             ]);
             Y.applyUpdate(baseDoc, s3Binary);
+            logger.info(
+              { boardId, snapshotSize: s3Binary.length },
+              "✅ S3 snapshot applied successfully"
+            );
+          } else {
+            logger.info(
+              { boardId },
+              "ℹ️  No S3 snapshot - starting with empty doc"
+            );
           }
         } finally {
           // Always release lock
@@ -291,9 +330,14 @@ export const handler = async (
     if (totalReplayed >= MAX_REPLAY) {
       logger.warn(
         { boardId, totalReplayed, MAX_REPLAY },
-        "MAX_REPLAY limit reached - stream replay truncated"
+        "⚠️  MAX_REPLAY limit reached - stream replay truncated"
       );
     }
+
+    logger.info(
+      { boardId, totalReplayed, lastStreamId },
+      "✅ Stream replay complete"
+    );
 
     // 4. Warm cache for next query (with version comparison)
     if (totalReplayed > 0 || cachedJSON) {
@@ -362,9 +406,26 @@ export const handler = async (
       snapshotTimestamp: board.lastSnapshotAt,
     };
   } catch (error: unknown) {
-    if (error instanceof AppError) throw error;
+    if (error instanceof AppError) {
+      logger.warn(
+        { error, boardId, userId },
+        "⚠️  Known error in get-board-snapshot"
+      );
+      throw error;
+    }
 
-    // Unexpected error - log and throw generic error
+    // Unexpected error - log details and throw generic error
+    logger.error(
+      {
+        error,
+        boardId,
+        userId,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        errorName: error instanceof Error ? error.name : undefined,
+      },
+      "❌ UNEXPECTED ERROR in get-board-snapshot"
+    );
     throw new AppError("Failed to fetch board snapshot");
   }
 };

@@ -52,6 +52,14 @@ export const WhiteboardKeys = {
   S3SnapshotTimestamped: (boardId: string, timestamp: number) =>
     `boards/${boardId}/snapshots/${timestamp}.yjs`,
   S3SnapshotLatest: (boardId: string) => `boards/${boardId}/latest.yjs`,
+
+  // Loop Prevention
+  RateLimit: (boardId: string, userId: string) =>
+    `board:${boardId}:rate:${userId}`,
+  DuplicateUpdate: (boardId: string, userId: string, hash: string) =>
+    `board:${boardId}:dedupe:${userId}:${hash}`,
+  UpdateTrace: (boardId: string) => `board:${boardId}:loop_trace`,
+  LoopCircuitBreaker: (boardId: string) => `board:${boardId}:loop_circuit`,
 } as const;
 
 /**
@@ -66,4 +74,8 @@ export const WhiteboardTTLs = {
   BOARD_LOCK: 3600, // 1 hour
   SNAPSHOT_LOCK: 300, // 5 minutes
   CACHED_SNAPSHOT: 300, // 5 minutes
+  RATE_LIMIT_WINDOW: 2, // 2 seconds (cleanup window)
+  DUPLICATE_UPDATE: 1, // 1 second (duplicate detection)
+  UPDATE_TRACE: 5, // 5 seconds (loop detection trace)
+  LOOP_CIRCUIT_BREAKER: 5, // 5 seconds (circuit breaker cooldown)
 } as const;

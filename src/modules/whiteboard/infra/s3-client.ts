@@ -4,7 +4,7 @@
  * Wrapper around AWS S3 SDK for snapshot operations
  */
 
-import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { s3Client } from "@/infra/aws/s3";
 import { env } from "@/shared/config/env";
 import { logger } from "@/shared/logger";
@@ -79,51 +79,47 @@ export const uploadSnapshot = async (
  * Download snapshot from S3
  */
 export const downloadSnapshot = async (s3Key: string): Promise<Uint8Array> => {
-  // TODO: V4 Architecture - S3 Download
-  // ============================================
-  //
-  // STEP 1: Check Redis Cache First
-  // -------------------------------
-  // - Key: snapshot:${s3Key}
-  // - If cached → return cached binary (Base64 decode)
-  // - Cache hit = significant cost saving!
-  //
-  // STEP 2: Download from S3
-  // ------------------------
-  // import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
-  // const s3 = new S3Client({ region: env.AWS_REGION });
-  // const command = new GetObjectCommand({
-  //   Bucket: env.S3_WHITEBOARD_BUCKET,
-  //   Key: s3Key,
-  // });
-  // const response = await s3.send(command);
-  //
-  // STEP 3: Convert Stream to Buffer
-  // --------------------------------
-  // const stream = response.Body;
-  // const chunks: Uint8Array[] = [];
-  // for await (const chunk of stream) {
-  //   chunks.push(chunk);
-  // }
-  // const binary = Buffer.concat(chunks);
-  //
-  // STEP 4: Cache in Redis
-  // ----------------------
-  // - SET snapshot:${s3Key} ${base64(binary)} EX 300
-  // - 5 minute cache for frequently accessed boards
-  //
-  // STEP 5: Return Binary
-  // --------------------
-  // return new Uint8Array(binary);
-  //
-  // ERROR HANDLING:
-  // - Key not found → "SNAPSHOT_NOT_FOUND"
-  // - Network failure → retry 3x
-  // - Corrupted data → "SNAPSHOT_CORRUPTED"
-  //
-  // ============================================
+  try {
+    const { GetObjectCommand } = await import("@aws-sdk/client-s3");
 
-  throw new Error("TODO: Implement downloadSnapshot");
+    const command = new GetObjectCommand({
+      Bucket: env.S3_WHITEBOARD_BUCKET,
+      Key: s3Key,
+    });
+
+    logger.info({ s3Key }, "Downloading snapshot from S3");
+
+    const response = await s3Client.send(command);
+
+    if (!response.Body) {
+      throw new Error("S3 response body is empty");
+    }
+
+    // Convert stream to buffer
+    const chunks: Uint8Array[] = [];
+    // @ts-expect-error - AWS SDK stream types are complex
+    for await (const chunk of response.Body) {
+      chunks.push(chunk);
+    }
+    const binary = Buffer.concat(chunks);
+
+    logger.info(
+      { s3Key, sizeBytes: binary.byteLength },
+      "Snapshot downloaded successfully from S3"
+    );
+
+    return new Uint8Array(binary);
+  } catch (error) {
+    logger.error(
+      {
+        error,
+        s3Key,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      },
+      "Failed to download snapshot from S3"
+    );
+    throw error;
+  }
 };
 
 /**

@@ -208,13 +208,20 @@ export const wsRegistry = {
 
   /**
    * Receiver for Redis Pub/Sub Messages (The Fan-Out)
-   * FIX: Added Backpressure Guard
+   * FIX: Added Backpressure Guard + Socket Exclusion
+   * @param excludeSocketId - Optional: Skip this specific socket (prevents self-echo)
    */
-  dispatch(topic: string, message: string) {
+  dispatch(topic: string, message: string, excludeSocketId?: string) {
     const ids = topicSubs.get(topic);
     if (!ids || ids.size === 0) return;
 
     for (const id of ids) {
+      // ✅ Skip originating socket (prevents self-echo for whiteboard updates)
+      // This allows same user on multiple devices to sync correctly
+      if (excludeSocketId && id === excludeSocketId) {
+        continue;
+      }
+
       const socket = globalSocketMap.get(id);
 
       // FIX: Check Open State AND Backpressure

@@ -384,22 +384,74 @@ export const whiteboardStreamWorker = {
   },
 
   /**
+   * Initialize empty board with correct y-excalidraw structure
+   *
+   * ✅ CRITICAL: y-excalidraw expects root-level Y.Array and Y.Map
+   * - ydoc.getArray('elements') → Y.Array<Y.Map<any>>
+   * - ydoc.getMap('assets') → Y.Map
+   */
+  initializeEmptyBoard(): Y.Doc {
+    const ydoc = new Y.Doc();
+
+    // Create root-level structures
+    ydoc.getArray("elements"); // Y.Array for Excalidraw elements
+    ydoc.getMap("assets"); // Y.Map for file assets
+
+    logger.debug("✅ Initialized empty board with Y.Array structure");
+
+    return ydoc;
+  },
+
+  /**
    * Cold start: rebuild Y.Doc from S3 + stream delta
    */
   async coldStart(boardId: string): Promise<BoardState> {
-    const ydoc = new Y.Doc();
+    let ydoc: Y.Doc;
     let streamIdWhenLoaded = "0-0";
 
     try {
       // Load S3 snapshot
       const snapshot = await s3Client.getLatestSnapshot(boardId);
       if (snapshot) {
-        Y.applyUpdate(ydoc, snapshot.data);
-        streamIdWhenLoaded = snapshot.streamId || "0-0";
-        logger.info(
-          { boardId, streamId: streamIdWhenLoaded },
-          "Loaded S3 snapshot"
-        );
+        // ✅ CRITICAL: Validate snapshot structure
+        // Old snapshots have Y.Map for elements (incompatible)
+        // New snapshots have Y.Array for elements (correct)
+        const tempDoc = new Y.Doc();
+        Y.applyUpdate(tempDoc, snapshot.data);
+
+        const elements = tempDoc.get("elements");
+
+        if (elements instanceof Y.Map) {
+          // OLD STRUCTURE - Reject and start fresh
+          logger.warn({
+            boardId,
+            msg: "⚠️ Old snapshot structure (Y.Map) - starting fresh with Y.Array",
+            snapshotSize: snapshot.data.length,
+          });
+
+          tempDoc.destroy();
+          ydoc = this.initializeEmptyBoard(); // Fresh Y.Doc with correct structure
+          streamIdWhenLoaded = "0-0"; // Replay all stream updates
+        } else {
+          // CORRECT STRUCTURE or empty - use it
+          tempDoc.destroy();
+          ydoc = new Y.Doc();
+          Y.applyUpdate(ydoc, snapshot.data);
+          streamIdWhenLoaded = snapshot.streamId || "0-0";
+
+          logger.info({
+            boardId,
+            streamId: streamIdWhenLoaded,
+            msg: "✅ Loaded S3 snapshot with correct structure",
+          });
+        }
+      } else {
+        // No snapshot - create fresh board
+        logger.info({
+          boardId,
+          msg: "📝 No snapshot found - creating fresh board",
+        });
+        ydoc = this.initializeEmptyBoard();
       }
 
       // Apply delta from stream (entries after snapshot)
@@ -454,6 +506,9 @@ export const whiteboardStreamWorker = {
         { error, boardId },
         "Cold start failed, starting with empty doc"
       );
+
+      // Initialize fresh board if error occurred
+      ydoc = this.initializeEmptyBoard();
     }
 
     return {

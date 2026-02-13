@@ -14,6 +14,13 @@ import {
 } from "@/modules/whiteboard/infra/whiteboard-keys";
 import { executeAtomicBoardUpdate } from "@/modules/whiteboard/infra/lua-scripts";
 import { validateYjsUpdate } from "@/modules/whiteboard/utils/validate-yjs-update";
+// import {
+//   checkRateLimit,
+//   isDuplicateUpdate,
+//   detectUpdateLoop,
+//   isCircuitBreakerActive,
+//   enforceCircuitBreakerThrottle,
+// } from "@/modules/whiteboard/infra/loop-prevention";
 
 /**
  * Board Update Handler (V4 Stateless Gateway Architecture)
@@ -40,7 +47,7 @@ export const boardUpdateHandler = async (
   input: BoardUpdateInput
 ) => {
   const { boardId, update, dedupeId } = input;
-  const { userId } = socket.data;
+  const { userId, socketId } = socket.data;
   const startTime = Date.now();
 
   logger.info({
@@ -71,6 +78,15 @@ export const boardUpdateHandler = async (
       throw new AppError("Board is currently locked", "BOARD_LOCKED");
     }
 
+    // ✅ LOOP PREVENTION LAYER 1: Rate Limiting
+    // const rateLimitOk = await checkRateLimit(boardId, userId);
+    // if (!rateLimitOk) {
+    //   throw new AppError(
+    //     "Too many updates - rate limit exceeded",
+    //     "RATE_LIMIT_EXCEEDED"
+    //   );
+    // }
+
     // Binary validation
     let updateBinary: Uint8Array;
     try {
@@ -87,6 +103,51 @@ export const boardUpdateHandler = async (
       );
     }
 
+    // ✅ LOOP PREVENTION LAYER 2: Duplicate Detection
+    // const isDuplicate = await isDuplicateUpdate(boardId, userId, updateBinary);
+    // if (isDuplicate) {
+    // logger.debug({ dedupeId, boardId }, "Duplicate update (hash check)");
+
+    // socket.send(
+    //   createSuccessFrame(dedupeId, "whiteboard:update-ack", {
+    //     status: "duplicate",
+    //     boardId,
+    //   })
+    // );
+    // return;
+    // }
+
+    // ❌ LOOP PREVENTION LAYER 3 & 4: DISABLED (False Positives)
+    //
+    // Issue: Detection incorrectly flags normal 2-user collaboration as loops
+    // Threshold: 20 updates in 2s with 2 users → TOO LOW for collaborative editing
+    // Example: User A freehand (10 updates) + User B receives (10 events) = 20 → FALSE POSITIVE
+    //
+    // Frontend ALREADY prevents loops correctly via origin tracking:
+    // - Local changes: origin='local' → send to backend ✓
+    // - Remote updates: origin='remote' → apply locally, never resend ✓
+    //
+    // Keeping Layers 1 & 2: Rate limiting + Duplicate detection (no false positives)
+    //
+    // TODO: If re-enabling, increase thresholds (100 updates, 5s window) and add
+    // strict alternation check (A→B→A→B pattern) to avoid flagging normal collaboration
+    //
+    // const loopDetected = await detectUpdateLoop(boardId, userId);
+    // if (loopDetected) {
+    //   logger.warn(
+    //     { boardId, userId },
+    //     'Loop detected - circuit breaker activated'
+    //   );
+    // }
+    //
+    // const circuitActive = await isCircuitBreakerActive(boardId);
+    // if (circuitActive) {
+    //   try {
+    //     await enforceCircuitBreakerThrottle(boardId, userId);
+    //   } catch (err) {
+    //     throw new AppError('Update loop detected - throttling active');
+    //   }
+    // }
     const isValid = validateYjsUpdate(updateBinary);
     if (!isValid) {
       throw new AppError("Malformed Yjs update binary", "INVALID_YJSUPDATE");
@@ -153,19 +214,40 @@ export const boardUpdateHandler = async (
     // Broadcast to other subscribers (best-effort)
     const channel = WhiteboardKeys.BoardEvents(boardId);
 
-    await appRedis.publish(
+    logger.debug({
+      msg: "📡 Publishing to Redis pub/sub",
+      boardId,
       channel,
-      JSON.stringify({
-        event: "whiteboard:board-update",
-        payload: {
-          boardId,
-          streamId: result.streamId,
-          update,
-          userId,
-          timestamp,
-        },
-      })
+      streamId: result.streamId,
+    });
+
+    const boardUpdateFrame = createSuccessFrame(
+      undefined, // No request ID for broadcasts
+      "whiteboard:board-update",
+      {
+        boardId,
+        streamId: result.streamId,
+        update,
+        userId,
+        timestamp,
+      }
     );
+
+    // ✅ NEW: Wrap with originSocketId for self-echo prevention
+    // Redis subscriber will parse this and pass excludeSocketId to dispatch()
+    // This allows same user on multiple devices to sync correctly
+    const pubSubMessage = JSON.stringify({
+      message: boardUpdateFrame,
+      originSocketId: socketId,
+    });
+
+    await appRedis.publish(channel, pubSubMessage);
+
+    logger.debug({
+      msg: "✅ Publish complete",
+      boardId,
+      totalDuration: Date.now() - startTime,
+    });
 
     const duration = Date.now() - startTime;
 

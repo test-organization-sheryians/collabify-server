@@ -229,8 +229,8 @@ export const subscribeBoardHandler = async (
 
   const collaborators = users.map((user) => ({
     userId: user.id,
-    name: user.fullName || "Unknown",
-    avatar: user.avatarUrl ?? "",
+    fullName: user.fullName || "Unknown",
+    avatarUrl: user.avatarUrl ?? "",
   }));
 
   // ==========================================
@@ -284,20 +284,22 @@ export const subscribeBoardHandler = async (
       return; // Graceful degradation: skip broadcast if user deleted mid-request
     }
 
+    // Broadcast user-joined event using proper envelope format
+    const userJoinedFrame = createSuccessFrame(
+      undefined, // No request ID for broadcasts
+      "whiteboard:user-joined",
+      {
+        boardId,
+        userId: user.id,
+        fullName: user.fullName || "Unknown",
+        avatarUrl: user.avatarUrl ?? "",
+        timestamp: Date.now(),
+      }
+    );
+
     await appRedis.publish(
       WhiteboardKeys.BoardEvents(boardId),
-      JSON.stringify({
-        type: "whiteboard:user-joined",
-        payload: {
-          boardId,
-          user: {
-            userId: user.id,
-            name: user.fullName || "Unknown",
-            avatar: user.avatarUrl ?? "",
-          },
-          timestamp: Date.now(),
-        },
-      })
+      userJoinedFrame
     );
 
     logger.info({
