@@ -7,7 +7,9 @@
 import { PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { s3Client } from "@/infra/aws/s3";
 import { env } from "@/shared/config/env";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("whiteboard:infra:s3");
 import { WhiteboardKeys } from "./whiteboard-keys";
 
 export type S3SnapshotMetadata = {
@@ -56,8 +58,7 @@ export const uploadSnapshot = async (
 
     await s3Client.send(command);
 
-    logger.info({
-      msg: "Snapshot uploaded to S3",
+    logger.info("Snapshot uploaded to S3", {
       boardId,
       s3Key,
       sizeBytes: binary.byteLength,
@@ -65,9 +66,8 @@ export const uploadSnapshot = async (
 
     return s3Key;
   } catch (error) {
-    logger.error({
+    logger.error("Failed to upload snapshot to S3", {
       err: error,
-      msg: "Failed to upload snapshot to S3",
       boardId,
       s3Key,
     });
@@ -87,7 +87,7 @@ export const downloadSnapshot = async (s3Key: string): Promise<Uint8Array> => {
       Key: s3Key,
     });
 
-    logger.info({ s3Key }, "Downloading snapshot from S3");
+    logger.info("Downloading snapshot from S3", { s3Key });
 
     const response = await s3Client.send(command);
 
@@ -103,21 +103,18 @@ export const downloadSnapshot = async (s3Key: string): Promise<Uint8Array> => {
     }
     const binary = Buffer.concat(chunks);
 
-    logger.info(
-      { s3Key, sizeBytes: binary.byteLength },
-      "Snapshot downloaded successfully from S3"
-    );
+    logger.info("Snapshot downloaded successfully from S3", {
+      s3Key,
+      sizeBytes: binary.byteLength,
+    });
 
     return new Uint8Array(binary);
   } catch (error) {
-    logger.error(
-      {
-        error,
-        s3Key,
-        errorMessage: error instanceof Error ? error.message : String(error),
-      },
-      "Failed to download snapshot from S3"
-    );
+    logger.error("Failed to download snapshot from S3", {
+      error,
+      s3Key,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
     throw error;
   }
 };

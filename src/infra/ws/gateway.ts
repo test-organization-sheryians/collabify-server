@@ -1,5 +1,6 @@
 import { Context } from "hono";
-import { logger } from "../../shared/logger";
+import { createLogger } from "../../shared/lib/logger";
+
 import { Server, ServerWebSocket } from "bun";
 import { ChatWebSocket, WSSocketData } from "./types";
 import { wsRegistry } from "./subscription-registry";
@@ -9,14 +10,16 @@ import { db } from "../db";
 /**
  * Validates the connection request (Clerk Token)
  * TODO: Move to shared/auth later
- */
+*/
 import { verifyToken } from "@clerk/backend";
 import { env } from "../../shared/config/env";
 
 /**
  * Validates the connection request (Clerk Token)
  * TODO: Move to shared/auth later
- */
+*/
+const logger = createLogger("infra:ws:gateway");
+
 async function authenticate(c: Context): Promise<{ userId: string } | null> {
   const token = c.req.query("token") || c.req.header("Authorization");
 
@@ -32,7 +35,7 @@ async function authenticate(c: Context): Promise<{ userId: string } | null> {
 
     return { userId: payload.sub };
   } catch (err) {
-    logger.error({ err }, "WS Auth Failed");
+    logger.error("WS Auth Failed", { err });
     return null;
   }
 }
@@ -81,7 +84,7 @@ export const createWSGateway = () => {
     websocketHandler: {
       open(ws: ServerWebSocket<WSSocketData>) {
         const { workspaceId, userId, socketId } = ws.data;
-        logger.info({ msg: "WS Connected", workspaceId, userId, socketId });
+        logger.info("WS Connected", { workspaceId, userId, socketId });
 
         // Register Session
         wsRegistry.startSession(ws);
@@ -97,7 +100,7 @@ export const createWSGateway = () => {
 
       close(ws: ServerWebSocket<WSSocketData>) {
         const { socketId } = ws.data;
-        logger.info({ msg: "WS Closed", socketId });
+        logger.info("WS Closed", { socketId });
 
         // Cleanup
         wsRegistry.endSession(socketId);

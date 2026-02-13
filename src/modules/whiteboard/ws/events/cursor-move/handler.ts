@@ -1,7 +1,9 @@
 import { WSHandlerContext } from "@/infra/ws/types";
 import { ChatWebSocket } from "@/infra/ws/types";
 import { CursorMoveInput } from "./schema";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("whiteboard:ws:cursor");
 
 /**
  * Cursor Move Handler (EPHEMERAL)
@@ -55,7 +57,7 @@ export const cursorMoveHandler = async (
     // ============================================
     // No-op for now - implement later
   } catch (err: unknown) {
-    logger.error({ err, boardId }, "Failed to process cursor move");
+    logger.error("Failed to process cursor move", { err, boardId });
     // Don't send error to client - this is ephemeral
   }
 };

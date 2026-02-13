@@ -8,7 +8,9 @@
  */
 
 import { reactionQueue } from "@/modules/chat/jobs/queues";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("chat:domain:reactions:batch");
 
 // Batch state (in-memory collection)
 let reactionBatch: Array<{
@@ -74,15 +76,14 @@ export const flushReactionBatch = async (): Promise<void> => {
 
     lastFlushTime = Date.now(); // ✅ Only update on success
 
-    logger.info(
-      { count: batchToFlush.length },
-      "Reaction batch enqueued for persistence"
-    );
+    logger.info("Reaction batch enqueued for persistence", {
+      count: batchToFlush.length,
+    });
   } catch (error: any) {
-    logger.error(
-      { error, count: batchToFlush.length },
-      "Failed to enqueue reaction batch"
-    );
+    logger.error("Failed to enqueue reaction batch", {
+      error,
+      count: batchToFlush.length,
+    });
 
     // Re-add to batch (retry on next flush)
     reactionBatch.unshift(...batchToFlush);

@@ -2,7 +2,9 @@ import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 
 import { s3Client as awsS3Client } from "@/infra/aws/s3";
 import { env } from "@/shared/config/env";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("whiteboard:infra:s3");
 import { WhiteboardKeys } from "./whiteboard-keys";
 
 /**
@@ -44,10 +46,11 @@ export const s3Client = {
 
       const streamId = response.Metadata?.streamid || "0-0";
 
-      logger.debug(
-        { boardId, streamId, size: data.length },
-        "Loaded S3 snapshot"
-      );
+      logger.debug("Loaded S3 snapshot", {
+        boardId,
+        streamId,
+        size: data.length,
+      });
 
       return {
         data: new Uint8Array(data),
@@ -55,11 +58,11 @@ export const s3Client = {
       };
     } catch (error: any) {
       if (error.name === "NoSuchKey") {
-        logger.debug({ boardId }, "No S3 snapshot found (new board)");
+        logger.debug("No S3 snapshot found (new board)", { boardId });
         return null;
       }
 
-      logger.error({ error, boardId }, "S3 getLatestSnapshot failed");
+      logger.error("S3 getLatestSnapshot failed", { error, boardId });
       throw error;
     }
   },
@@ -96,12 +99,14 @@ export const s3Client = {
 
       await awsS3Client.send(command);
 
-      logger.info(
-        { boardId, key, size: data.length, streamId: metadata.streamId },
-        "S3 snapshot written"
-      );
+      logger.info("S3 snapshot written", {
+        boardId,
+        key,
+        size: data.length,
+        streamId: metadata.streamId,
+      });
     } catch (error) {
-      logger.error({ error, boardId, key }, "S3 putSnapshot failed");
+      logger.error("S3 putSnapshot failed", { error, boardId, key });
       throw error;
     }
   },

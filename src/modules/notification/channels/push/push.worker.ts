@@ -2,7 +2,9 @@ import { Job } from "bullmq";
 import { createWorker } from "@/services/bullmq";
 import { QUEUE_NAMES, REDIS_KEYS } from "../../core/constants";
 import { PushJobData } from "../../core/types";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("notification:channel:push");
 import { redis } from "@/infra/redis";
 import { pushProvider } from "@/services/push-provider";
 import { ProviderError } from "../../core/errors";
@@ -17,14 +19,15 @@ export const createPushWorker = () => {
       const acquired = await redis.set(lockKey, "1", "EX", 86400, "NX");
 
       if (!acquired) {
-        logger.debug({ eventId, userId }, "Duplicate Push Job Dropped");
+        logger.debug("Duplicate Push Job Dropped", { eventId, userId });
         return;
       }
 
-      logger.debug(
-        { jobId: job.id, userId, title },
-        "Processing Push Notification"
-      );
+      logger.debug("Processing Push Notification", {
+        jobId: job.id,
+        userId,
+        title,
+      });
 
       try {
         // TODO: Integrate actual Push Provider (FCM/APNS)
@@ -36,7 +39,7 @@ export const createPushWorker = () => {
 
         await pushProvider.send([userId], title, body, stringData);
 
-        logger.info({ eventId, userId }, "Push Notification Sent (Simulated)");
+        logger.info("Push Notification Sent (Simulated)", { eventId, userId });
       } catch (err: unknown) {
         throw new ProviderError("PUSH", err as Error);
       } finally {

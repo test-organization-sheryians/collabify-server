@@ -1,5 +1,7 @@
 import { bpubRedis, appRedis } from "../redis";
-import { logger } from "../../shared/logger";
+import { createLogger } from "../../shared/lib/logger";
+
+const logger = createLogger("infra:ws:worker");
 import * as os from "os";
 import { KeyFactory } from "../redis/keys";
 import { persistenceQueue } from "@/modules/chat/jobs/queues";
@@ -34,7 +36,7 @@ const publishSafe = async (
     await Promise.race([appRedis.publish(topic, message), timeout]);
   } catch (err) {
     // Log & Drop (Best Effort)
-    logger.warn({ topic, err }, "PubSub: Dropped Message (Backpressure)");
+    logger.warn("PubSub: Dropped Message (Backpressure)", { topic, err });
   }
 };
 
@@ -45,10 +47,10 @@ export const streamWorker = {
 
   async init() {
     this.isRunning = true;
-    logger.info(
-      { group: WORKER_GROUP_NAME, consumer: CONSUMER_NAME },
-      "Starting Stream Worker (Hardened Mode)"
-    );
+    logger.info("Starting Stream Worker (Hardened Mode)", {
+      group: WORKER_GROUP_NAME,
+      consumer: CONSUMER_NAME,
+    });
 
     // Start Loops
     this.heartbeatLoop();
@@ -71,7 +73,7 @@ export const streamWorker = {
 
         await new Promise((r) => setTimeout(r, 5000));
       } catch (err) {
-        logger.error({ err }, "Heartbeat Failed");
+        logger.error("Heartbeat Failed", { err });
       }
     }
   },
@@ -132,7 +134,7 @@ export const streamWorker = {
           );
           this.knownGroups.clear();
         } else {
-          logger.error({ err }, "Stream Worker Loop Error");
+          logger.error("Stream Worker Loop Error", { err });
         }
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
@@ -170,17 +172,17 @@ export const streamWorker = {
           const messages = result[1];
 
           if (messages && messages.length > 0) {
-            logger.warn(
-              { stream, count: messages.length },
-              "Janitor: Claimed Stale Messages"
-            );
+            logger.warn("Janitor: Claimed Stale Messages", {
+              stream,
+              count: messages.length,
+            });
             for (const [id, fields] of messages) {
               await this.safeProcessMessage(stream, id, fields);
             }
           }
         }
       } catch (err) {
-        logger.error({ err }, "Janitor Loop Error");
+        logger.error("Janitor Loop Error", { err });
       }
     }
   },
@@ -220,7 +222,7 @@ export const streamWorker = {
       // ACK only on success
       await bpubRedis.xack(streamKey, WORKER_GROUP_NAME, id);
     } catch (error: any) {
-      logger.error({ error, streamKey, id }, "Poison Pill: Moving to DLQ");
+      logger.error("Poison Pill: Moving to DLQ", { error, streamKey, id });
 
       // ARCHITECTURE DECISION: Dead Letter Policy (Parking Lot)
       try {
@@ -239,7 +241,7 @@ export const streamWorker = {
           new Date().toISOString()
         );
       } catch (dlqErr) {
-        logger.error({ dlqErr }, "CRITICAL: Failed to write to DLQ");
+        logger.error("CRITICAL: Failed to write to DLQ", { dlqErr });
       }
 
       // Clear checking to prevent loop block
@@ -278,10 +280,11 @@ export const streamWorker = {
     try {
       rawPayload = JSON.parse(payloadStr);
     } catch (parseError: any) {
-      logger.error(
-        { parseError, payloadStr, conversationId },
-        "Failed to parse event payload JSON"
-      );
+      logger.error("Failed to parse event payload JSON", {
+        parseError,
+        payloadStr,
+        conversationId,
+      });
       throw new Error("INVALID_JSON_PAYLOAD");
     }
 

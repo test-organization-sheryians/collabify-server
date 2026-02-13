@@ -2,7 +2,9 @@ import { Job } from "bullmq";
 import { createWorker, createQueue } from "@/services/bullmq";
 import { QUEUE_NAMES, REDIS_KEYS } from "../core/constants";
 import { DeciderJobData } from "../core/types";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("notification:engine:batch");
 import { redis } from "@/infra/redis";
 
 interface BatchJobData {
@@ -39,10 +41,10 @@ export const createBatchWorker = () => {
 
       const items = rawItems.map((s) => JSON.parse(s));
 
-      logger.info(
-        { userId, count: items.length },
-        "Aggregating Notification Batch"
-      );
+      logger.info("Aggregating Notification Batch", {
+        userId,
+        count: items.length,
+      });
 
       const summaryPayload = {
         itemCount: items.length,

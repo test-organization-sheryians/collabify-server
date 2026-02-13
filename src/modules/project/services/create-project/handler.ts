@@ -1,6 +1,9 @@
 import { db } from "@/infra/db";
 import { redis } from "@/infra/redis";
 import { AppError } from "@/shared/errors";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("project:services:create");
 import { SlugUtil } from "@/shared/utils/slug.util";
 import { Prisma, Project } from "@prisma/client";
 import { CreateProjectInput } from "./types";
@@ -107,7 +110,6 @@ export const createProject = async (input: {
     // Matches Workspace Logic for parity
     const existsKey = keys.exists(slug);
     const userResKey = keys.userReservation(userId);
-
     try {
       await LockingService.finalize(
         lockKey,
@@ -120,7 +122,7 @@ export const createProject = async (input: {
     } catch (error) {
       if (error instanceof AppError) {
         // Log but don't fail the request since DB is committed
-        console.warn("Project Lock Finalize Error:", error.message);
+        logger.warn("Project Lock Finalize Error", { err: error });
       }
     }
 

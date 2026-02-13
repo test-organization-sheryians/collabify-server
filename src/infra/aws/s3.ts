@@ -4,7 +4,9 @@ import {
   HeadBucketCommand,
 } from "@aws-sdk/client-s3";
 import { env } from "@/shared/config/env";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("infra:s3");
 
 /**
  * Global S3 Client Configuration
@@ -43,6 +45,6 @@ export const checkS3Connection = async () => {
     );
     logger.info("✅ AWS S3 Connected");
   } catch (error) {
-    logger.error({ error }, "❌ AWS S3 Connection Failed");
+    logger.error("❌ AWS S3 Connection Failed", { error });
   }
 };

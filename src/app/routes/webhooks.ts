@@ -1,10 +1,11 @@
 import { Hono, Context } from "hono";
 import { ClerkWebhookService } from "../../services/clerk/webhook";
 import { syncUser } from "../../modules/user";
-import { logger } from "../../shared/logger";
+import { createLogger } from "../../shared/lib/logger";
 import { db } from "../../infra/db";
 import { redis } from "../../infra/redis";
 
+const logger = createLogger("app:webhooks");
 const webhookRouter = new Hono();
 
 webhookRouter.post("/api/webhooks/clerk", async (c: Context) => {
@@ -21,7 +22,7 @@ webhookRouter.post("/api/webhooks/clerk", async (c: Context) => {
 
     // 2. Application Layer: Route Logic
     const eventType = evt.type;
-    logger.info({ eventType }, "Processing Clerk Webhook");
+    logger.info("Processing Clerk Webhook", { eventType });
 
     switch (eventType) {
       case "user.created":
@@ -34,7 +35,7 @@ webhookRouter.post("/api/webhooks/clerk", async (c: Context) => {
           ) || email_addresses[0];
 
         if (!primaryEmail?.email_address) {
-          logger.warn({ userId: id }, "Skipping user sync: No email found");
+          logger.warn("Skipping user sync: No email found", { userId: id });
           return c.json({ success: true, skipped: "no_email" });
         }
 
@@ -50,24 +51,23 @@ webhookRouter.post("/api/webhooks/clerk", async (c: Context) => {
           { db, redis }
         );
 
-        logger.info({ userId: id }, "Successfully synced user");
+        logger.info("Successfully synced user", { userId: id });
         break;
       }
 
       case "user.deleted":
-        logger.info(
-          { userId: evt.data.id },
-          "User deleted event ignored (Soft Delete Policy)"
-        );
+        logger.info("User deleted event ignored (Soft Delete Policy)", {
+          userId: evt.data.id,
+        });
         break;
 
       default:
-        logger.info({ eventType }, "Ignored unhandled event type");
+        logger.info("Ignored unhandled event type", { eventType });
     }
 
     return c.json({ success: true });
   } catch (err) {
-    logger.error({ err }, "Webhook Error");
+    logger.error("Webhook Error", { err });
     return c.text("Bad Request", 400);
   }
 });

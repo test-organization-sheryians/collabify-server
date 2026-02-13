@@ -1,4 +1,6 @@
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("workspace:services:onboarding");
 import { AppError } from "@/shared/errors";
 import { CreateOnboardingWorkspaceInput } from "./types";
 import { SlugUtil } from "@/shared/utils/slug.util";
@@ -32,10 +34,10 @@ export const createOnboardingWorkspace = async (
     // 1. Check Idempotency (Strict)
     const existing = await getMyWorkspaces({ userId }, ctx);
     if (existing.length > 0) {
-      logger.info(
-        { userId, workspaceId: existing[0].id },
-        "Onboarding Idempotency: Workspace already exists"
-      );
+      logger.info("Onboarding Idempotency: Workspace already exists", {
+        userId,
+        workspaceId: existing[0].id,
+      });
       return existing[0];
     }
 

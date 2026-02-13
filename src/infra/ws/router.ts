@@ -1,5 +1,7 @@
 import { Context } from "hono";
-import { logger } from "../../shared/logger";
+import { createLogger } from "../../shared/lib/logger";
+
+const logger = createLogger("infra:ws:router");
 import {
   ChatWebSocket,
   createErrorFrame,
@@ -35,12 +37,11 @@ export class WSRouter {
   public registerModule(moduleName: string, routes: RouteMap) {
     for (const [key, def] of Object.entries(routes)) {
       if (this.routes[key]) {
-        logger.warn({ msg: "Duplicate WS Route detected", key, moduleName });
+        logger.warn("Duplicate WS Route detected", { key, moduleName });
       }
       this.routes[key] = def;
     }
-    logger.info({
-      msg: "Registered WS Module",
+    logger.info("Registered WS Module", {
       moduleName,
       count: Object.keys(routes).length,
     });
@@ -77,8 +78,7 @@ export class WSRouter {
     // 2. Lookup
     const route = this.routes[type];
     if (!route) {
-      logger.warn({
-        msg: "Unknown WS Event",
+      logger.warn("Unknown WS Event", {
         type,
         userId: socket.data.userId,
       });
@@ -93,8 +93,7 @@ export class WSRouter {
     if (!validation.success) {
       const issues = validation.error.format();
 
-      logger.warn({
-        msg: "WS Validation Failed",
+      logger.warn("WS Validation Failed", {
         type,
         errors: issues,
       });
@@ -122,7 +121,7 @@ export class WSRouter {
     try {
       await route.handler(handlerContext, socket, validation.data);
     } catch (err: any) {
-      logger.error({ msg: "WS Handler Error", type, err });
+      logger.error("WS Handler Error", { type, err });
 
       // Standardize AppError
       const code = err.statusCode || "500";

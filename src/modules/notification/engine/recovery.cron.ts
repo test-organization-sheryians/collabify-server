@@ -1,5 +1,7 @@
 import { createQueue, createWorker } from "@/services/bullmq";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("notification:engine:recovery");
 import { db } from "@/infra/db";
 
 const RECOVERY_QUEUE_NAME = "outbox-recovery-cron";
@@ -31,10 +33,10 @@ export const createRecoveryCron = () => {
     `);
 
     if (result.length > 0) {
-      logger.warn(
-        { count: result.length, ids: result.map((r) => r.id) },
-        "🧟 revived stuck outbox events!"
-      );
+      logger.warn("🧟 revived stuck outbox events!", {
+        count: result.length,
+        ids: result.map((r) => r.id),
+      });
     }
   });
 

@@ -1,18 +1,17 @@
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("services:providers");
 
 export const sendToConsole = (
   to: string,
   subject: string,
   html: string
 ): Promise<void> => {
-  logger.info(
-    {
-      type: "EMAIL_MOCK",
-      to,
-      subject,
-      htmlPreview: html.substring(0, 100) + "...",
-    },
-    "📧 Mock Email Sent"
-  );
+  logger.info("📧 Mock Email Sent", {
+    type: "EMAIL_MOCK",
+    to,
+    subject,
+    htmlPreview: html.substring(0, 100) + "...",
+  });
   return Promise.resolve();
 };

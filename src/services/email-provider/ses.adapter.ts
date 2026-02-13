@@ -1,6 +1,8 @@
 import { SendEmailCommand } from "@aws-sdk/client-ses";
 import { env } from "@/shared/config/env";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("services:providers");
 import { AppError } from "@/shared/errors";
 import { sesClient } from "@/infra/aws/ses";
 
@@ -24,12 +26,13 @@ export const sendWithSES = async (
     });
 
     await sesClient.send(command);
-    logger.info(
-      { to, subject, provider: "SES" },
-      "Email sent successfully via SES"
-    );
+    logger.info("Email sent successfully via SES", {
+      to,
+      subject,
+      provider: "SES",
+    });
   } catch (error) {
-    logger.error({ error, to, subject }, "Failed to send email via SES");
+    logger.error("Failed to send email via SES", { error, to, subject });
     throw new AppError(
       "Failed to send email via SES",
       "NOTIFICATION_PROVIDER_ERROR",

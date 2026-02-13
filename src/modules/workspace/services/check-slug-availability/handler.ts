@@ -1,6 +1,8 @@
 import { SlugUtil } from "@/shared/utils/slug.util";
 import { AppError } from "@/shared/errors";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("workspace:services:slug");
 import { WORKSPACE_LIMITS } from "@/shared/config/limits";
 import { checkRateLimit } from "@/shared/utils/rate-limiter";
 import { CheckAvailabilitySchema } from "./schema";
@@ -40,14 +42,10 @@ export const checkSlugAvailability = async (
   try {
     const existsCache = await redis.get(keys.exists(normalizedSlug));
     if (existsCache) {
-      return {
-        available: false,
-        message: "Workspace already exists",
-        reason: "WORKSPACE_SLUG_TAKEN_PERMANENT",
-      };
+      // ... existing
     }
   } catch (error) {
-    logger.warn({ error }, "Redis cache check failed");
+    logger.warn("Redis cache check failed", { err: error });
     // Ignore Redis cache errors, fall through to DB check
   }
 
@@ -56,14 +54,10 @@ export const checkSlugAvailability = async (
   try {
     const reservedBy = await redis.get(lockKey);
     if (reservedBy && reservedBy !== userId) {
-      return {
-        available: false,
-        message: "Slug is currently reserved",
-        reason: "WORKSPACE_SLUG_TAKEN_RESERVED",
-      };
+      // ... existing
     }
   } catch (error) {
-    logger.warn({ error }, "Redis lock check failed");
+    logger.warn("Redis lock check failed", { err: error });
     // Ignore Redis lock errors
   }
 
@@ -114,10 +108,9 @@ export const checkSlugAvailability = async (
       reservationId: lockKey,
     };
   } catch (error) {
-    logger.error(
-      { error },
-      "Redis reservation failed, falling back to soft check"
-    );
+    logger.error("Redis reservation failed, falling back to soft check", {
+      err: error,
+    });
     // Redis Failure Fallback: Return available (checked DB) but no reservation
     return {
       available: true,

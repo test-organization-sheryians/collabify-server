@@ -14,7 +14,9 @@ import {
   type PersistReactionsJob,
 } from "./persist-reactions";
 import { reconcileReactionsHandler } from "./reconcile-reactions";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("chat:jobs:reaction-jobs");
 
 /**
  * Initialize all reaction-related workers and scheduled jobs

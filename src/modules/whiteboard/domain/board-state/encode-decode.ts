@@ -1,5 +1,7 @@
 import { Y } from "@/shared/yjs";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("whiteboard:domain:board-state");
 
 /**
  * Y.Doc Encoding/Decoding Helpers (V4 Architecture)
@@ -29,7 +31,7 @@ export const validateYDocUpdate = (binary: Uint8Array): boolean => {
     Y.applyUpdate(ydoc, binary);
     return true;
   } catch (error) {
-    logger.warn({ error, size: binary.length }, "Invalid Y.Doc update");
+    logger.warn("Invalid Y.Doc update", { error, size: binary.length });
     return false;
   }
 };
@@ -75,7 +77,7 @@ export const countYDocElements = (binary: Uint8Array): number => {
 
     return count;
   } catch (error) {
-    logger.error({ error }, "Failed to count Y.Doc elements");
+    logger.error("Failed to count Y.Doc elements", { error });
     return 0;
   }
 };

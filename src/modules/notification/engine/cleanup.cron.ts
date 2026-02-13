@@ -1,6 +1,8 @@
 import { createQueue, createWorker, Job } from "@/services/bullmq";
 import { db } from "@/infra/db";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("notification:engine:cleanup");
 
 const CLEANUP_QUEUE_NAME = "notification-cleanup";
 
@@ -19,7 +21,7 @@ export const createCleanupCron = () => {
   );
 
   createWorker(CLEANUP_QUEUE_NAME, async (job: Job) => {
-    logger.info("🧹 Running Cleanup Job: " + job.name);
+    logger.info("🧹 Running Cleanup Job: " + job.name, { jobId: job.id });
 
     if (job.name === "prune-outbox") {
       await CleanupEngine.pruneOutbox();
@@ -47,7 +49,7 @@ export const CleanupEngine = {
       },
     });
 
-    logger.info({ count: result.count }, "Outbox Pruning Complete");
+    logger.info("Outbox Pruning Complete", { count: result.count });
   },
 
   /**
@@ -64,6 +66,6 @@ export const CleanupEngine = {
       },
     });
 
-    logger.info({ count: result.count }, "Notification Pruning Complete");
+    logger.info("Notification Pruning Complete", { count: result.count });
   },
 };

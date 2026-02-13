@@ -1,7 +1,9 @@
 import { Job } from "bullmq";
 import { createWorker } from "@/services/bullmq";
 import { QUEUE_NAMES } from "../../core/constants";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("notification:channel:realtime");
 import { redis } from "@/infra/redis";
 
 interface RealTimeJobData {
@@ -28,7 +30,7 @@ export const createRealTimeWorker = () => {
 
       await redis.publish(channel, message);
 
-      logger.debug({ userId, type, channel }, "📡 RealTime Event Published");
+      logger.debug("📡 RealTime Event Published", { userId, type, channel });
     }
   );
 };

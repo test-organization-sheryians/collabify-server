@@ -2,7 +2,9 @@ import { Job } from "bullmq";
 import { createWorker, createQueue } from "@/services/bullmq";
 import { QUEUE_NAMES, REDIS_KEYS } from "../core/constants";
 import { db } from "@/infra/db";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("notification:engine:fan-out");
 import { DeciderJobData } from "../core/types";
 import { redis } from "@/infra/redis";
 
@@ -29,14 +31,14 @@ export const createFanOutWorker = () => {
       const acquired = await redis.set(lockKey, "1", "EX", 86400, "NX");
 
       if (!acquired) {
-        logger.debug(
-          { jobId: job.id, offset },
-          "Duplicate FanOut Chunk Dropped"
-        );
+        logger.debug("Duplicate FanOut Chunk Dropped", {
+          jobId: job.id,
+          offset,
+        });
         return;
       }
 
-      logger.debug({ jobId: job.id, offset }, "Processing FanOut Chunk");
+      logger.debug("Processing FanOut Chunk", { jobId: job.id, offset });
 
       const users = await db.user.findMany({
         select: { id: true },
@@ -46,7 +48,7 @@ export const createFanOutWorker = () => {
       });
 
       if (users.length === 0) {
-        logger.info({ type, totalProcessed: offset }, "FanOut Complete");
+        logger.info("FanOut Complete", { type, totalProcessed: offset });
         return;
       }
 
@@ -72,7 +74,7 @@ export const createFanOutWorker = () => {
         offset: offset + BATCH_SIZE,
       });
 
-      logger.debug({ count: users.length }, "FanOut Chunk Processed");
+      logger.debug("FanOut Chunk Processed", { count: users.length });
     }
   );
 };

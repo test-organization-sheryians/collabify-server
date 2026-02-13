@@ -8,16 +8,17 @@ export * as queries from "./queries";
 export { resolvers as whiteboardResolvers } from "./graphql/resolvers";
 export { typeDefs as whiteboardTypeDefs } from "./graphql/type-defs";
 
-// Infrastructure
 import { whiteboardStreamWorker } from "./infra/whiteboard-stream-worker";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("whiteboard:engine");
 
 export const WhiteboardModule = {
   /**
    * Start the Whiteboard Engine (Background Processes)
    */
   startEngine: async () => {
-    logger.info("Starting Whiteboard Module Engine...");
+    logger.info("Starting Whiteboard Module Engine");
 
     // Start Stream Worker (Y.js CRDT processor)
     await whiteboardStreamWorker.init();

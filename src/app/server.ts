@@ -6,27 +6,28 @@ import { registerGlobalWSRoutes } from "../infra/ws/ws-routes";
 import { internalRoutes } from "../modules/internal/internal.controller";
 import { NotificationModule } from "../modules/notification";
 import { env } from "../shared/config/env";
-import { logger } from "../shared/logger";
+import { createLogger } from "../shared/lib/logger";
 import { createGraphQLApp } from "./graphql/yoga";
 import webhookRoutes from "./routes/webhooks";
 import { ChatModule } from "../modules/chat";
 import { WhiteboardModule } from "../modules/whiteboard";
 import { wsRegistry } from "../infra/ws/subscription-registry";
 
+const logger = createLogger("app:server");
 const app = new Hono();
 
 // 1. Bootstrapping
 void checkConnection(); // Check DB
 // NotificationModule.startEngine().catch((err) => {
-//   logger.error({ err }, "Failed to start Notification Engine");
+//   logger.error("Failed to start Notification Engine", { err });
 // });
 
-ChatModule.startEngine().catch((err) => {
-  logger.error({ err }, "Failed to start Chat Engine");
+ChatModule.startEngine().catch((err: Error) => {
+  logger.error("Failed to start Chat Engine", { err });
 });
 
-WhiteboardModule.startEngine().catch((err) => {
-  logger.error({ err }, "Failed to start Whiteboard Engine");
+WhiteboardModule.startEngine().catch((err: Error) => {
+  logger.error("Failed to start Whiteboard Engine", { err });
 });
 
 // Start Subscription Janitor

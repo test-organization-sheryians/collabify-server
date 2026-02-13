@@ -1,6 +1,8 @@
 import { Job } from "bullmq";
 import { db } from "@/infra/db";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("chat:jobs:persist-message-edit");
 import { OutboxStatus } from "@prisma/client";
 
 export interface PersistMessageEditJob {
@@ -28,12 +30,12 @@ export const persistMessageEditWorker = async (
     });
 
     if (!outbox) {
-      logger.warn({ outboxId }, "Outbox record not found");
+      logger.warn("Outbox record not found", { outboxId });
       return { success: false, reason: "outbox_not_found" };
     }
 
     if (outbox.status === OutboxStatus.DONE) {
-      logger.info({ outboxId }, "Edit already persisted (duplicate job)");
+      logger.info("Edit already persisted (duplicate job)", { outboxId });
       return { success: true, skipped: true };
     }
 
@@ -62,8 +64,7 @@ export const persistMessageEditWorker = async (
       });
     });
 
-    logger.info({
-      msg: "Message edit persisted",
+    logger.info("Message edit persisted", {
       messageId,
       outboxId,
       jobId: job.id,
@@ -73,8 +74,7 @@ export const persistMessageEditWorker = async (
   } catch (error: any) {
     // Handle message not found (deleted before persist)
     if (error.code === "P2025") {
-      logger.warn({
-        msg: "Message not found or deleted before edit could persist",
+      logger.warn("Message not found or deleted before edit could persist", {
         messageId,
         outboxId,
         jobId: job.id,
@@ -92,10 +92,12 @@ export const persistMessageEditWorker = async (
       return { success: false, reason: "message_not_found" };
     }
 
-    logger.error(
-      { error, messageId, outboxId, jobId: job.id },
-      "Failed to persist edit"
-    );
+    logger.error("Failed to persist edit", {
+      error,
+      messageId,
+      outboxId,
+      jobId: job.id,
+    });
     throw error; // BullMQ will retry
   }
 };

@@ -1,6 +1,8 @@
 import { sendGridClient } from "@/infra/sendgrid";
 import { env } from "@/shared/config/env";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("services:providers");
 import { AppError } from "@/shared/errors";
 
 // Define the shape of SendGrid errors
@@ -26,15 +28,16 @@ export const sendWithSendGrid = async (
     };
 
     await sendGridClient.send(msg);
-    logger.info(
-      { to, subject, provider: "SendGrid" },
-      "Email sent successfully via SendGrid"
-    );
+    logger.info("Email sent successfully via SendGrid", {
+      to,
+      subject,
+      provider: "SendGrid",
+    });
   } catch (rawError: unknown) {
     // Safe cast for error handling purposes
     const error = rawError as SendGridError;
 
-    logger.error({ error, to, subject }, "Failed to send email via SendGrid");
+    logger.error("Failed to send email via SendGrid", { error, to, subject });
 
     // Convert SendGrid error to AppError
     throw new AppError(

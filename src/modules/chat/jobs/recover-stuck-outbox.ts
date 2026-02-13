@@ -1,6 +1,8 @@
 import { Job } from "bullmq";
 import { db } from "@/infra/db";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("chat:jobs:recover-stuck-outbox");
 import { OutboxStatus } from "@prisma/client";
 import { persistenceQueue } from "./queues";
 
@@ -23,8 +25,7 @@ export const recoverStuckOutboxHandler = async (job: Job) => {
     stuckThreshold.getMinutes() - STUCK_THRESHOLD_MINUTES
   );
 
-  logger.info({
-    msg: "Starting stuck outbox recovery",
+  logger.info("Starting stuck outbox recovery", {
     jobId: job.id,
     threshold: stuckThreshold.toISOString(),
   });
@@ -69,8 +70,7 @@ export const recoverStuckOutboxHandler = async (job: Job) => {
         }
       );
 
-      logger.warn({
-        msg: "Re-enqueued stuck send-message",
+      logger.warn("Re-enqueued stuck send-message", {
         outboxId: record.id.toString(),
         messageId: record.messageId,
       });
@@ -116,8 +116,7 @@ export const recoverStuckOutboxHandler = async (job: Job) => {
         }
       );
 
-      logger.warn({
-        msg: "Re-enqueued stuck edit-message",
+      logger.warn("Re-enqueued stuck edit-message", {
         outboxId: record.id,
         messageId: record.messageId,
       });
@@ -161,8 +160,7 @@ export const recoverStuckOutboxHandler = async (job: Job) => {
         }
       );
 
-      logger.warn({
-        msg: "Re-enqueued stuck delete-message",
+      logger.warn("Re-enqueued stuck delete-message", {
         outboxId: record.id,
         messageId: record.messageId,
       });
@@ -174,20 +172,17 @@ export const recoverStuckOutboxHandler = async (job: Job) => {
     // Alert if stuck count is high (indicates worker issues)
     // ═══════════════════════════════════════════════════════════
     if (totalRecovered > 100) {
-      logger.error({
-        msg: "HIGH STUCK RECORD COUNT - Worker or queue issue!",
+      logger.error("HIGH STUCK RECORD COUNT - Worker or queue issue!", {
         totalRecovered,
         jobId: job.id,
       });
     } else if (totalRecovered > 0) {
-      logger.warn({
-        msg: "Stuck records detected and recovered",
+      logger.warn("Stuck records detected and recovered", {
         totalRecovered,
       });
     }
 
-    logger.info({
-      msg: "Stuck outbox recovery completed",
+    logger.info("Stuck outbox recovery completed", {
       jobId: job.id,
       totalRecovered,
       breakdown: {
@@ -207,8 +202,7 @@ export const recoverStuckOutboxHandler = async (job: Job) => {
       },
     };
   } catch (error: any) {
-    logger.error({
-      msg: "Stuck outbox recovery failed",
+    logger.error("Stuck outbox recovery failed", {
       jobId: job.id,
       error: error.message,
     });

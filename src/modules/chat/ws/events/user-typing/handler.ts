@@ -1,7 +1,9 @@
 import { WSHandlerContext } from "@/infra/ws/types";
 import { ChatWebSocket } from "@/infra/ws/types";
 import { UserTypingInput } from "./schema";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("chat:ws:user-typing");
 
 export const userTypingHandler = async (
   ctx: WSHandlerContext,
@@ -16,5 +18,5 @@ export const userTypingHandler = async (
   // TODO: Publish 'user-typing' to Redis PubSub (Ephemeral)
   // Do NOT persist to DB.
 
-  logger.debug({ msg: "User Typing", userId, channelId });
+  logger.debug("User Typing", { userId, channelId });
 };

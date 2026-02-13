@@ -3,7 +3,9 @@ import {
   WhiteboardKeys,
   WhiteboardTTLs,
 } from "@/modules/whiteboard/infra/whiteboard-keys";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("whiteboard:infra:loop-prevention");
 import { createHash } from "crypto";
 import { randomUUID } from "crypto";
 
@@ -44,8 +46,7 @@ export async function checkRateLimit(
   const count = await appRedis.zcard(key);
 
   if (count > RATE_LIMIT_CONFIG.maxUpdatesPerSecond) {
-    logger.warn({
-      msg: "🚫 Rate limit exceeded",
+    logger.warn("Rate limit exceeded", {
       userId,
       boardId,
       count,
@@ -78,8 +79,7 @@ export async function isDuplicateUpdate(
   const exists = await appRedis.exists(key);
 
   if (exists) {
-    logger.warn({
-      msg: "🔁 Duplicate update detected",
+    logger.warn("Duplicate update detected", {
       userId,
       boardId,
       hash: hash.slice(0, 8),
@@ -108,7 +108,7 @@ export async function detectUpdateLoop(
 
   // Get recent trace
   const traces = await appRedis.lrange(key, 0, 50);
-  const parsed: UpdateTrace[] = traces.map((t) => JSON.parse(t));
+  const parsed: UpdateTrace[] = traces.map((t: string) => JSON.parse(t));
 
   // Filter to detection window
   const recent = parsed.filter(
@@ -124,8 +124,7 @@ export async function detectUpdateLoop(
     uniqueUsers.size === 2 &&
     recent.length > LOOP_DETECTION_CONFIG.minPingPongs
   ) {
-    logger.error({
-      msg: "🚨 Update loop detected - activating circuit breaker",
+    logger.error("Update loop detected - activating circuit breaker", {
       boardId,
       users: Array.from(uniqueUsers),
       updateCount: recent.length,

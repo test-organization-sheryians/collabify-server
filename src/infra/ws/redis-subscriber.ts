@@ -1,6 +1,8 @@
 import { subRedis } from "../redis";
 import { wsRegistry } from "./subscription-registry";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("infra:ws:worker");
 
 /**
  * Redis Subscriber (The "Edge" Listener)
@@ -47,7 +49,7 @@ export const redisSubscriber = {
    * Called by Registry when RefCount 0 -> 1
    */
   async subscribe(topic: string) {
-    logger.debug({ topic }, "Subscribing to Redis channel");
+    logger.debug("Subscribing to Redis channel", { topic });
     await subRedis.subscribe(topic);
   },
 
@@ -56,7 +58,7 @@ export const redisSubscriber = {
    * Called by Registry when RefCount 1 -> 0
    */
   async unsubscribe(topic: string) {
-    logger.debug({ topic }, "Unsubscribing from Redis channel");
+    logger.debug("Unsubscribing from Redis channel", { topic });
     await subRedis.unsubscribe(topic);
   },
 };

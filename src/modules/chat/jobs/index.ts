@@ -7,7 +7,9 @@ import { recoverStuckOutboxHandler } from "./recover-stuck-outbox";
 import { startReactionJobs } from "./reaction-jobs";
 import { readReceiptHandler } from "./batch-read-receipts";
 import { maintenanceQueue } from "./queues";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("chat:jobs:index");
 
 export const startChatWorkers = async () => {
   // Persistence Worker (Critical for Chat Arch)
@@ -85,8 +87,7 @@ export const startChatWorkers = async () => {
 
   await startReactionJobs();
 
-  logger.info({
-    msg: "Chat workers and maintenance jobs started",
+  logger.info("Chat workers and maintenance jobs started", {
     workers: [
       "chat-persistence",
       "persist-message-edit",

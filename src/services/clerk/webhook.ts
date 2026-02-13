@@ -1,6 +1,8 @@
 import { Webhook } from "svix";
 import { env } from "../../shared/config/env";
-import { logger } from "../../shared/logger";
+import { createLogger } from "../../shared/lib/logger";
+
+const logger = createLogger("services:clerk");
 import { ClerkWebhookEvent } from "./types";
 
 export const ClerkWebhookService = {
@@ -32,7 +34,7 @@ export const ClerkWebhookService = {
 
       return Promise.resolve(verified);
     } catch (err: unknown) {
-      logger.error({ err }, "Webhook verification failed");
+      logger.error("Webhook verification failed", { err });
       throw new Error("Verification Failed");
     }
   },

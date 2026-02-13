@@ -6,7 +6,9 @@
 
 import { Job } from "bullmq";
 import { CleanupJobData } from "./queues";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("whiteboard:jobs:cleanup");
 
 /**
  * Process cleanup job for inactive board
@@ -14,8 +16,7 @@ import { logger } from "@/shared/logger";
 export const processCleanupJob = async (job: Job<CleanupJobData>) => {
   const { boardId, inactiveDays } = job.data;
 
-  logger.info({
-    msg: "Processing Cleanup Job",
+  logger.info("Processing Cleanup Job", {
     boardId,
     inactiveDays,
     jobId: job.id,
@@ -89,7 +90,7 @@ export const processCleanupJob = async (job: Job<CleanupJobData>) => {
 
     throw new Error("TODO: Implement processCleanupJob");
   } catch (err: unknown) {
-    logger.error({ err, boardId, jobId: job.id }, "Cleanup job failed");
+    logger.error("Cleanup job failed", { err, boardId, jobId: job.id });
     throw err;
   }
 };

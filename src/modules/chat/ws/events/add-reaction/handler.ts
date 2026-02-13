@@ -5,7 +5,9 @@ import {
   createErrorFrame,
 } from "@/infra/ws/types";
 import { AddReactionInput } from "./schema";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("chat:ws:add-reaction");
 import { addReaction } from "@/modules/chat/domain/reactions/redis-helpers";
 import { KeyFactory } from "@/infra/redis/keys";
 
@@ -94,16 +96,23 @@ export const addReactionHandler = async (
         );
       } catch (pubsubError: any) {
         // Log but don't fail - event is in Redis, delta sync will catch it
-        logger.error(
-          { error: pubsubError, messageId, userId, emoji },
-          "Failed to publish reaction-added event via Pub/Sub"
-        );
+        logger.error("Failed to publish reaction-added event via Pub/Sub", {
+          error: pubsubError,
+          messageId,
+          userId,
+          emoji,
+        });
       }
 
-      logger.info({ messageId, userId, emoji }, "Reaction added");
+      logger.info("Reaction added", { messageId, userId, emoji });
     }
   } catch (error: any) {
-    logger.error({ error, messageId, userId, emoji }, "Failed to add reaction");
+    logger.error("Failed to add reaction", {
+      error,
+      messageId,
+      userId,
+      emoji,
+    });
     socket.send(
       createErrorFrame(
         tempId || messageId,

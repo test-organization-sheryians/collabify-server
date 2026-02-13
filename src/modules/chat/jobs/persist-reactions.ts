@@ -1,6 +1,8 @@
 import { Job } from "bullmq";
 import { db } from "@/infra/db";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("chat:jobs:persist-reactions");
 
 export interface PersistReactionsJob {
   reactions: Array<{
@@ -76,10 +78,10 @@ export const persistReactionsHandler = async (
 
     const skipped = toAdd.length - fullyValidReactions.length;
     if (skipped > 0) {
-      logger.warn(
-        { skipped, total: toAdd.length },
-        "Skipped reactions for non-existent messages or users"
-      );
+      logger.warn("Skipped reactions for non-existent messages or users", {
+        skipped,
+        total: toAdd.length,
+      });
     }
   }
 
@@ -96,8 +98,8 @@ export const persistReactionsHandler = async (
     });
   }
 
-  logger.info(
-    { added: toAdd.length, removed: toRemove.length },
-    "Reactions batch persisted"
-  );
+  logger.info("Reactions batch persisted", {
+    added: toAdd.length,
+    removed: toRemove.length,
+  });
 };

@@ -1,7 +1,9 @@
 import { Prisma } from "@prisma/client";
 import { NotificationEvent } from "../core/types";
 import { AppError } from "@/shared/errors";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("notification:lib");
 
 // Type alias for a Transaction Client
 // This ensures we can pass either the global client OR a transaction proxy
@@ -36,10 +38,10 @@ export const OutboxWriter = {
         },
       });
 
-      logger.debug(
-        { type: event.type, actor: event.actorId },
-        "Event emitted to Outbox"
-      );
+      logger.debug("Event emitted to Outbox", {
+        type: event.type,
+        actor: event.actorId,
+      });
     } catch (error) {
       // Re-throw AppErrors, wrap unknown errors
       if (error instanceof AppError) throw error;

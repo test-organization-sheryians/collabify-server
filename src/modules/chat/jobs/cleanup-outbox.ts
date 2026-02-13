@@ -1,6 +1,8 @@
 import { Job } from "bullmq";
 import { db } from "@/infra/db";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("chat:jobs:cleanup-outbox");
 import { OutboxStatus } from "@prisma/client";
 
 /**
@@ -19,8 +21,7 @@ export const cleanupOutboxHandler = async (job: Job) => {
   const retentionDate = new Date();
   retentionDate.setDate(retentionDate.getDate() - RETENTION_DAYS);
 
-  logger.info({
-    msg: "Starting outbox cleanup",
+  logger.info("Starting outbox cleanup", {
     jobId: job.id,
     retentionDate: retentionDate.toISOString(),
   });
@@ -41,7 +42,7 @@ export const cleanupOutboxHandler = async (job: Job) => {
     });
     totalDeleted += sendMessageDeleted.count;
 
-    logger.info({
+    logger.info("OutboxMessage cleanup", {
       table: "OutboxMessage",
       deleted: sendMessageDeleted.count,
     });
@@ -59,7 +60,7 @@ export const cleanupOutboxHandler = async (job: Job) => {
     });
     totalDeleted += editOutboxDeleted.count;
 
-    logger.info({
+    logger.info("MessageEditOutbox cleanup", {
       table: "MessageEditOutbox",
       deleted: editOutboxDeleted.count,
     });
@@ -77,7 +78,7 @@ export const cleanupOutboxHandler = async (job: Job) => {
     });
     totalDeleted += deleteOutboxDeleted.count;
 
-    logger.info({
+    logger.info("MessageDeleteOutbox cleanup", {
       table: "MessageDeleteOutbox",
       deleted: deleteOutboxDeleted.count,
     });
@@ -86,15 +87,13 @@ export const cleanupOutboxHandler = async (job: Job) => {
     // Alert if deletion count is suspiciously high
     // ═══════════════════════════════════════════════════════════
     if (totalDeleted > 10000) {
-      logger.warn({
-        msg: "High outbox deletion count - potential issue?",
+      logger.warn("High outbox deletion count - potential issue?", {
         totalDeleted,
         jobId: job.id,
       });
     }
 
-    logger.info({
-      msg: "Outbox cleanup completed",
+    logger.info("Outbox cleanup completed", {
       jobId: job.id,
       totalDeleted,
       duration: `${Date.now() - job.timestamp}ms`,
@@ -110,8 +109,7 @@ export const cleanupOutboxHandler = async (job: Job) => {
       },
     };
   } catch (error: any) {
-    logger.error({
-      msg: "Outbox cleanup failed",
+    logger.error("Outbox cleanup failed", {
       jobId: job.id,
       error: error.message,
     });

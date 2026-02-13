@@ -7,7 +7,9 @@ import {
   getReactionUsers,
   rebuildReactionCache,
 } from "@/modules/chat/domain/reactions/redis-helpers";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("chat:queries:get-reactions");
 
 export const handler = async (
   input: GetMessageReactionsInput,
@@ -62,7 +64,7 @@ export const handler = async (
           counts = await getReactionCounts(ctx.redis, messageId);
         }
 
-        logger.info({ messageId }, "Rebuilt reaction cache from DB");
+        logger.info("Rebuilt reaction cache from DB", { messageId });
       } finally {
         await ctx.redis.del(lockKey);
       }

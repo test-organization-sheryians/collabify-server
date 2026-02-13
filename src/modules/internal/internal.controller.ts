@@ -1,6 +1,9 @@
 import { Hono, Context } from "hono";
 import { assignWorkspace } from "./services/assign-workspace/handler";
 import { getWSMetrics } from "@/infra/ws/gateway";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("internal:assign-workspace");
 
 const app = new Hono();
 
@@ -14,7 +17,8 @@ app.post("/assign-workspace", async (c: Context) => {
   try {
     const result = await assignWorkspace({ workspaceId }, c);
     return c.json(result);
-  } catch (_err) {
+  } catch (err: unknown) {
+    logger.error("Internal service assignment failed", { err, workspaceId });
     return c.json({ error: "Internal Server Error" }, 500);
   }
 });

@@ -1,6 +1,8 @@
 import { SlugUtil } from "@/shared/utils/slug.util";
 import { AppError } from "@/shared/errors";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("workspace:services:create");
 import { QuotaService } from "@/modules/quota/service";
 import { Prisma } from "@prisma/client";
 import { CreateWorkspaceInput } from "./types";
@@ -38,10 +40,11 @@ export const createWorkspace = async (
     }
   } catch (error) {
     if (error instanceof AppError) throw error;
-    logger.warn(
-      { error, userId, slug: normalizedSlug },
-      "Redis lock check failed, proceeding optimistically"
-    );
+    logger.warn("Redis lock check failed, proceeding optimistically", {
+      err: error,
+      userId,
+      slug: normalizedSlug,
+    });
   }
 
   // 2. Create Workspace (Transaction + Outbox)
@@ -90,16 +93,18 @@ export const createWorkspace = async (
         userResKey
       );
     } catch (error) {
-      logger.error(
-        { error, userId, slug: normalizedSlug },
-        "Redis cleanup failed, relying on TTL"
-      );
+      logger.error("Redis cleanup failed, relying on TTL", {
+        err: error,
+        userId,
+        slug: normalizedSlug,
+      });
     }
 
-    logger.info(
-      { workspaceId: workspace.id, slug: normalizedSlug, userId },
-      "Created Workspace (Sync)"
-    );
+    logger.info("Created Workspace (Sync)", {
+      workspaceId: workspace.id,
+      slug: normalizedSlug,
+      userId,
+    });
 
     return workspace;
   } catch (error: unknown) {

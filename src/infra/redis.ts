@@ -1,7 +1,8 @@
 import Redis from "ioredis";
-import { logger } from "../shared/logger";
+import { createLogger } from "../shared/lib/logger";
 import { env } from "../shared/config/env";
 
+const logger = createLogger("infra:redis");
 const REDIS_URL = env.REDIS_URL || "redis://localhost:6379";
 
 const createClient = (name: string) => {
@@ -13,11 +14,11 @@ const createClient = (name: string) => {
   });
 
   client.on("error", (err) => {
-    logger.error({ err, name }, "Redis connection error");
+    logger.error("Redis connection error", { err, name });
   });
 
   client.on("connect", () => {
-    logger.info({ name }, "Redis connected");
+    logger.info("Redis connected", { name });
   });
 
   return client;

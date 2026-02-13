@@ -1,6 +1,8 @@
 import { SESClient, SESClientConfig } from "@aws-sdk/client-ses";
 import { env } from "@/shared/config/env";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("infra:ses");
 
 const getSESConfig = (): SESClientConfig => {
   const config: SESClientConfig = {
@@ -28,6 +30,6 @@ export const checkSESConnection = async () => {
     );
     logger.info("✅ AWS SES Connected");
   } catch (error) {
-    logger.error({ error }, "❌ AWS SES Connection Failed");
+    logger.error("❌ AWS SES Connection Failed", { error });
   }
 };

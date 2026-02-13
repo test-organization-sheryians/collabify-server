@@ -1,5 +1,7 @@
 import { appRedis } from "@/infra/redis";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("chat:domain:reactions:metrics");
 
 /**
  * Track reaction system metrics
@@ -18,17 +20,14 @@ export const trackReactionMetrics = async (): Promise<void> => {
       const total = hits + misses;
       const hitRate = total > 0 ? (hits / total) * 100 : 0;
 
-      logger.info(
-        {
-          cacheHitRate: hitRate.toFixed(2) + "%",
-          hits,
-          misses,
-        },
-        "Reaction cache metrics"
-      );
+      logger.info("Reaction cache metrics", {
+        cacheHitRate: hitRate.toFixed(2) + "%",
+        hits,
+        misses,
+      });
     }
   } catch (error: any) {
-    logger.error({ error }, "Failed to track reaction metrics");
+    logger.error("Failed to track reaction metrics", { error });
   }
 };
 

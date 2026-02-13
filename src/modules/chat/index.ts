@@ -1,8 +1,10 @@
 import { startChatWorkers } from "./jobs";
 import { streamWorker } from "@/infra/ws/stream-worker";
 import { redisSubscriber } from "@/infra/ws/redis-subscriber";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
 import { workerCoordinator } from "@/infra/ws/worker-coordinator";
+
+const logger = createLogger("chat:engine");
 
 // Export GraphQL parts for Schema Stitching
 export { typeDefs as chatTypeDefs } from "./graphql/type-defs";

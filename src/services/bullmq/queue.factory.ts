@@ -1,13 +1,15 @@
 import { Queue, type QueueOptions, type ConnectionOptions } from "bullmq";
 import { createConnection } from "./connection";
 
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("services:bullmq");
 
 export const createQueue = <T = unknown>(
   name: string,
   options?: QueueOptions
 ) => {
-  logger.info({ queue: name }, "Queue initialized");
+  logger.info("Queue initialized", { queue: name });
 
   const queue = new Queue<T>(name, {
     connection: createConnection() as unknown as ConnectionOptions,
@@ -24,7 +26,7 @@ export const createQueue = <T = unknown>(
   });
 
   queue.on("error", (err) => {
-    logger.error({ err, queue: name }, "Queue Connection Error");
+    logger.error("Queue Connection Error", { err, queue: name });
     // We don't throw here access process.exit usually handled by BullMQ retry logic
     // But we log it as a structured error for observability
   });

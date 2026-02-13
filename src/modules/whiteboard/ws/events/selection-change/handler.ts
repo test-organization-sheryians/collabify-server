@@ -1,7 +1,9 @@
 import { WSHandlerContext } from "@/infra/ws/types";
 import { ChatWebSocket } from "@/infra/ws/types";
 import { SelectionChangeInput } from "./schema";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("whiteboard:ws:selection");
 
 /**
  * Selection Change Handler (EPHEMERAL)
@@ -41,6 +43,6 @@ export const selectionChangeHandler = async (
     // ============================================
     // No-op - implement later
   } catch (err: unknown) {
-    logger.error({ err, boardId }, "Failed to process selection change");
+    logger.error("Failed to process selection change", { err, boardId });
   }
 };

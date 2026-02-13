@@ -1,9 +1,11 @@
 import { Job } from "bullmq";
 import { db } from "@/infra/db";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
 import { OutboxStatus } from "@prisma/client";
 import { SendMessageInput } from "../ws/events/send-message/schema";
 
+const logger = createLogger("chat:jobs:persist-message");
 /**
  * Job Payload Contract
  */
@@ -31,10 +33,12 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
     parentMessageId, // For inline replies (message-reference)
   } = job.data;
 
-  logger.info(
-    { jobId: job.id, outboxId, streamId, sequence },
-    "Persisting Message"
-  );
+  logger.info("Persisting Message", {
+    jobId: job.id,
+    outboxId,
+    streamId,
+    sequence,
+  });
 
   try {
     await db.$transaction(async (tx) => {
@@ -45,15 +49,14 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
       });
 
       if (!outboxEntry) {
-        logger.warn(
-          { outboxId },
-          "Outbox row missing/cleaned. Aborting retry."
-        );
+        logger.warn("Outbox row missing/cleaned. Aborting retry.", {
+          outboxId,
+        });
         return; // Idempotent success
       }
 
       if (outboxEntry.status === "DONE") {
-        logger.info({ outboxId }, "Outbox already DONE. Skipping.");
+        logger.info("Outbox already DONE. Skipping.", { outboxId });
         return;
       }
 
@@ -73,8 +76,8 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
 
       if (!author) {
         logger.warn(
-          { authorId, outboxId },
-          "Message persistence failed: Author not found (Zombie User). Marking as FAILED."
+          "Message persistence failed: Author not found (Zombie User). Marking as FAILED.",
+          { authorId, outboxId }
         );
 
         // TODO (Compliance): Implement Dead Letter Queue / Audit Log for compliance
@@ -101,7 +104,7 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
         where: { id: dedupeId },
       });
       if (existingById) {
-        logger.info({ dedupeId }, "Message already persisted (by ID)");
+        logger.info("Message already persisted (by ID)", { dedupeId });
         return;
       }
 
@@ -114,13 +117,13 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
       });
       if (existingBySequence) {
         logger.warn(
+          "Sequence already used by different message. Skipping to prevent constraint violation.",
           {
             conversationId,
             sequence,
             existingId: existingBySequence.id,
             newId: dedupeId,
-          },
-          "Sequence already used by different message. Skipping to prevent constraint violation."
+          }
         );
         return;
       }
@@ -165,9 +168,9 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
       });
     });
 
-    logger.info({ outboxId }, "Message Persisted Successfully");
+    logger.info("Message Persisted Successfully", { outboxId });
   } catch (err: any) {
-    logger.error({ err, jobId: job.id }, "Failed to persist message");
+    logger.error("Failed to persist message", { err, jobId: job.id });
     // BullMQ will retry
     throw err;
   }

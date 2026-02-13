@@ -1,6 +1,8 @@
 import { ChatWebSocket } from "./types";
 import { redisSubscriber } from "./redis-subscriber";
-import { logger } from "../../shared/logger";
+import { createLogger } from "../../shared/lib/logger";
+
+const logger = createLogger("infra:ws:registry");
 
 /**
  * In-Memory Subscription Registry with Redis Reference Counting
@@ -76,7 +78,7 @@ export const wsRegistry = {
   init() {
     setInterval(() => {
       this.cleanZombies().catch((err) => {
-        logger.error({ err }, "WS Registry Janitor Failed");
+        logger.error("WS Registry Janitor Failed", { err });
       });
     }, 60000); // Run every 60s
     logger.info("WS Registry: Janitor Scheduled");

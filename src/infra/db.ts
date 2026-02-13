@@ -7,8 +7,9 @@ const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
 const connectionString = env.DATABASE_URL;
 
-import { logger } from "../shared/logger";
+import { createLogger } from "../shared/lib/logger";
 
+const logger = createLogger("infra:db");
 const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 
@@ -28,34 +29,29 @@ export const db =
 db.$on("query", (e: Prisma.QueryEvent) => {
   if (e.duration < 100) return; // Ignore fast queries
 
-  const payload = {
-    msg: "DB Query",
+  logger.debug("DB Query", {
     query: e.query,
     duration: `${e.duration}ms`,
     params: env.LOG_DB_PARAMS ? e.params : undefined,
-  };
-  logger.debug(payload);
+  });
 });
 
 // @ts-expect-error - Prisma internal typing for log emitter with adapter
 db.$on("error", (e: Prisma.LogEvent) => {
-  logger.error({ target: e.target, message: e.message }, "Prisma Error");
+  logger.error("Prisma Error", { target: e.target, message: e.message });
 });
 
 // @ts-expect-error - Prisma internal typing for log emitter with adapter
 db.$on("info", (e: Prisma.LogEvent) => {
-  logger.info(
-    {
-      target: e.target,
-      message: e.message,
-    },
-    "Prisma Info"
-  );
+  logger.info("Prisma Info", {
+    target: e.target,
+    message: e.message,
+  });
 });
 
 // @ts-expect-error - Prisma internal typing for log emitter with adapter
 db.$on("warn", (e: Prisma.LogEvent) => {
-  logger.warn({ target: e.target, message: e.message }, "Prisma Warning");
+  logger.warn("Prisma Warning", { target: e.target, message: e.message });
 });
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;
@@ -70,8 +66,7 @@ export const checkConnection = async (retries = 10, delay = 2000) => {
       return;
     } catch (error) {
       if (i === retries - 1) {
-        logger.error({
-          msg: "❌ Database connection failed after retries",
+        logger.error("❌ Database connection failed after retries", {
           error,
         });
         process.exit(1);

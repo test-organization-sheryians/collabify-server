@@ -2,7 +2,9 @@ import { ChatWebSocket, createSuccessFrame } from "@/infra/ws/types";
 import { WSHandlerContext } from "@/infra/ws/types";
 import { SubscribeConversationInput } from "./schema";
 import { wsRegistry } from "@/infra/ws/subscription-registry";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("chat:ws:subscribe");
 import { KeyFactory } from "@/infra/redis/keys";
 import { appRedis } from "@/infra/redis";
 
@@ -54,8 +56,7 @@ export const subscribeConversationHandler = async (
   );
   await appRedis.incr(KeyFactory.EpochConversations); // Trigger rebalance
 
-  logger.info({
-    msg: "Socket Subscribed to Conversation",
+  logger.info("Socket Subscribed to Conversation", {
     userId,
     conversationId,
     conversationType,
@@ -118,10 +119,10 @@ export const subscribeConversationHandler = async (
 
         // Send replayed messages
         if (missedMessages.length > 0) {
-          logger.info(
-            { userId, count: missedMessages.length },
-            "Replaying Hot Messages to Socket"
-          );
+          logger.info("Replaying Hot Messages to Socket", {
+            userId,
+            count: missedMessages.length,
+          });
           missedMessages.forEach((msg) => {
             socket.send(
               createSuccessFrame(undefined, "chat:new-message", {

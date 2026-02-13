@@ -4,7 +4,9 @@ import { clerkMiddleware } from "@hono/clerk-auth";
 import { pinoLogger } from "hono-pino";
 import { idempotencyMiddleware } from "./idempotency";
 import { env } from "@/shared/config/env";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("app:middlewares");
 
 export const registerGlobalMiddleware = (app: Hono) => {
   // 1. CORS
@@ -51,6 +53,7 @@ export const registerGlobalMiddleware = (app: Hono) => {
       return next();
     }
     return pinoLogger({
+      // @ts-ignore - pinoLogger expects pino.Logger, our wrapped logger.info works but type is slightly different
       pino: logger,
       http: {
         reqId: () => crypto.randomUUID(),

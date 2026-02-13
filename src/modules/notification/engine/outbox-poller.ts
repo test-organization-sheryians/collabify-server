@@ -1,7 +1,9 @@
 import createSubscriber from "pg-listen";
 import { db } from "@/infra/db";
 import { env } from "@/shared/config/env";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("notification:engine:poller");
 import { createQueue } from "@/services/bullmq";
 import { QUEUE_NAMES } from "../core/constants";
 import { DeciderJobData } from "../core/types";
@@ -34,10 +36,10 @@ export const OutboxPoller = {
         );
         await OutboxPoller.pollBatch();
       });
-    } catch (err) {
+    } catch (err: unknown) {
       logger.error(
-        { err },
-        "Failed to connect pg-listen subscriber. Falling back to polling only."
+        "Failed to connect pg-listen subscriber. Falling back to polling only.",
+        { err }
       );
     }
 
@@ -77,7 +79,7 @@ export const OutboxPoller = {
 
       if (events.length === 0) return;
 
-      logger.debug({ count: events.length }, "Processing Outbox Batch");
+      logger.debug("Processing Outbox Batch", { count: events.length });
 
       const jobs = events.map((event) => ({
         name: event.event_type,
@@ -103,8 +105,8 @@ export const OutboxPoller = {
         where: { id: { in: ids } },
         data: { status: "COMPLETED" },
       });
-    } catch (err) {
-      logger.error({ err }, "Error in Outbox Poller loop");
+    } catch (err: unknown) {
+      logger.error("Error in Outbox Poller loop", { err });
     } finally {
       isPolling = false;
     }

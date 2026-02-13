@@ -1,6 +1,8 @@
 import { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("user:services:sync");
 import { OutboxWriter } from "@/modules/notification/lib/outbox.writer";
 import { SyncUserInput } from "./types";
 
@@ -76,7 +78,7 @@ export const syncUser = async (
   } catch (rawError: unknown) {
     const err = rawError as { code?: string; message?: string };
     if (err.code !== "P2002" && !err.message?.includes("Unique constraint")) {
-      logger.error({ err }, "Failed to queue welcome email");
+      logger.error("Failed to queue welcome email", { err });
     }
   }
 

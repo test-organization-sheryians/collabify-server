@@ -1,4 +1,6 @@
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("notification:engine:bootstrap");
 import { OutboxPoller } from "./outbox-poller";
 import { createDeciderWorker } from "./decider.worker";
 // Import other workers if they exist and are needed

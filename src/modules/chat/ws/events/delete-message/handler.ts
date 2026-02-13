@@ -5,7 +5,9 @@ import {
   createErrorFrame,
 } from "@/infra/ws/types";
 import { DeleteMessageInput } from "./schema";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("chat:ws:delete-message");
 import { appRedis } from "@/infra/redis";
 import { KeyFactory } from "@/infra/redis/keys";
 import { OutboxStatus } from "@prisma/client";
@@ -19,8 +21,7 @@ export const deleteMessageHandler = async (
   const { messageId, nonce } = input;
   const { userId } = socket.data;
 
-  logger.info({
-    msg: "Processing Delete Message",
+  logger.info("Processing Delete Message", {
     userId,
     messageId,
     nonce,
@@ -31,14 +32,11 @@ export const deleteMessageHandler = async (
     const validation = await validateDeleteMessage(ctx.db, userId, messageId);
 
     if (!validation.valid) {
-      logger.warn(
-        {
-          userId,
-          messageId,
-          error: validation.error,
-        },
-        "Delete validation failed"
-      );
+      logger.warn("Delete validation failed", {
+        userId,
+        messageId,
+        error: validation.error,
+      });
 
       socket.send(
         createErrorFrame(
@@ -127,15 +125,14 @@ export const deleteMessageHandler = async (
       })
     );
 
-    logger.info({
-      msg: "Delete message published",
+    logger.info("Delete message published", {
       messageId,
       userId,
       conversationId: message.conversationId,
       outboxId: outboxRecord.id,
     });
   } catch (error) {
-    logger.error({ error, messageId, userId }, "Failed to delete message");
+    logger.error("Failed to delete message", { error, messageId, userId });
     socket.send(
       createErrorFrame(nonce, "chat:error", "INTERNAL_ERROR", "Internal error")
     );

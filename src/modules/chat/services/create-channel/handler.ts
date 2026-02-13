@@ -4,6 +4,9 @@ import { Prisma } from "@prisma/client";
 import { CreateChannelInput } from "./types";
 import { LockingService, createLockKeys } from "@/services/locking";
 import { SlugUtil } from "@/shared/utils/slug.util";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("chat:services:create-channel");
 
 export const handler = async (
   input: CreateChannelInput,
@@ -126,7 +129,7 @@ export const handler = async (
         );
       } catch (err) {
         // Log error but don't fail request
-        console.error("Failed to finalize channel lock", err);
+        logger.error("Failed to finalize channel lock", { err });
       }
     }
 

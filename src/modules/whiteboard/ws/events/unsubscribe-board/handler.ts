@@ -5,7 +5,9 @@ import {
   createErrorFrame,
 } from "@/infra/ws/types";
 import { UnsubscribeBoardInput } from "./schema";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("whiteboard:ws:unsubscribe");
 import { WhiteboardKeys } from "@/modules/whiteboard/infra/whiteboard-keys";
 
 /**
@@ -21,8 +23,7 @@ export const unsubscribeBoardHandler = async (
   const { boardId } = input;
   const { userId } = socket.data;
 
-  logger.info({
-    msg: "Processing Unsubscribe Board",
+  logger.info("Processing Unsubscribe Board", {
     userId,
     boardId,
   });
@@ -54,15 +55,14 @@ export const unsubscribeBoardHandler = async (
 
     await ctx.redis.publish(pubSubChannel, userLeftFrame);
 
-    logger.info({
-      msg: "User unsubscribed from board",
+    logger.info("User unsubscribed from board", {
       userId,
       boardId,
     });
 
     // Note: Don't send ACK to client - they're leaving anyway
   } catch (err: unknown) {
-    logger.error({ err, boardId }, "Failed to unsubscribe from board");
+    logger.error("Failed to unsubscribe from board", { err, boardId });
 
     // Don't send error to client - they're leaving anyway
     // Just log the error

@@ -1,5 +1,7 @@
 import { Y } from "@/shared/yjs";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("whiteboard:domain:board-state");
 
 /**
  * State Vector Diff Calculator (V4 Architecture)
@@ -28,7 +30,7 @@ export const computeStateVectorDiff = (
     // Apply server state
     Y.applyUpdate(ydoc, serverState);
   } catch (error) {
-    logger.error({ error }, "Invalid server state");
+    logger.error("Failed to apply server state", { error });
     throw new Error("Failed to apply server state");
   }
 
@@ -40,7 +42,7 @@ export const computeStateVectorDiff = (
     return Y.encodeStateAsUpdate(ydoc, clientVectorBytes);
   } catch (error) {
     // Fallback: send full state if state vector invalid
-    logger.warn({ error }, "Invalid client state vector, sending full state");
+    logger.warn("Invalid client state vector, sending full state", { error });
     return Y.encodeStateAsUpdate(ydoc);
   }
 };
@@ -54,7 +56,7 @@ export function encodeStateVector(ydoc: Y.Doc): Uint8Array {
   try {
     return Y.encodeStateVector(ydoc);
   } catch (error) {
-    logger.error({ error }, "Failed to encode state vector");
+    logger.error("Failed to encode state vector", { error });
     throw new Error("Failed to encode state vector");
   }
 }

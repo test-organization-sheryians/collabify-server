@@ -5,7 +5,9 @@ import {
   createErrorFrame,
 } from "@/infra/ws/types";
 import { RemoveReactionInput } from "./schema";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("chat:ws:remove-reaction");
 import { removeReaction } from "@/modules/chat/domain/reactions/redis-helpers";
 import { KeyFactory } from "@/infra/redis/keys";
 
@@ -72,19 +74,23 @@ export const removeReactionHandler = async (
         );
       } catch (pubsubError: any) {
         // Log but don't fail - event is in Redis, delta sync will catch it
-        logger.error(
-          { error: pubsubError, messageId, userId, emoji },
-          "Failed to publish reaction-removed event via Pub/Sub"
-        );
+        logger.error("Failed to publish reaction-removed event via Pub/Sub", {
+          error: pubsubError,
+          messageId,
+          userId,
+          emoji,
+        });
       }
 
-      logger.info({ messageId, userId, emoji }, "Reaction removed");
+      logger.info("Reaction removed", { messageId, userId, emoji });
     }
   } catch (error: any) {
-    logger.error(
-      { error, messageId, userId, emoji },
-      "Failed to remove reaction"
-    );
+    logger.error("Failed to remove reaction", {
+      error,
+      messageId,
+      userId,
+      emoji,
+    });
     socket.send(
       createErrorFrame(
         messageId,

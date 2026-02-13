@@ -2,7 +2,9 @@ import { Context } from "hono";
 import { ChatWebSocket, createSuccessFrame } from "@/infra/ws/types";
 import { wsRegistry } from "@/infra/ws/subscription-registry";
 import { UnsubscribeConversationInput } from "./schema";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("chat:ws:unsubscribe");
 import { KeyFactory } from "@/infra/redis/keys";
 
 /**
@@ -22,8 +24,7 @@ export const unsubscribeConversationHandler = async (
   const topic = KeyFactory.ConversationTopic(conversationId);
   await wsRegistry.unsubscribe(socketId, topic);
 
-  logger.info({
-    msg: "Socket Unsubscribed from Conversation",
+  logger.info("Socket Unsubscribed from Conversation", {
     userId,
     conversationId,
     topic,

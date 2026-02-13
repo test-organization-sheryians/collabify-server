@@ -1,6 +1,8 @@
 import { Redis } from "ioredis";
 import { addReactionScript, removeReactionScript } from "./scripts";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("chat:domain:reactions:helpers");
 
 export interface AddReactionParams {
   messageId: string;
@@ -215,5 +217,8 @@ export const rebuildReactionCache = async (
 
   await pipeline.exec();
 
-  logger.info({ messageId, count: reactions.length }, "Rebuilt reaction cache");
+  logger.info("Rebuilt reaction cache", {
+    messageId,
+    count: reactions.length,
+  });
 };

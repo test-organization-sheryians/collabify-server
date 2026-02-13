@@ -3,7 +3,9 @@ import { createWorker } from "@/services/bullmq";
 import { QUEUE_NAMES, REDIS_KEYS } from "../../core/constants";
 import { InAppJobData } from "../../core/types";
 import { db } from "@/infra/db";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("notification:channel:in-app");
 import { redis } from "@/infra/redis";
 
 export const createInAppWorker = () => {
@@ -18,7 +20,7 @@ export const createInAppWorker = () => {
       const acquired = await redis.set(lockKey, "1", "EX", 86400, "NX");
 
       if (!acquired) {
-        logger.debug({ eventId, userId }, "Duplicate InApp Job Dropped");
+        logger.debug("Duplicate InApp Job Dropped", { eventId, userId });
         return;
       }
 
@@ -40,10 +42,10 @@ export const createInAppWorker = () => {
         },
       });
 
-      logger.debug(
-        { userId, type: eventType },
-        "In-App Notification Persisted"
-      );
+      logger.debug("In-App Notification Persisted", {
+        userId,
+        type: eventType,
+      });
     }
   );
 };

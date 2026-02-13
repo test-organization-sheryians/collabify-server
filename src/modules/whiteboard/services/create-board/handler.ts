@@ -1,6 +1,8 @@
 import { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("whiteboard:services:create-board");
 import { CreateBoardInput } from "./types";
 import { uploadSnapshot } from "../../infra/s3-client";
 import { WhiteboardKeys } from "../../infra/whiteboard-keys";
@@ -72,12 +74,14 @@ export const handler = async (input: CreateBoardInput, ctx: ServiceContext) => {
         );
 
         if (invalidUsers.length > 0) {
-          logger.warn({
-            msg: "Some users are not workspace members and will be skipped",
-            workspaceId: input.workspaceId,
-            invalidUsers,
-            boardTitle: input.title,
-          });
+          logger.warn(
+            "Some users are not workspace members and will be skipped",
+            {
+              workspaceId: input.workspaceId,
+              invalidUsers,
+              boardTitle: input.title,
+            }
+          );
         }
 
         // TODO: FUTURE - Add stricter project member validation
@@ -223,8 +227,7 @@ export const handler = async (input: CreateBoardInput, ctx: ServiceContext) => {
       // Initialize sequence counter
       await ctx.redis.set(sequenceKey, 0);
 
-      logger.info({
-        msg: "Redis stream initialized",
+      logger.info("Redis stream initialized", {
         boardId: result.board.id,
         streamKey,
       });
@@ -232,9 +235,8 @@ export const handler = async (input: CreateBoardInput, ctx: ServiceContext) => {
       // Ignore "BUSYGROUP Consumer Group name already exists"
       const err = error as Error;
       if (!err.message?.includes("BUSYGROUP")) {
-        logger.error({
+        logger.error("Failed to create Redis stream", {
           err: error,
-          msg: "Failed to create Redis stream",
           boardId: result.board.id,
         });
         throw error;
@@ -242,8 +244,7 @@ export const handler = async (input: CreateBoardInput, ctx: ServiceContext) => {
     }
 
     // Log success
-    logger.info({
-      msg: "Board created successfully",
+    logger.info("Board created successfully", {
       boardId: result.board.id,
       title: result.board.title,
       workspaceId: result.board.workspaceId,
@@ -261,9 +262,8 @@ export const handler = async (input: CreateBoardInput, ctx: ServiceContext) => {
     if (error instanceof AppError) throw error;
 
     // Log unexpected errors
-    logger.error({
+    logger.error("Failed to create board", {
       err: error,
-      msg: "Failed to create board",
       workspaceId: input.workspaceId,
       userId,
     });

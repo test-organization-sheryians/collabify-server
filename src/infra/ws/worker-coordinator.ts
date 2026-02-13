@@ -1,7 +1,9 @@
 import { appRedis } from "../redis";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
 import { KeyFactory } from "../redis/keys";
 import crypto, { createHash } from "node:crypto";
+
+const logger = createLogger("infra:ws:worker");
 
 /**
  * Worker Coordinator ("The Brain")
@@ -26,10 +28,9 @@ export const workerCoordinator = {
 
   async init() {
     this.isRunning = true;
-    logger.info(
-      { coordinatorId: COORDINATOR_ID },
-      "Starting Worker Coordinator (Hardened)"
-    );
+    logger.info("Starting Worker Coordinator (Hardened)", {
+      coordinatorId: COORDINATOR_ID,
+    });
     this.startLoop();
   },
 
@@ -97,10 +98,11 @@ export const workerCoordinator = {
       }
 
       // 4. Rebalance Triggered
-      logger.info(
-        { workersChanged, conversationsChanged, currentConversationEpoch },
-        "Coordinator: Rebalance Triggered"
-      );
+      logger.info("Coordinator: Rebalance Triggered", {
+        workersChanged,
+        conversationsChanged,
+        currentConversationEpoch,
+      });
 
       await this.performRebalance(sortedWorkers);
 
@@ -108,7 +110,7 @@ export const workerCoordinator = {
       this.lastWorkerIds = sortedWorkers;
       this.lastConversationEpoch = currentConversationEpoch;
     } catch (err) {
-      logger.error({ err }, "Coordinator: Tick Failed");
+      logger.error("Coordinator: Tick Failed", { err });
     }
   },
 

@@ -3,7 +3,9 @@ import { ChatWebSocket } from "@/infra/ws/types";
 import type { MarkReadInput } from "./schema";
 import { updateReadWatermark } from "@/modules/chat/domain/read-receipts/redis-ops";
 import { readReceiptQueue } from "@/modules/chat/jobs/queues";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("chat:ws:mark-read");
 
 export const markReadHandler = async (
   ctx: WSHandlerContext,
@@ -20,7 +22,7 @@ export const markReadHandler = async (
     });
 
     if (!member) {
-      logger.warn({ msg: "Member not found", userId, conversationId });
+      logger.warn("Member not found", { userId, conversationId });
       return;
     }
 
@@ -36,7 +38,7 @@ export const markReadHandler = async (
     });
 
     if (!message || message.conversationId !== conversationId) {
-      logger.warn({ msg: "Message not found", watermarkId, conversationId });
+      logger.warn("Message not found", { watermarkId, conversationId });
       return;
     }
 
@@ -113,8 +115,7 @@ export const markReadHandler = async (
       })
     );
   } catch (error) {
-    logger.error({
-      msg: "mark-read error",
+    logger.error("mark-read error", {
       error,
       conversationId,
       userId,

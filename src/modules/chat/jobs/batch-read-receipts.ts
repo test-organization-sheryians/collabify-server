@@ -1,6 +1,8 @@
 import type { Job } from "bullmq";
 import { db } from "@/infra/db";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("chat:jobs:batch-read-receipts");
 
 /**
  * Read Receipt Job Payload
@@ -24,10 +26,12 @@ export interface ReadReceiptJobData {
 export const readReceiptHandler = async (job: Job<ReadReceiptJobData>) => {
   const { conversationId, userId, watermarkId, sequence } = job.data;
 
-  logger.info(
-    { jobId: job.id, conversationId, userId, sequence },
-    "Processing read receipt"
-  );
+  logger.info("Processing read receipt", {
+    jobId: job.id,
+    conversationId,
+    userId,
+    sequence,
+  });
 
   try {
     await db.$transaction(async (tx) => {
@@ -40,24 +44,21 @@ export const readReceiptHandler = async (job: Job<ReadReceiptJobData>) => {
       });
 
       if (!member) {
-        logger.warn(
-          { conversationId, userId },
-          "Member not found - user may have left conversation"
-        );
+        logger.warn("Member not found - user may have left conversation", {
+          conversationId,
+          userId,
+        });
         return; // Idempotent success - no retry needed
       }
 
       // 2. Idempotency check: Only update if sequence advanced
       if (sequence <= member.lastReadSeq) {
-        logger.info(
-          {
-            conversationId,
-            userId,
-            current: member.lastReadSeq,
-            new: sequence,
-          },
-          "Read receipt skipped - sequence not advanced"
-        );
+        logger.info("Read receipt skipped - sequence not advanced", {
+          conversationId,
+          userId,
+          current: member.lastReadSeq,
+          new: sequence,
+        });
         return;
       }
 
@@ -71,16 +72,19 @@ export const readReceiptHandler = async (job: Job<ReadReceiptJobData>) => {
         },
       });
 
-      logger.info(
-        { conversationId, userId, watermarkId, sequence },
-        "Read receipt persisted"
-      );
+      logger.info("Read receipt persisted", {
+        conversationId,
+        userId,
+        watermarkId,
+        sequence,
+      });
     });
   } catch (error) {
-    logger.error(
-      { error, jobId: job.id, data: job.data },
-      "Read receipt persistence failed"
-    );
+    logger.error("Read receipt persistence failed", {
+      error,
+      jobId: job.id,
+      data: job.data,
+    });
     throw error; // BullMQ will retry
   }
 };

@@ -2,7 +2,9 @@ import { WSHandlerContext } from "@/infra/ws/types";
 import { ChatWebSocket, createSuccessFrame } from "@/infra/ws/types";
 import { SubscribeBoardInput } from "./schema";
 import { wsRegistry } from "@/infra/ws/subscription-registry";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("whiteboard:ws:subscribe");
 import { WhiteboardKeys } from "@/modules/whiteboard/infra/whiteboard-keys";
 import { appRedis } from "@/infra/redis";
 import {
@@ -136,8 +138,7 @@ export const subscribeBoardHandler = async (
     "86400"
   )) as [number, number];
 
-  logger.info({
-    msg: "User Presence Updated (Lua)",
+  logger.info("User Presence Updated (Lua)", {
     userId,
     boardId,
     subscriberCount,
@@ -178,8 +179,7 @@ export const subscribeBoardHandler = async (
       boardId
     )) as number;
 
-    logger.info({
-      msg: "Board Activated (Lua)",
+    logger.info("Board Activated (Lua)", {
       boardId,
       newEpoch,
     });
@@ -194,8 +194,7 @@ export const subscribeBoardHandler = async (
   const topic = WhiteboardKeys.BoardEvents(boardId);
   await wsRegistry.subscribe(socketId, topic);
 
-  logger.info({
-    msg: "Socket Subscribed to Board Events",
+  logger.info("Socket Subscribed to Board Events", {
     userId,
     boardId,
     socketId,
@@ -249,8 +248,7 @@ export const subscribeBoardHandler = async (
     })
   );
 
-  logger.info({
-    msg: "Subscribe Success Sent",
+  logger.info("Subscribe Success Sent", {
     userId,
     boardId,
     collaboratorCount: collaborators.length,
@@ -276,8 +274,7 @@ export const subscribeBoardHandler = async (
     });
 
     if (!user) {
-      logger.warn({
-        msg: "User Not Found for Join Broadcast",
+      logger.warn("User Not Found for Join Broadcast", {
         userId,
         boardId,
       });
@@ -302,15 +299,13 @@ export const subscribeBoardHandler = async (
       userJoinedFrame
     );
 
-    logger.info({
-      msg: "User Joined Event Broadcast",
+    logger.info("User Joined Event Broadcast", {
       userId,
       boardId,
       subscriberCount,
     });
   } else {
-    logger.info({
-      msg: "User Reconnected (No Join Broadcast)",
+    logger.info("User Reconnected (No Join Broadcast)", {
       userId,
       boardId,
     });

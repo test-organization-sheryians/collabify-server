@@ -1,7 +1,9 @@
 import { Job } from "bullmq";
 import { db } from "@/infra/db";
 import { appRedis } from "@/infra/redis";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("chat:jobs:reconcile-reactions");
 import {
   rebuildReactionCache,
   getReactionCounts,
@@ -46,10 +48,10 @@ export const reconcileReactionsHandler = async (
     targetMessageIds = recentMessages.map((m) => m.id);
   }
 
-  logger.info(
-    { count: targetMessageIds.length, forceRebuild },
-    "Starting reaction reconciliation"
-  );
+  logger.info("Starting reaction reconciliation", {
+    count: targetMessageIds.length,
+    forceRebuild,
+  });
 
   // ═══════════════════════════════════════════════════════════
   // STEP 1: Clean up reactions for deleted messages (M-4)
@@ -65,10 +67,9 @@ export const reconcileReactionsHandler = async (
   });
 
   if (deletedMessages.length > 0) {
-    logger.info(
-      { count: deletedMessages.length },
-      "Cleaning up reactions for deleted messages"
-    );
+    logger.info("Cleaning up reactions for deleted messages", {
+      count: deletedMessages.length,
+    });
 
     for (const msg of deletedMessages) {
       // Delete from database
@@ -114,16 +115,13 @@ export const reconcileReactionsHandler = async (
         // DESYNC DETECTED
         desyncCount++;
 
-        logger.warn(
-          {
-            messageId,
-            dbChecksum,
-            redisChecksum,
-            dbCount: dbReactions.length,
-            redisTotal: Object.values(redisCounts).reduce((a, b) => a + b, 0),
-          },
-          "Desync detected, rebuilding cache"
-        );
+        logger.warn("Desync detected, rebuilding cache", {
+          messageId,
+          dbChecksum,
+          redisChecksum,
+          dbCount: dbReactions.length,
+          redisTotal: Object.values(redisCounts).reduce((a, b) => a + b, 0),
+        });
 
         // 4. Rebuild Redis from DB
         // First, clear existing Redis data
@@ -148,10 +146,10 @@ export const reconcileReactionsHandler = async (
         }
       }
     } catch (error: any) {
-      logger.error(
-        { error, messageId },
-        "Failed to reconcile reactions for message"
-      );
+      logger.error("Failed to reconcile reactions for message", {
+        error,
+        messageId,
+      });
     }
 
     // Throttle to avoid overwhelming Redis
@@ -160,14 +158,11 @@ export const reconcileReactionsHandler = async (
     }
   }
 
-  logger.info(
-    {
-      total: targetMessageIds.length,
-      desyncCount,
-      rebuiltCount,
-    },
-    "Reaction reconciliation complete"
-  );
+  logger.info("Reaction reconciliation complete", {
+    total: targetMessageIds.length,
+    desyncCount,
+    rebuiltCount,
+  });
 
   return { desyncCount, rebuiltCount };
 };

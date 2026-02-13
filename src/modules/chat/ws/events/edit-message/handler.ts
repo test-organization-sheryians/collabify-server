@@ -5,7 +5,9 @@ import {
   createErrorFrame,
 } from "@/infra/ws/types";
 import { EditMessageInput } from "./schema";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("chat:ws:edit-message");
 import { appRedis } from "@/infra/redis";
 import { KeyFactory } from "@/infra/redis/keys";
 import { OutboxStatus } from "@prisma/client";
@@ -20,8 +22,7 @@ export const editMessageHandler = async (
   const { messageId, content, nonce } = input;
   const { userId } = socket.data;
 
-  logger.info({
-    msg: "Processing Edit Message",
+  logger.info("Processing Edit Message", {
     userId,
     messageId,
     nonce,
@@ -32,14 +33,11 @@ export const editMessageHandler = async (
     const validation = await validateEditMessage(ctx.db, userId, messageId);
 
     if (!validation.valid) {
-      logger.warn(
-        {
-          userId,
-          messageId,
-          error: validation.error,
-        },
-        "Edit validation failed"
-      );
+      logger.warn("Edit validation failed", {
+        userId,
+        messageId,
+        error: validation.error,
+      });
 
       socket.send(
         createErrorFrame(
@@ -148,15 +146,14 @@ export const editMessageHandler = async (
       })
     );
 
-    logger.info({
-      msg: "Edit message published",
+    logger.info("Edit message published", {
       messageId,
       userId,
       conversationId: message.conversationId,
       outboxId: outboxRecord.id,
     });
   } catch (error) {
-    logger.error({ error, messageId, userId }, "Failed to edit message");
+    logger.error("Failed to edit message", { error, messageId, userId });
     socket.send(
       createErrorFrame(nonce, "chat:error", "INTERNAL_ERROR", "Internal error")
     );

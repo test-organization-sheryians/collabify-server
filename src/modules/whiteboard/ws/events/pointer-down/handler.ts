@@ -1,7 +1,9 @@
 import { WSHandlerContext } from "@/infra/ws/types";
 import { ChatWebSocket } from "@/infra/ws/types";
 import { PointerDownInput } from "./schema";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("whiteboard:ws:cursor");
 
 /**
  * Pointer Down Handler (PRESENCE)
@@ -35,6 +37,6 @@ export const pointerDownHandler = async (
     // ============================================
     // No-op - implement later
   } catch (err: unknown) {
-    logger.error({ err, boardId }, "Failed to process pointer down");
+    logger.error("Failed to process pointer down", { err, boardId });
   }
 };

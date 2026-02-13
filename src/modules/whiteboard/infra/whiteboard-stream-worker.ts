@@ -1,5 +1,7 @@
 import { appRedis } from "@/infra/redis";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("whiteboard:infra:stream-worker");
 import { WhiteboardKeys } from "./whiteboard-keys";
 import { s3Client } from "./s3-client-wrapper";
 import { Y } from "@/shared/yjs";
@@ -93,10 +95,9 @@ export const whiteboardStreamWorker = {
     dispose: (value, key) => {
       // 1. On eviction: snapshot if dirty (fire-and-forget)
       if (value.isDirty && !value.pendingSnapshot) {
-        logger.info(
-          { boardId: key },
-          "LRU eviction: creating snapshot for dirty board"
-        );
+        logger.info("LRU eviction: creating snapshot for dirty board", {
+          boardId: key,
+        });
         void whiteboardStreamWorker.createSnapshot(key, value, "lru-eviction");
       }
 
@@ -114,10 +115,10 @@ export const whiteboardStreamWorker = {
 
   async init() {
     this.isRunning = true;
-    logger.info(
-      { group: WORKER_GROUP_NAME, consumer: CONSUMER_NAME },
-      "Starting Whiteboard Stream Worker (V4)"
-    );
+    logger.info("Starting Whiteboard Stream Worker (V4)", {
+      group: WORKER_GROUP_NAME,
+      consumer: CONSUMER_NAME,
+    });
 
     // Start loops
     this.heartbeatLoop();
@@ -145,10 +146,10 @@ export const whiteboardStreamWorker = {
             const idleTime = now - state.lastUpdate;
 
             if (idleTime > IDLE_TIMEOUT_MS) {
-              logger.info(
-                { boardId, idleTimeMs: idleTime },
-                "Idle board eviction: no edits for 10min"
-              );
+              logger.info("Idle board eviction: no edits for 10min", {
+                boardId,
+                idleTimeMs: idleTime,
+              });
 
               // 1. Snapshot if dirty
               if (state.isDirty) {
@@ -173,7 +174,7 @@ export const whiteboardStreamWorker = {
 
         await new Promise((r) => setTimeout(r, 5000));
       } catch (err) {
-        logger.error({ err }, "Whiteboard worker heartbeat failed");
+        logger.error("Whiteboard worker heartbeat failed", { err });
       }
     }
   },
@@ -238,7 +239,7 @@ export const whiteboardStreamWorker = {
           logger.warn("Whiteboard worker: NOGROUP error, clearing group cache");
           this.knownGroups.clear();
         } else {
-          logger.error({ err }, "Whiteboard consumption loop error");
+          logger.error("Whiteboard consumption loop error", { err });
         }
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
@@ -273,21 +274,21 @@ export const whiteboardStreamWorker = {
             )) as any;
 
             if (claimed && claimed[1].length > 0) {
-              logger.info(
-                { boardId, count: claimed[1].length },
-                "Whiteboard worker: claimed dead updates"
-              );
+              logger.info("Whiteboard worker: claimed dead updates", {
+                boardId,
+                count: claimed[1].length,
+              });
 
               for (const [id, fields] of claimed[1]) {
                 await this.safeProcessUpdate(streamKey, id, fields as string[]);
               }
             }
           } catch (err) {
-            logger.error({ err, boardId }, "Recovery claim failed");
+            logger.error("Recovery claim failed", { err, boardId });
           }
         }
       } catch (err) {
-        logger.error({ err }, "Whiteboard recovery loop error");
+        logger.error("Whiteboard recovery loop error", { err });
       }
     }
   },
@@ -308,12 +309,12 @@ export const whiteboardStreamWorker = {
           "MKSTREAM"
         );
         this.knownGroups.add(key);
-        logger.info({ streamKey: key }, "Consumer group created");
+        logger.info("Consumer group created", { streamKey: key });
       } catch (err: any) {
         if (err?.message?.includes("BUSYGROUP")) {
           this.knownGroups.add(key);
         } else {
-          logger.error({ err, streamKey: key }, "Failed to create group");
+          logger.error("Failed to create group", { err, streamKey: key });
         }
       }
     }
@@ -327,10 +328,11 @@ export const whiteboardStreamWorker = {
       await this.processUpdate(streamKey, id, fields);
       await streamRedis.xack(streamKey, WORKER_GROUP_NAME, id);
     } catch (error) {
-      logger.error(
-        { error, streamKey, streamId: id },
-        "Y.js update processing failed (will retry via recovery)"
-      );
+      logger.error("Y.js update processing failed (will retry via recovery)", {
+        error,
+        streamKey,
+        streamId: id,
+      });
     }
   },
 
@@ -347,7 +349,7 @@ export const whiteboardStreamWorker = {
     const updateB64 = data.update;
 
     if (!boardId || !updateB64) {
-      logger.warn({ streamKey, id }, "Missing boardId or update");
+      logger.warn("Missing boardId or update", { streamKey, id });
       return;
     }
 
@@ -356,7 +358,7 @@ export const whiteboardStreamWorker = {
     if (!state) {
       state = await this.coldStart(boardId);
       this.boardCache.set(boardId, state);
-      logger.info({ boardId }, "Cold start: loaded board into cache");
+      logger.info("Cold start: loaded board into cache", { boardId });
     }
 
     // 2. Apply update (CRDT merge)
@@ -423,11 +425,13 @@ export const whiteboardStreamWorker = {
 
         if (elements instanceof Y.Map) {
           // OLD STRUCTURE - Reject and start fresh
-          logger.warn({
-            boardId,
-            msg: "⚠️ Old snapshot structure (Y.Map) - starting fresh with Y.Array",
-            snapshotSize: snapshot.data.length,
-          });
+          logger.warn(
+            "Old snapshot structure (Y.Map) - starting fresh with Y.Array",
+            {
+              boardId,
+              snapshotSize: snapshot.data.length,
+            }
+          );
 
           tempDoc.destroy();
           ydoc = this.initializeEmptyBoard(); // Fresh Y.Doc with correct structure
@@ -439,17 +443,15 @@ export const whiteboardStreamWorker = {
           Y.applyUpdate(ydoc, snapshot.data);
           streamIdWhenLoaded = snapshot.streamId || "0-0";
 
-          logger.info({
+          logger.info("✅ Loaded S3 snapshot with correct structure", {
             boardId,
             streamId: streamIdWhenLoaded,
-            msg: "✅ Loaded S3 snapshot with correct structure",
           });
         }
       } else {
         // No snapshot - create fresh board
-        logger.info({
+        logger.info("📝 No snapshot found - creating fresh board", {
           boardId,
-          msg: "📝 No snapshot found - creating fresh board",
         });
         ydoc = this.initializeEmptyBoard();
       }
@@ -496,16 +498,16 @@ export const whiteboardStreamWorker = {
       }
 
       if (totalReplayed > 0) {
-        logger.info(
-          { boardId, deltaCount: totalReplayed },
-          "Applied stream delta (bounded replay)"
-        );
+        logger.info("Applied stream delta (bounded replay)", {
+          boardId,
+          deltaCount: totalReplayed,
+        });
       }
     } catch (error) {
-      logger.error(
-        { error, boardId },
-        "Cold start failed, starting with empty doc"
-      );
+      logger.error("Cold start failed, starting with empty doc", {
+        error,
+        boardId,
+      });
 
       // Initialize fresh board if error occurred
       ydoc = this.initializeEmptyBoard();
@@ -557,9 +559,9 @@ export const whiteboardStreamWorker = {
         state.approxSize = snapshot.length;
 
         this.cacheUpdateTimers.delete(boardId);
-        logger.debug({ boardId, streamId }, "Redis cache updated (versioned)");
+        logger.debug("Redis cache updated (versioned)", { boardId, streamId });
       } catch (error) {
-        logger.error({ error, boardId }, "Cache update failed");
+        logger.error("Cache update failed", { error, boardId });
       }
     }, 5000);
 
@@ -611,7 +613,7 @@ export const whiteboardStreamWorker = {
     const acquired = await LockingService.acquire(lockKey, CONSUMER_NAME, 60);
 
     if (!acquired) {
-      logger.debug({ boardId }, "Snapshot already in progress");
+      logger.debug("Snapshot already in progress", { boardId });
       // 🔥 CRITICAL FIX #4: Reset pendingSnapshot on lock failure
       state.pendingSnapshot = false;
       return;
@@ -659,22 +661,19 @@ export const whiteboardStreamWorker = {
       state.lastSnapshotTime = timestamp;
       state.pendingSnapshot = false;
 
-      logger.info(
-        {
-          boardId,
-          s3Key,
-          streamId,
-          sizeKB: Math.round(snapshot.length / 1024),
-          reason,
-        },
-        "Snapshot created"
-      );
+      logger.info("Snapshot created", {
+        boardId,
+        s3Key,
+        streamId,
+        sizeKB: Math.round(snapshot.length / 1024),
+        reason,
+      });
 
       // Safe trimming: MINID streamId
       // 🔥 Use streamRedis for consistency
       await streamRedis.xtrim(streamKey, "MINID", streamId);
     } catch (error) {
-      logger.error({ error, boardId }, "Snapshot creation failed");
+      logger.error("Snapshot creation failed", { error, boardId });
 
       // DLQ for manual intervention
       await streamRedis.rpush(
@@ -697,7 +696,7 @@ export const whiteboardStreamWorker = {
       const length = await appRedis.xlen(streamKey);
 
       if (length > HEALTH_THRESHOLDS.DANGER) {
-        logger.error({ boardId, length }, "DANGER: Circuit breaker threshold");
+        logger.error("DANGER: Circuit breaker threshold", { boardId, length });
         await appRedis.set(
           WhiteboardKeys.BoardCircuitBreaker(boardId),
           "OPEN",
@@ -705,15 +704,15 @@ export const whiteboardStreamWorker = {
           30
         );
       } else if (length > HEALTH_THRESHOLDS.CRITICAL) {
-        logger.warn({ boardId, length }, "CRITICAL: Stream backlog high");
+        logger.warn("CRITICAL: Stream backlog high", { boardId, length });
       } else if (length > HEALTH_THRESHOLDS.WARNING) {
-        logger.info(
-          { boardId, length },
-          "WARNING: Stream approaching threshold"
-        );
+        logger.info("WARNING: Stream approaching threshold", {
+          boardId,
+          length,
+        });
       }
     } catch (error) {
-      logger.error({ error, boardId }, "Stream health check failed");
+      logger.error("Stream health check failed", { error, boardId });
     }
   },
 
@@ -730,10 +729,9 @@ export const whiteboardStreamWorker = {
     );
 
     if (dirtyBoards.length > 0) {
-      logger.info(
-        { count: dirtyBoards.length },
-        "Snapshotting dirty boards before shutdown"
-      );
+      logger.info("Snapshotting dirty boards before shutdown", {
+        count: dirtyBoards.length,
+      });
 
       await Promise.all(
         dirtyBoards.map(([boardId, state]) =>

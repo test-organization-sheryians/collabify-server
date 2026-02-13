@@ -5,15 +5,17 @@ import {
   type ConnectionOptions,
 } from "bullmq";
 import { AppError } from "@/shared/errors";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
 import { createConnection } from "./connection";
+
+const logger = createLogger("services:bullmq");
 
 export const createWorker = <T = unknown>(
   name: string,
   processor: Processor<T>,
   options?: Omit<WorkerOptions, "connection">
 ) => {
-  logger.info({ worker: name }, "Worker initializing...");
+  logger.info("Worker initializing...", { worker: name });
 
   const worker = new Worker<T>(name, processor, {
     connection: createConnection() as unknown as ConnectionOptions,
@@ -21,32 +23,30 @@ export const createWorker = <T = unknown>(
   });
 
   worker.on("ready", () => {
-    logger.info({ worker: name }, "Worker ready to process jobs");
+    logger.info("Worker ready to process jobs", { worker: name });
   });
 
   worker.on("failed", (job, err) => {
     // Standardized Error Logging
     if (err instanceof AppError) {
-      logger.error(
-        {
-          worker: name,
-          jobId: job?.id,
-          code: err.code,
-          meta: err.metadata,
-          operational: err.isOperational,
-        },
-        `Worker job failed: ${err.message}`
-      );
+      logger.error(`Worker job failed: ${err.message}`, {
+        worker: name,
+        jobId: job?.id,
+        code: err.code,
+        meta: err.metadata,
+        operational: err.isOperational,
+      });
     } else {
-      logger.error(
-        { worker: name, jobId: job?.id, err },
-        "Worker job failed (Unknown Error)"
-      );
+      logger.error("Worker job failed (Unknown Error)", {
+        worker: name,
+        jobId: job?.id,
+        err,
+      });
     }
   });
 
   worker.on("error", (err) => {
-    logger.error({ worker: name, err }, "Worker encountered an error");
+    logger.error("Worker encountered an error", { worker: name, err });
   });
 
   return worker;

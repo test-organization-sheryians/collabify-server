@@ -4,7 +4,9 @@ import { AppError } from "@/shared/errors";
 import { QUEUE_NAMES } from "../core/constants";
 import { DeciderJobData, NotificationChannel } from "../core/types";
 import { EventRegistry } from "../events/registry";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("notification:engine:decider");
 import * as Guards from "./decider/guards";
 import * as Routing from "./decider/routing";
 
@@ -43,12 +45,12 @@ export const createDeciderWorker = () => {
       // 1. Guards: Idempotency
       if (!(await Guards.checkIdempotency(eventId, job.id || ""))) return;
 
-      logger.debug({ jobId: job.id, type }, "Decider processing job");
+      logger.debug("Decider processing job", { jobId: job.id, type });
 
       // 2. Definition & Schema Validation
       const definition = EventRegistry.get(type);
       if (!definition) {
-        logger.warn({ type }, "Unknown event type, skipping");
+        logger.warn("Unknown event type, skipping", { type });
         return;
       }
 
@@ -64,10 +66,10 @@ export const createDeciderWorker = () => {
 
       const parseResult = schema.safeParse(rawPayload);
       if (!parseResult.success) {
-        logger.error(
-          { errors: parseResult.error.format(), type },
-          "Invalid Payload - Dropping"
-        );
+        logger.error("Invalid Payload - Dropping", {
+          errors: parseResult.error.format(),
+          type,
+        });
         return;
       }
       const valPayload = parseResult.data as Record<string, unknown>;
@@ -80,7 +82,7 @@ export const createDeciderWorker = () => {
         valPayload["actorId"];
 
       if (typeof rawUserId !== "string" || !rawUserId) {
-        logger.warn({ type, rawUserId }, "No valid Recipient ID found");
+        logger.warn("No valid Recipient ID found", { type, rawUserId });
         return;
       }
       const userId: string = rawUserId;
@@ -93,7 +95,7 @@ export const createDeciderWorker = () => {
       // 5. Routing: Batching
       const batchDecision = Routing.shouldBatch(type, strategy);
       if (batchDecision.enabled) {
-        logger.debug({ eventId, type }, "Routing to Batch Queue");
+        logger.debug("Routing to Batch Queue", { eventId, type });
         await batchQueue.add(
           type,
           { ...job.data, userId, payload: valPayload },
@@ -114,7 +116,7 @@ export const createDeciderWorker = () => {
 
           const transformer = definition.transformers[channel];
           if (!transformer) {
-            logger.warn({ type, channel }, "Transformer missing");
+            logger.warn("Transformer missing", { type, channel });
             return;
           }
 
@@ -128,7 +130,7 @@ export const createDeciderWorker = () => {
             userId,
           });
 
-          logger.debug({ eventId, channel, userId }, "Routed to channel");
+          logger.debug("Routed to channel", { eventId, channel, userId });
         })
       );
     }

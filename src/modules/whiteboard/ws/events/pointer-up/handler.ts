@@ -1,7 +1,9 @@
 import { WSHandlerContext } from "@/infra/ws/types";
 import { ChatWebSocket } from "@/infra/ws/types";
 import { PointerUpInput } from "./schema";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("whiteboard:ws:cursor");
 
 /**
  * Pointer Up Handler (PRESENCE)
@@ -34,6 +36,6 @@ export const pointerUpHandler = async (
     // ============================================
     // No-op - implement later
   } catch (err: unknown) {
-    logger.error({ err, boardId }, "Failed to process pointer up");
+    logger.error("Failed to process pointer up", { err, boardId });
   }
 };

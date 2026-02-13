@@ -1,6 +1,8 @@
 import { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("notification:services:read");
 import { MarkNotificationReadInput } from "./types";
 
 export const markNotificationRead = async (
@@ -22,10 +24,11 @@ export const markNotificationRead = async (
     data: { isRead: true },
   });
 
-  logger.info(
-    { userId: actorUserId, count: result.count, ids },
-    "Marked notifications as read"
-  );
+  logger.info("Marked notifications as read", {
+    userId: actorUserId,
+    count: result.count,
+    ids,
+  });
 
   return true;
 };

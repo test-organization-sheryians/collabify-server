@@ -1,7 +1,9 @@
 import { redis } from "@/infra/redis";
 import { db } from "@/infra/db";
 import { REDIS_KEYS } from "../../core/constants";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("notification:engine:decider");
 
 // -----------------------------------------------------------------------------
 // IDEMPOTENCY
@@ -14,7 +16,7 @@ export const checkIdempotency = async (
   const acquired = await redis.set(lockKey, "1", "EX", 86400, "NX");
 
   if (!acquired) {
-    logger.debug({ jobId, eventId }, "Duplicate Decider Job Dropped");
+    logger.debug("Duplicate Decider Job Dropped", { jobId, eventId });
     return false;
   }
   return true;
@@ -38,10 +40,11 @@ export const checkRateLimit = async (
   }
 
   if (requestCount > RATE_LIMIT_MAX) {
-    logger.warn(
-      { userId, type, count: requestCount },
-      "Rate limit exceeded, dropping notification"
-    );
+    logger.warn("Rate limit exceeded, dropping notification", {
+      userId,
+      type,
+      count: requestCount,
+    });
     return false;
   }
   return true;
@@ -66,8 +69,8 @@ export const checkAccess = async (
       });
       if (!member) {
         logger.info(
-          { userId, workspaceId, type },
-          "Decider: User lost access to workspace, dropping notification."
+          "Decider: User lost access to workspace, dropping notification.",
+          { userId, workspaceId, type }
         );
         return false;
       }

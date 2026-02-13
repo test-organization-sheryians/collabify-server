@@ -6,7 +6,9 @@
 
 import { Job } from "bullmq";
 import { SnapshotJobData } from "./queues";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("whiteboard:jobs:snapshot");
 
 /**
  * Process snapshot creation job
@@ -14,8 +16,7 @@ import { logger } from "@/shared/logger";
 export const processSnapshotJob = async (job: Job<SnapshotJobData>) => {
   const { boardId, triggerReason } = job.data;
 
-  logger.info({
-    msg: "Processing Snapshot Job",
+  logger.info("Processing Snapshot Job", {
     boardId,
     triggerReason,
     jobId: job.id,
@@ -93,7 +94,7 @@ export const processSnapshotJob = async (job: Job<SnapshotJobData>) => {
 
     throw new Error("TODO: Implement processSnapshotJob");
   } catch (err: unknown) {
-    logger.error({ err, boardId, jobId: job.id }, "Snapshot job failed");
+    logger.error("Snapshot job failed", { err, boardId, jobId: job.id });
     throw err; // BullMQ will retry based on job options
   }
 };

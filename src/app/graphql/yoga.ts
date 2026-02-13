@@ -2,16 +2,12 @@ import { createYoga, useLogger } from "graphql-yoga";
 import { schema } from "../../graphql/schema";
 import { createContext } from "../../graphql/context";
 import { mapToGraphQLError } from "../../shared/errors";
-import { logger } from "../../shared/logger";
+import { createLogger } from "../../shared/lib/logger";
 import { env } from "../../shared/config/env";
 import { ServiceContext } from "../../graphql/types";
 import { Context } from "hono";
 
-interface GraphQLLogPayload {
-  msg: string;
-  operation?: string;
-  variables?: Record<string, unknown>;
-}
+const logger = createLogger("app:graphql");
 
 export const createGraphQLApp = () => {
   return createYoga<ServiceContext>({
@@ -27,22 +23,17 @@ export const createGraphQLApp = () => {
       useLogger({
         logFn: (eventName, args) => {
           if (eventName === "execute-start") {
-            const payload: GraphQLLogPayload = {
-              msg: "GraphQL Execution Started",
+            const context: Record<string, unknown> = {
               operation: args.args.operationName ?? "Unnamed Operation",
             };
             if (env.LOG_GRAPHQL_VARS) {
-              payload.variables = args.args.variableValues as Record<
-                string,
-                unknown
-              >;
+              context.variables = args.args.variableValues;
             }
-            logger.info(payload);
+            logger.info("GraphQL Execution Started", context);
           }
           if (eventName === "execute-end") {
             const result = args.result;
-            logger.info({
-              msg: "GraphQL Execution Completed",
+            logger.info("GraphQL Execution Completed", {
               errors: result.errors,
             });
           }

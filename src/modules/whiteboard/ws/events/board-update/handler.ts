@@ -5,7 +5,9 @@ import {
   createErrorFrame,
 } from "@/infra/ws/types";
 import { BoardUpdateInput } from "./schema";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("whiteboard:ws:board-update");
 import { AppError } from "@/shared/errors/app-error";
 import { appRedis } from "@/infra/redis";
 import {
@@ -50,8 +52,7 @@ export const boardUpdateHandler = async (
   const { userId, socketId } = socket.data;
   const startTime = Date.now();
 
-  logger.info({
-    msg: "Processing board update",
+  logger.info("Processing board update", {
     userId,
     boardId,
     dedupeId,
@@ -172,10 +173,10 @@ export const boardUpdateHandler = async (
 
     if (!result.ok) {
       if (result.code === "DUPLICATE") {
-        logger.debug(
-          { dedupeId, boardId },
-          "Duplicate update (Lua atomic check)"
-        );
+        logger.debug("Duplicate update (Lua atomic check)", {
+          dedupeId,
+          boardId,
+        });
 
         socket.send(
           createSuccessFrame(dedupeId, "whiteboard:update-ack", {
@@ -187,10 +188,11 @@ export const boardUpdateHandler = async (
       }
 
       if (result.code === "BACKPRESSURE_LIMIT") {
-        logger.warn(
-          { boardId, streamLen: result.streamLen, maxLen: result.maxLen },
-          "Stream backpressure limit reached - snapshot required"
-        );
+        logger.warn("Stream backpressure limit reached - snapshot required", {
+          boardId,
+          streamLen: result.streamLen,
+          maxLen: result.maxLen,
+        });
 
         // TODO (Architecture): Trigger snapshot job automatically when backpressure hits
         throw new AppError(
@@ -214,8 +216,7 @@ export const boardUpdateHandler = async (
     // Broadcast to other subscribers (best-effort)
     const channel = WhiteboardKeys.BoardEvents(boardId);
 
-    logger.debug({
-      msg: "📡 Publishing to Redis pub/sub",
+    logger.debug("📡 Publishing to Redis pub/sub", {
       boardId,
       channel,
       streamId: result.streamId,
@@ -243,16 +244,14 @@ export const boardUpdateHandler = async (
 
     await appRedis.publish(channel, pubSubMessage);
 
-    logger.debug({
-      msg: "✅ Publish complete",
+    logger.debug("✅ Publish complete", {
       boardId,
       totalDuration: Date.now() - startTime,
     });
 
     const duration = Date.now() - startTime;
 
-    logger.info({
-      msg: "Board update processed successfully",
+    logger.info("Board update processed successfully", {
       boardId,
       userId,
       dedupeId,
@@ -264,16 +263,13 @@ export const boardUpdateHandler = async (
   } catch (err: unknown) {
     const duration = Date.now() - startTime;
 
-    logger.error(
-      {
-        err,
-        boardId,
-        userId,
-        dedupeId,
-        duration,
-      },
-      "Failed to process board update"
-    );
+    logger.error("Failed to process board update", {
+      err,
+      boardId,
+      userId,
+      dedupeId,
+      duration,
+    });
 
     if (err instanceof AppError) {
       socket.send(

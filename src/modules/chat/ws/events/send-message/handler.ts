@@ -5,7 +5,9 @@ import {
   createErrorFrame,
 } from "@/infra/ws/types";
 import { SendMessageInput } from "./schema";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("chat:ws:send-message");
 import { appRedis } from "@/infra/redis";
 import { OutboxStatus } from "@prisma/client";
 import { KeyFactory } from "@/infra/redis/keys";
@@ -19,8 +21,7 @@ export const sendMessageHandler = async (
   const { conversationId, content, dedupeId, parentMessageId } = input;
   const { userId } = socket.data;
 
-  logger.info({
-    msg: "Processing Send Message",
+  logger.info("Processing Send Message", {
     userId,
     conversationId,
     dedupeId,
@@ -34,7 +35,7 @@ export const sendMessageHandler = async (
     });
 
     if (existing) {
-      logger.warn({ dedupeId }, "Duplicate intent detected. Idempotent ACK.");
+      logger.warn("Duplicate intent detected. Idempotent ACK.", { dedupeId });
       socket.send(
         createSuccessFrame(undefined, "chat:ack-message", {
           dedupeId,
@@ -54,8 +55,7 @@ export const sendMessageHandler = async (
       );
 
       if (!parentValidation.valid) {
-        logger.warn({
-          msg: "Invalid parent message reference",
+        logger.warn("Invalid parent message reference", {
           code: parentValidation.error?.code,
           parentMessageId,
         });
@@ -148,7 +148,7 @@ export const sendMessageHandler = async (
       const luaResponse = JSON.parse(luaResponseStr);
 
       if (luaResponse.err === "LOAD_REQUIRED") {
-        logger.warn({ conversationId }, "Sequence Key missing. Re-hydrating.");
+        logger.warn("Sequence Key missing. Re-hydrating.", { conversationId });
 
         const conversation = await ctx.db.chatConversation.findUnique({
           where: { id: conversationId },
@@ -182,7 +182,7 @@ export const sendMessageHandler = async (
       })
     );
   } catch (err: any) {
-    logger.error({ err, dedupeId }, "Failed to process send-message");
+    logger.error("Failed to process send-message", { err, dedupeId });
 
     // ... Error Handling (Same as before) ...
     if (err.code === "P2002") {

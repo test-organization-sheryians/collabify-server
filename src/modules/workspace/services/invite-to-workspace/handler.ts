@@ -1,12 +1,13 @@
 import { AppError } from "@/shared/errors";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("workspace:services:invite");
 import { randomBytes } from "node:crypto";
 import { env } from "@/shared/config/env";
 import { InviteToWorkspaceInput } from "./types";
 import { ServiceContext } from "@/graphql/types";
 
 const INVITE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
-const inviteLogger = logger.child({ module: "Invitation" });
 
 export const inviteToWorkspace = async (
   input: InviteToWorkspaceInput,
@@ -63,10 +64,7 @@ export const inviteToWorkspace = async (
         ]);
 
         const link = `${env.FRONTEND_URL}/workspace/join?token=${token}`;
-        inviteLogger.info(
-          { email, token },
-          `[INVITE] To: ${email} | Link: ${link}`
-        );
+        logger.info(`[INVITE] To: ${email} | Link: ${link}`, { email, token });
         return email;
       })
     )

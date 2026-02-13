@@ -1,4 +1,6 @@
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("services:providers");
 
 export const sendToConsole = (
   to: string[],
@@ -6,15 +8,12 @@ export const sendToConsole = (
   body: string,
   data?: Record<string, string>
 ): Promise<void> => {
-  logger.info(
-    {
-      type: "PUSH_MOCK",
-      toCount: to.length,
-      title,
-      body,
-      data,
-    },
-    "📱 Mock Push Notification Sent"
-  );
+  logger.info("📱 Mock Push Notification Sent", {
+    type: "PUSH_MOCK",
+    toCount: to.length,
+    title,
+    body,
+    data,
+  });
   return Promise.resolve();
 };

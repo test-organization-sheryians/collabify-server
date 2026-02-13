@@ -1,5 +1,7 @@
 import { Y } from "@/shared/yjs";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("whiteboard:domain:board-state");
 
 /**
  * Y.Doc Update Merger (V4 Architecture)
@@ -28,7 +30,7 @@ export const mergeYDocUpdates = (
     // Apply base snapshot
     Y.applyUpdate(ydoc, baseSnapshot);
   } catch (error) {
-    logger.error({ error }, "Invalid base snapshot");
+    logger.error("Failed to apply base snapshot", { error });
     throw new Error("Failed to apply base snapshot");
   }
 
@@ -38,10 +40,10 @@ export const mergeYDocUpdates = (
       Y.applyUpdate(ydoc, update);
     } catch (error) {
       // Log and skip invalid update (CRDT will converge anyway)
-      logger.warn(
-        { error, updateSize: update.length },
-        "Skipping invalid update"
-      );
+      logger.warn("Skipping invalid update", {
+        error,
+        updateSize: update.length,
+      });
     }
   }
 
@@ -67,10 +69,10 @@ export function mergeUpdates(updates: Uint8Array[]): Uint8Array {
   try {
     return Y.mergeUpdates(updates);
   } catch (error) {
-    logger.error(
-      { error, updateCount: updates.length },
-      "Y.mergeUpdates failed"
-    );
+    logger.error("Y.mergeUpdates failed", {
+      error,
+      updateCount: updates.length,
+    });
     throw new Error("Failed to merge Y.js updates");
   }
 }
@@ -86,7 +88,7 @@ export function applyUpdateToDoc(ydoc: Y.Doc, update: Uint8Array): void {
   try {
     Y.applyUpdate(ydoc, update);
   } catch (error) {
-    logger.error({ error, updateSize: update.length }, "Y.applyUpdate failed");
+    logger.error("Y.applyUpdate failed", { error, updateSize: update.length });
     throw new Error("Failed to apply Y.js update");
   }
 }
@@ -110,7 +112,7 @@ export function encodeStateAsUpdate(ydoc: Y.Doc): Uint8Array {
   try {
     return Y.encodeStateAsUpdate(ydoc);
   } catch (error) {
-    logger.error({ error }, "Y.encodeStateAsUpdate failed");
+    logger.error("Y.encodeStateAsUpdate failed", { error });
     throw new Error("Failed to encode Y.Doc state");
   }
 }

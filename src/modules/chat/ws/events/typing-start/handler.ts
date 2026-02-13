@@ -2,7 +2,9 @@ import { WSHandlerContext } from "@/infra/ws/types";
 import { ChatWebSocket } from "@/infra/ws/types";
 import type { TypingStartInput } from "./schema";
 import { setTyping } from "@/modules/chat/domain/typing/redis-ops";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("chat:ws:typing-start");
 import { appRedis } from "@/infra/redis";
 
 export const typingStartHandler = async (
@@ -20,7 +22,7 @@ export const typingStartHandler = async (
     });
 
     if (!member) {
-      logger.warn({ userId, conversationId }, "Typing-start: Member not found");
+      logger.warn("Typing-start: Member not found", { userId, conversationId });
       return;
     }
 
@@ -63,14 +65,16 @@ export const typingStartHandler = async (
       );
     }
 
-    logger.debug(
-      { conversationId, userId, memberCount: onlineMembers.length },
-      "Typing-start processed"
-    );
+    logger.debug("Typing-start processed", {
+      conversationId,
+      userId,
+      memberCount: onlineMembers.length,
+    });
   } catch (error) {
-    logger.error(
-      { error, conversationId, userId },
-      "Typing-start handler error"
-    );
+    logger.error("Typing-start handler error", {
+      error,
+      conversationId,
+      userId,
+    });
   }
 };

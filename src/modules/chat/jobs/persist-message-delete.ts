@@ -1,6 +1,8 @@
 import { Job } from "bullmq";
 import { db } from "@/infra/db";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("chat:jobs:persist-message-delete");
 import { OutboxStatus } from "@prisma/client";
 
 export interface PersistMessageDeleteJob {
@@ -27,12 +29,12 @@ export const persistMessageDeleteWorker = async (
     });
 
     if (!outbox) {
-      logger.warn({ outboxId }, "Outbox record not found");
+      logger.warn("Outbox record not found", { outboxId });
       return { success: false, reason: "outbox_not_found" };
     }
 
     if (outbox.status === OutboxStatus.DONE) {
-      logger.info({ outboxId }, "Delete already persisted (duplicate job)");
+      logger.info("Delete already persisted (duplicate job)", { outboxId });
       return { success: true, skipped: true };
     }
 
@@ -59,8 +61,7 @@ export const persistMessageDeleteWorker = async (
       });
     });
 
-    logger.info({
-      msg: "Message delete persisted",
+    logger.info("Message delete persisted", {
       messageId,
       outboxId,
       jobId: job.id,
@@ -69,8 +70,7 @@ export const persistMessageDeleteWorker = async (
     return { success: true };
   } catch (error: any) {
     if (error.code === "P2025") {
-      logger.warn({
-        msg: "Message not found or already deleted",
+      logger.warn("Message not found or already deleted", {
         messageId,
         outboxId,
         jobId: job.id,
@@ -87,10 +87,12 @@ export const persistMessageDeleteWorker = async (
       return { success: false, reason: "message_not_found" };
     }
 
-    logger.error(
-      { error, messageId, outboxId, jobId: job.id },
-      "Failed to persist delete"
-    );
+    logger.error("Failed to persist delete", {
+      error,
+      messageId,
+      outboxId,
+      jobId: job.id,
+    });
     throw error;
   }
 };

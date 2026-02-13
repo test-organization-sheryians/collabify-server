@@ -1,7 +1,9 @@
 import { redis } from "@/infra/redis";
 import { env } from "@/shared/config/env";
-import { logger } from "@/shared/logger";
+import { createLogger } from "@/shared/lib/logger";
 import { Context } from "hono";
+
+const logger = createLogger("internal:assign-workspace");
 
 interface AssignWorkspaceInput {
   workspaceId: string;
@@ -27,7 +29,7 @@ export const assignWorkspace = async (
 
     return { server: finalServer };
   } catch (err) {
-    logger.error({ err, msg: "Failed to persist assignment to Redis" });
+    logger.error("Failed to persist assignment to Redis", { err, workspaceId });
     throw err;
   }
 };
