@@ -4,4 +4,3 @@ export {
   downloadSnapshot,
 } from "./s3-client";
 export type { S3SnapshotMetadata } from "./s3-client";
-export { startWhiteboardStreamWorker } from "./stream-worker";

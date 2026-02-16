@@ -1,54 +1,44 @@
-import * as os from "os";
-
 /**
- * Stream Worker Configuration
+ * Stream Worker V2 Configuration
  *
- * Centralized configuration for whiteboard stream worker
+ * Environment-driven configuration for stateless stream worker
  */
 
+import * as os from "os";
+
 // Worker Identification
-export const WORKER_GROUP_NAME = "whiteboard-state-consumers:v1";
-export const CONSUMER_NAME = `worker-${os.hostname()}-${process.pid}`;
+export const WORKER_GROUP_NAME = "whiteboard-state-consumers:v2";
+export const CONSUMER_NAME = `worker-v2-${os.hostname()}-${process.pid}`;
 
 // Stream Processing
 export const BATCH_COUNT = 100; // Process up to 100 updates per batch
-export const BLOCK_MS = 2000; // Block for 2s waiting for new stream entries
-export const MAX_STREAMS_PER_BATCH = 50; // Cap to prevent starvation
+export const BLOCK_MS = 100; // Block for 100ms waiting for new entries
+export const MAX_UPDATES_PER_BATCH = 100; // Limit batch size to prevent OOM
 
-// Timeouts
-export const IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
-export const RECOVERY_INTERVAL_MS = 60000; // 60 seconds
-export const HEARTBEAT_INTERVAL_MS = 5000; // 5 seconds
-export const HEARTBEAT_EVICTION_CHECK_TICKS = 12; // Check every 60s (12 * 5s)
-
-// Cache Settings
-export const CACHE_UPDATE_DEBOUNCE_MS = 5000; // 5 seconds
-export const CACHE_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
-
-// LRU Cache Configuration
-export const LRU_CONFIG = {
-  MAX_BOARDS: 1000, // Max 1000 boards
-  MAX_SIZE_BYTES: 2_000_000_000, // 2GB limit
-  DEFAULT_APPROX_SIZE: 10000, // Default 10KB if not yet tracked
-};
-
-// Snapshot Triggers
+// Historical Snapshot Triggers (configurable via env)
 export const SNAPSHOT_CONFIG = {
-  COUNT_THRESHOLD: 1000, // Snapshot every 1000 updates
-  TIME_INTERVAL_MS: 5 * 60 * 1000, // 5 minutes
-  MEMORY_THRESHOLD_MB: 10, // 10MB stream memory
+  COUNT_THRESHOLD: parseInt(process.env.SNAPSHOT_COUNT_THRESHOLD || "1000"),
+  TIME_INTERVAL_MS: parseInt(
+    process.env.SNAPSHOT_TIME_INTERVAL_MS || String(5 * 60 * 1000)
+  ), // 5 min
+  MEMORY_THRESHOLD_MB: parseInt(process.env.SNAPSHOT_SIZE_THRESHOLD_MB || "10"),
+
+  // S3 sync policy
+  SYNC_LATEST_CONTINUOUS:
+    process.env.SNAPSHOT_SYNC_LATEST_CONTINUOUS !== "false", // Default true
 };
 
-// Stream Health Thresholds
-export const HEALTH_THRESHOLDS = {
-  WARNING: 500,
-  ALERT: 1000,
-  CRITICAL: 5000,
-  DANGER: 10000,
+// Stream Trimming
+export const STREAM_TRIM_CONFIG = {
+  MIN_LENGTH: 10_000, // Only trim if stream has >10k messages
+  REQUIRE_NO_SUBSCRIBERS: true, // Only trim if no active subscribers
+  REQUIRE_S3_SYNC: true, // Only trim after S3 sync
 };
 
-// Stream Replay
-export const REPLAY_BATCH_SIZE = 5000;
+// Timeouts & Retries
+export const RECOVERY_INTERVAL_MS = 60_000; // 60 seconds
+export const S3_RETRY_ATTEMPTS = 3;
+export const S3_RETRY_DELAY_MS = 1000; // Exponential backoff base
 
-// Snapshot Locking
-export const SNAPSHOT_LOCK_TTL_SECONDS = 60;
+// Redis Keys TTL
+export const SNAPSHOT_TTL_SECONDS = 3600; // 1 hour

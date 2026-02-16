@@ -1,202 +1,244 @@
-import { appRedis, appRedis as streamRedis } from "@/infra/redis";
+import { appRedis } from "@/infra/redis";
 import { createLogger } from "@/shared/lib/logger";
-import type { LRUCache } from "lru-cache";
 import { WhiteboardKeys } from "../whiteboard-keys";
-import type { BoardState, WorkerState } from "./types";
+import type { WorkerState, StreamUpdate } from "./types";
 import {
   CONSUMER_NAME,
+  WORKER_GROUP_NAME,
   BATCH_COUNT,
   BLOCK_MS,
-  MAX_STREAMS_PER_BATCH,
-  IDLE_TIMEOUT_MS,
-  HEARTBEAT_INTERVAL_MS,
-  HEARTBEAT_EVICTION_CHECK_TICKS,
+  RECOVERY_INTERVAL_MS,
 } from "./config";
-import { ensureGroups, safeProcessUpdate } from "./stream-processor";
-import { createSnapshot } from "./snapshot-manager";
-import { clearCacheTimer } from "./cache-manager";
+import {
+  processBoardBatch,
+  ensureConsumerGroup,
+  parseStreamEntry,
+} from "./processor";
 
-const logger = createLogger("whiteboard:stream-worker:loops");
+const logger = createLogger("whiteboard:stream-worker-v2:loops");
 
 /**
- * Worker Loops Module
+ * Worker Loops - V2 Stateless Architecture
  *
- * Main consumption loops (heartbeat, consumption, recovery)
+ * Main consumption and recovery loops
  */
 
 /**
- * Heartbeat loop: Register worker liveness + idle board eviction
- */
-export async function startHeartbeatLoop(state: WorkerState): Promise<void> {
-  logger.info("Heartbeat loop started");
-  let tickCount = 0;
-
-  while (state.isRunning) {
-    try {
-      await appRedis.zadd("sys:workers:registry", Date.now(), CONSUMER_NAME);
-
-      // Every 12 ticks (60s), check for idle boards
-      tickCount++;
-      if (tickCount % HEARTBEAT_EVICTION_CHECK_TICKS === 0) {
-        const now = Date.now();
-
-        for (const [boardId, boardState] of state.boardCache.entries()) {
-          const idleTime = now - boardState.lastUpdate;
-
-          if (idleTime > IDLE_TIMEOUT_MS) {
-            logger.info("Idle board eviction: no edits for 10min", {
-              boardId,
-              idleTimeMs: idleTime,
-            });
-
-            // 1. Snapshot if dirty
-            if (boardState.isDirty) {
-              await createSnapshot(boardId, boardState, "idle-timeout");
-            }
-
-            // 2. Destroy Y.Doc
-            boardState.ydoc.destroy();
-
-            // 3. Remove from cache
-            state.boardCache.delete(boardId);
-
-            // 4. Clear timers
-            clearCacheTimer(boardId, state.cacheUpdateTimers);
-          }
-        }
-      }
-
-      await new Promise((r) => setTimeout(r, HEARTBEAT_INTERVAL_MS));
-    } catch (err) {
-      logger.error("Whiteboard worker heartbeat failed", { err });
-    }
-  }
-}
-
-/**
- * Main consumption loop: XREADGROUP pattern with batching
- * CRITICAL: Batches prevent stream starvation (hot boards dominating reads)
+ * Main consumption loop: Poll streams and process batches
  */
 export async function startConsumptionLoop(state: WorkerState): Promise<void> {
-  logger.info("Consumption loop started (XREADGROUP batching)");
+  logger.info("🔄 Consumption loop started (V2 stateless)");
+
   while (state.isRunning) {
     try {
-      // 1. Fetch assigned boards
-      const boardIds = await streamRedis.smembers(
-        `worker:${CONSUMER_NAME}:boards`
+      // Get all active board streams
+      const pattern = "board:*:stream";
+      const cursor = "0";
+      const scanResult = await appRedis.scan(
+        cursor,
+        "MATCH",
+        pattern,
+        "COUNT",
+        100
       );
 
-      if (boardIds.length === 0) {
-        await new Promise((r) => setTimeout(r, BLOCK_MS));
+      const streamKeys = (scanResult[1] || []) as string[];
+
+      if (streamKeys.length === 0) {
+        // No active boards - wait before next poll
+        await new Promise((r) => setTimeout(r, BLOCK_MS * 10)); // 1s
         continue;
       }
 
-      // 2. Process in batches of 50 boards
-      for (let i = 0; i < boardIds.length; i += MAX_STREAMS_PER_BATCH) {
-        const batch = boardIds.slice(i, i + MAX_STREAMS_PER_BATCH);
-        const streamKeys = batch.map((id) => WhiteboardKeys.BoardStream(id));
+      // Process each board stream
+      for (const streamKey of streamKeys) {
+        await ensureConsumerGroup(streamKey, state.knownGroups);
 
-        // 3. Ensure consumer groups exist
-        await ensureGroups(streamKeys, state.knownGroups);
+        try {
+          // Read updates from this stream
+          const result = (await appRedis.xreadgroup(
+            "GROUP",
+            WORKER_GROUP_NAME,
+            CONSUMER_NAME,
+            "COUNT",
+            BATCH_COUNT,
+            "BLOCK",
+            BLOCK_MS,
+            "STREAMS",
+            streamKey,
+            ">"
+          )) as any;
 
-        // 4. XREADGROUP for THIS BATCH ONLY
-        const ids = batch.map(() => ">");
-        const result = (await streamRedis.xreadgroup(
-          "GROUP",
-          state.knownGroups.values().next().value ||
-            "whiteboard-state-consumers:v1",
-          CONSUMER_NAME,
-          "COUNT",
-          BATCH_COUNT, // 100 updates from this batch
-          "BLOCK",
-          BLOCK_MS,
-          "STREAMS",
-          ...streamKeys,
-          ...ids
-        )) as any; // Redis returns complex nested array structure
+          if (!result || result.length === 0) continue;
 
-        // Early break if no updates (optimization)
-        if (!result || result.length === 0) {
-          break; // No more work in this tick, exit batch loop
-        }
+          // Parse updates
+          const updates: StreamUpdate[] = [];
 
-        if (result) {
-          for (const [streamKey, updates] of result) {
-            for (const [id, fields] of updates) {
-              await safeProcessUpdate(
-                streamKey,
-                id,
-                fields as string[],
-                state.boardCache,
-                state.cacheUpdateTimers
-              );
+          for (const [key, entries] of result) {
+            for (const [id, fields] of entries) {
+              const update = parseStreamEntry(key, id, fields as string[]);
+              if (update) {
+                updates.push(update);
+              }
             }
           }
+
+          if (updates.length === 0) continue;
+
+          // Group by boardId and process
+          const byBoard = new Map<string, StreamUpdate[]>();
+
+          for (const update of updates) {
+            const existing = byBoard.get(update.boardId) || [];
+            existing.push(update);
+            byBoard.set(update.boardId, existing);
+          }
+
+          // Process each board's batch
+          for (const [boardId, boardUpdates] of byBoard) {
+            const startTime = Date.now();
+
+            await processBoardBatch(boardId, boardUpdates);
+
+            // Update metrics
+            state.metrics.boardsProcessed++;
+            state.metrics.updatesProcessed += boardUpdates.length;
+
+            const duration = Date.now() - startTime;
+            state.metrics.avgProcessingTimeMs =
+              state.metrics.avgProcessingTimeMs * 0.9 + duration * 0.1 ||
+              duration;
+          }
+
+          // Yield event loop between streams
+          await new Promise((resolve) => setImmediate(resolve));
+        } catch (streamError) {
+          logger.error("❌ Stream processing error", {
+            streamKey,
+            error: streamError,
+          });
         }
       }
     } catch (err: any) {
       if (err?.message?.includes("NOGROUP")) {
-        logger.warn("Whiteboard worker: NOGROUP error, clearing group cache");
+        logger.warn("⚠️ NOGROUP error - clearing group cache");
         state.knownGroups.clear();
       } else {
-        logger.error("Whiteboard consumption loop error", { err });
+        logger.error("❌ Consumption loop error", { err });
+        state.metrics.redisErrors++;
       }
+
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   }
+
+  logger.info("🛑 Consumption loop stopped");
 }
 
 /**
- * Recovery loop: Claim pending updates (dead workers)
+ * Recovery loop: Claim pending updates from dead workers
  */
 export async function startRecoveryLoop(state: WorkerState): Promise<void> {
-  logger.info("Recovery loop started (XAUTOCLAIM)");
+  logger.info("♻️ Recovery loop started");
+
   while (state.isRunning) {
     try {
-      await new Promise((r) => setTimeout(r, 60000)); // Every 60s
+      await new Promise((r) => setTimeout(r, RECOVERY_INTERVAL_MS));
 
-      const boardIds = await streamRedis.smembers(
-        `worker:${CONSUMER_NAME}:boards`
+      // Get all board streams
+      const pattern = "board:*:stream";
+      const scanResult = await appRedis.scan(
+        "0",
+        "MATCH",
+        pattern,
+        "COUNT",
+        100
       );
+      const streamKeys = (scanResult[1] || []) as string[];
 
-      for (const boardId of boardIds) {
-        const streamKey = WhiteboardKeys.BoardStream(boardId);
-
+      for (const streamKey of streamKeys) {
         try {
-          // Claim updates pending > 60s
+          // Claim messages pending >60s
           const claimed = (await appRedis.xautoclaim(
             streamKey,
-            state.knownGroups.values().next().value ||
-              "whiteboard-state-consumers:v1",
+            WORKER_GROUP_NAME,
             CONSUMER_NAME,
-            60000, // 60s
+            60_000, // 60s idle threshold
             "0-0",
             "COUNT",
             10
           )) as any;
 
-          if (claimed && claimed[1].length > 0) {
-            logger.info("Whiteboard worker: claimed dead updates", {
-              boardId,
-              count: claimed[1].length,
-            });
+          if (!claimed || !claimed[1] || claimed[1].length === 0) continue;
 
-            for (const [id, fields] of claimed[1]) {
-              await safeProcessUpdate(
-                streamKey,
-                id,
-                fields as string[],
-                state.boardCache,
-                state.cacheUpdateTimers
-              );
+          logger.info("♻️ Claimed pending updates", {
+            streamKey,
+            count: claimed[1].length,
+          });
+
+          // Parse and process claimed updates
+          const updates: StreamUpdate[] = [];
+
+          for (const [id, fields] of claimed[1]) {
+            const update = parseStreamEntry(streamKey, id, fields as string[]);
+            if (update) {
+              updates.push(update);
             }
           }
-        } catch (err) {
-          logger.error("Recovery claim failed", { err, boardId });
+
+          if (updates.length === 0) continue;
+
+          // Group by board and process
+          const byBoard = new Map<string, StreamUpdate[]>();
+
+          for (const update of updates) {
+            const existing = byBoard.get(update.boardId) || [];
+            existing.push(update);
+            byBoard.set(update.boardId, existing);
+          }
+
+          for (const [boardId, boardUpdates] of byBoard) {
+            await processBoardBatch(boardId, boardUpdates);
+          }
+        } catch (claimError) {
+          logger.error("❌ Recovery claim failed", {
+            streamKey,
+            error: claimError,
+          });
         }
       }
     } catch (err) {
-      logger.error("Whiteboard recovery loop error", { err });
+      logger.error("❌ Recovery loop error", { err });
     }
   }
+
+  logger.info("🛑 Recovery loop stopped");
+}
+
+/**
+ * Metrics loop: Log worker metrics periodically
+ */
+export async function startMetricsLoop(state: WorkerState): Promise<void> {
+  logger.info("📊 Metrics loop started");
+
+  while (state.isRunning) {
+    try {
+      await new Promise((r) => setTimeout(r, 60_000)); // Every 60s
+
+      logger.info("📊 Worker metrics", {
+        boardsProcessed: state.metrics.boardsProcessed,
+        updatesProcessed: state.metrics.updatesProcessed,
+        snapshotsCreated: state.metrics.snapshotsCreated,
+        historicalSnapshotsCreated: state.metrics.historicalSnapshotsCreated,
+        s3SyncSuccesses: state.metrics.s3SyncSuccesses,
+        s3SyncFailures: state.metrics.s3SyncFailures,
+        redisErrors: state.metrics.redisErrors,
+        avgProcessingTimeMs: Math.round(state.metrics.avgProcessingTimeMs),
+      });
+    } catch (err) {
+      logger.error("❌ Metrics loop error", { err });
+    }
+  }
+
+  logger.info("🛑 Metrics loop stopped");
 }

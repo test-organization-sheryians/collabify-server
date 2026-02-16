@@ -1,41 +1,60 @@
-import type { LRUCache } from "lru-cache";
-import type { Y } from "@/shared/yjs";
-
 /**
- * Stream Worker Type Definitions
+ * Stream Worker V2 Type Definitions
+ *
+ * Stateless architecture - no in-memory Y.Doc storage
  */
 
 /**
- * Board state in LRU cache
+ * Redis snapshot structure (source of truth)
  */
-export interface BoardState {
-  ydoc: Y.Doc;
-  lastUpdate: number;
-  streamIdWhenLoaded: string; // Updated after each processed update
-  isDirty: boolean;
-  pendingSnapshot: boolean;
-  updatesSinceSnapshot: number;
-  lastSnapshotTime: number; // For time-based trigger
-  approxSize: number; // Approximate size tracking (avoids expensive encode on LRU)
+export interface RedisLatestSnapshot {
+  snapshot: string; // Base64 Y.Doc binary
+  streamId: string; // Last stream ID applied
+  version: number; // Monotonic counter
+  updatedAt: number; // Timestamp
+  elementCount: number; // For monitoring
+
+  // Historical snapshot tracking
+  updatesSinceLastHistorical: number; // Counter for threshold
+  lastHistoricalTimestamp: number; // For time-based trigger
 }
 
 /**
- * Worker state container
+ * Stream update from Redis
+ */
+export interface StreamUpdate {
+  id: string; // Stream ID (e.g. "1737123456789-0")
+  boardId: string; // Board ID
+  data: Uint8Array; // Y.js binary update
+}
+
+/**
+ * Worker metrics (lightweight, no Y.Docs)
+ */
+export interface WorkerMetrics {
+  boardsProcessed: number;
+  updatesProcessed: number;
+  snapshotsCreated: number;
+  historicalSnapshotsCreated: number;
+  s3SyncSuccesses: number;
+  s3SyncFailures: number;
+  redisErrors: number;
+  avgProcessingTimeMs: number;
+}
+
+/**
+ * Historical snapshot reason
+ */
+export type HistoricalSnapshotReason =
+  | "count-threshold"
+  | "time-threshold"
+  | "memory-threshold";
+
+/**
+ * Worker state (minimal - no caches)
  */
 export interface WorkerState {
   isRunning: boolean;
   knownGroups: Set<string>;
-  cacheUpdateTimers: Map<string, NodeJS.Timeout>;
-  boardCache: LRUCache<string, BoardState>;
+  metrics: WorkerMetrics;
 }
-
-/**
- * Snapshot creation reasons
- */
-export type SnapshotReason =
-  | "count-threshold"
-  | "time-threshold"
-  | "memory-threshold"
-  | "idle-timeout"
-  | "lru-eviction"
-  | "shutdown";
