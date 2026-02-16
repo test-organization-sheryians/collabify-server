@@ -828,7 +828,7 @@ export type QueryGetBoardArgs = {
 
 export type QueryGetBoardSnapshotArgs = {
   boardId: Scalars['ID']['input'];
-  stateVector?: InputMaybe<Scalars['String']['input']>;
+  clientSnapshot?: InputMaybe<Scalars['String']['input']>;
 };
 
 

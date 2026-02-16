@@ -2,5 +2,5 @@ import { z } from "zod";
 
 export const getBoardSnapshotSchema = z.object({
   boardId: z.string().cuid(),
-  stateVector: z.string().optional(),
+  clientSnapshot: z.string().optional(), // NEW: Full client Y.Doc for bidirectional sync
 });

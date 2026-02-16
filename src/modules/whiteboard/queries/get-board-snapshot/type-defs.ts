@@ -7,6 +7,6 @@ export const typeDefs = /* GraphQL */ `
   }
 
   extend type Query {
-    getBoardSnapshot(boardId: ID!, stateVector: String): BoardSnapshot!
+    getBoardSnapshot(boardId: ID!, clientSnapshot: String): BoardSnapshot!
   }
 `;

@@ -1,54 +1,97 @@
 import { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
-import { WhiteboardKeys } from "../../infra/whiteboard-keys";
+import { WhiteboardKeys, WhiteboardTTLs } from "../../infra/whiteboard-keys";
 import { downloadSnapshot } from "../../infra/s3-client";
 import type { GetBoardSnapshotInput, BoardSnapshot } from "./types";
 import { Y } from "@/shared/yjs";
-import { LockingService } from "@/services/locking/locking.service";
 import { createLogger } from "@/shared/lib/logger";
+import { createSuccessFrame } from "@/infra/ws/types";
+import { safeApplyUpdate } from "@/shared/lib/safe-apply-update";
 
 const logger = createLogger("whiteboard:queries:get-snapshot");
 
 /**
- * Compare Redis stream IDs numerically
- * Stream ID format: "{milliseconds}-{sequence}"
- * 🔥 CRITICAL: String comparison is WRONG ("10-0" < "9-0" lexically)
+ * Client Sync Lua Script (Bidirectional Sync)
+ *
+ * Atomically handles client→server offline updates:
+ * 1. Dedupe check (prevent duplicate client syncs)
+ * 2. Stream append (write client's offline updates)
+ * 3. Dedupe marker set
+ *
+ * KEYS[1] = board:{boardId}:dedupe:{dedupeId}
+ * KEYS[2] = board:{boardId}:stream
+ * ARGV[1] = dedupeTTL (60 seconds)
+ * ARGV[2] = maxStreamLength (1000)
+ * ARGV[3] = boardId
+ * ARGV[4] = userId
+ * ARGV[5] = update (Base64)
+ * ARGV[6] = timestamp
+ *
+ * Returns:
+ * { ok: true, streamId }
+ * { ok: false, code: "DUPLICATE" }
  */
-function compareStreamIds(a: string, b: string): number {
-  const [aMs, aSeq] = a.split("-").map(Number);
-  const [bMs, bSeq] = b.split("-").map(Number);
-  if (aMs !== bMs) return aMs - bMs;
-  return aSeq - bSeq;
+const CLIENT_SYNC_SCRIPT = `
+local dedupe_key = KEYS[1]
+local stream_key = KEYS[2]
+local dedupe_ttl = tonumber(ARGV[1])
+local max_len = tonumber(ARGV[2])
+local board_id = ARGV[3]
+local user_id = ARGV[4]
+local update = ARGV[5]
+local timestamp_val = ARGV[6]
+
+if redis.call('EXISTS', dedupe_key) == 1 then
+  return cjson.encode({ok = false, code = 'DUPLICATE'})
+end
+
+redis.call('SETEX', dedupe_key, dedupe_ttl, '1')
+
+local stream_id = redis.call(
+  'XADD', stream_key, 'MAXLEN', '~', max_len, '*',
+  'boardId', board_id,
+  'userId', user_id,
+  'update', update,
+  'timestamp', timestamp_val
+)
+
+return cjson.encode({ok = true, streamId = stream_id})
+`;
+
+/**
+ * Redis Snapshot Structure
+ */
+interface RedisSnapshot {
+  snapshot: string; // Base64-encoded Y.Doc binary
+  streamId: string; // Last stream ID merged into this snapshot
+  version: number; // Monotonic counter (for debugging)
+  updatedAt: number; // Timestamp (for debugging)
 }
 
 /**
- * Get Board Snapshot Handler (V4 - Production Hardened)
+ * Get Board Snapshot Handler (V5 - Redis-First)
  *
- * **Architecture:** Cache-first with MANDATORY stream delta merge
+ * **Architecture:** Redis-first with S3 fallback
  *
  * Flow:
  * 1. Authorization: Verify user is collaborator/creator
- * 2. Try Redis cache (worker-maintained, may be 0-5s stale)
- *    - If HIT: Use cached binary + streamId as base
- * 3. If MISS: Cold start from S3 + lastSnapshotStreamId
- *    - 🔥 Cold-start lock prevents thundering herd
- * 4. **CRITICAL:** ALWAYS merge unmerged stream updates (catches up with worker lag)
- *    - 🔥 Yields between batches to prevent event loop blocking
- * 5. Warm cache with latest merged state
- *    - 🔥 Version comparison prevents cache regression
- * 6. Use state vector to compute diff (bandwidth optimization)
- * 7. Return diff + metadata
+ * 2. Try Redis snapshot:latest (fast path: <10ms)
+ *    - If HIT: Use as base
+ *    - If MISS: Load from S3, warm Redis cache
+ * 3. Apply delta from stream (handle worker lag)
+ *    - Worker updates Redis every 5s
+ *    - Query handler applies any newer updates
+ * 4. Compute diff using state vector (bandwidth optimization)
+ * 5. Return diff + metadata
  *
  * **Performance:**
- * - Cache hit: ~15-30ms (Redis + 0-10 delta updates)
- * - Cache miss: ~100-200ms (S3 + full stream replay)
+ * - Redis hit: <10ms (down from 100-200ms)
+ * - Redis miss: ~100ms (S3 fallback)
  *
- * **Production Hardening:**
- * - Thundering herd prevention (cold-start lock)
- * - Event loop yielding (prevents latency spikes)
- * - Cache version comparison (prevents regression)
- * - StreamId normalization (never null)
- * - S3 timeout protection (10s max)
+ * **Simplifications from V4:**
+ * - ✅ No cold-start locking (Redis reads are instant + idempotent)
+ * - ✅ No cache warming in handler (stream worker handles it)
+ * - ✅ No version comparison (query handler is read-only)
  */
 export const handler = async (
   input: GetBoardSnapshotInput,
@@ -57,13 +100,10 @@ export const handler = async (
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
 
-  const { boardId, stateVector } = input;
+  const { boardId, clientSnapshot } = input;
+  const startTime = Date.now();
 
   logger.info("📥 get-board-snapshot: Handler entry", { boardId, userId });
-
-  // 🔥 CRITICAL FIX: Request-unique lock owner (NOT userId)
-  // Multiple tabs from same user = same userId = lock interference
-  const lockOwner = `req-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
   try {
     // 1. Validate access (MUST check on every query - stateless HTTP)
@@ -91,317 +131,377 @@ export const handler = async (
     logger.info("✅ Board found and access granted", {
       boardId,
       s3Key: board.s3Key,
-      lastSnapshotStreamId: board.lastSnapshotStreamId,
     });
 
-    // 2. Try Redis cache (worker-maintained, but may be 0-5s stale)
-    const cacheKey = WhiteboardKeys.BoardSnapshot(board.id);
-    logger.info("🔍 Checking Redis cache", { cacheKey });
-    const cachedJSON = await ctx.redis.get(cacheKey);
+    // 2. Load snapshot from Redis or S3
+    let snapshotBinary!: Uint8Array; // Definitely assigned before use
+    let snapshotStreamId!: string; // Definitely assigned before use
+    let redisHit = false;
 
-    let baseDoc: InstanceType<typeof Y.Doc>;
-    let startStreamId: string;
+    const snapshotKey = WhiteboardKeys.SnapshotLatest(boardId);
+    const cached = await ctx.redis.get(snapshotKey);
 
-    if (cachedJSON) {
-      // CACHE HIT: Use worker's cache as base, then merge delta
+    if (cached) {
+      // ✅ REDIS HIT - Fast path (<10ms)
       try {
-        const cacheData = JSON.parse(cachedJSON) as {
-          binary: string;
-          streamId: string;
-          updatedAt: number;
-        };
+        const parsed = JSON.parse(cached) as RedisSnapshot;
+        const binary = Buffer.from(parsed.snapshot, "base64");
 
-        const binary = Buffer.from(cacheData.binary, "base64");
-        baseDoc = new Y.Doc();
-        Y.applyUpdate(baseDoc, binary);
-        startStreamId = cacheData.streamId || "0-0";
-      } catch (parseError) {
-        // Corrupted cache - fall through to S3 cold start
-        baseDoc = new Y.Doc();
-        startStreamId = board.lastSnapshotStreamId || "0-0";
-
-        // 🔥 FIX #1: Cold-start lock (thundering herd prevention) via LockingService
-        const lockKey = `lock:board:snapshot:${boardId}`;
-        const lockAcquired = await LockingService.acquire(
-          lockKey,
-          lockOwner,
-          10
+        // Validate binary is valid Y.Doc
+        const testDoc = new Y.Doc({ guid: boardId }); // ✅ Deterministic GUID
+        const validationResult = safeApplyUpdate(
+          testDoc,
+          binary,
+          {
+            context: "server:redis-snapshot-validation",
+            boardId,
+            throwOnError: true,
+          },
+          logger
         );
 
-        if (!lockAcquired) {
-          // 🔥 CRITICAL FIX: Proper retry loop (not single 100ms wait)
-          // Poll for cache up to lock TTL (10s) with exponential backoff
-          for (let attempt = 0; attempt < 10; attempt++) {
-            await new Promise((r) =>
-              setTimeout(r, 50 * Math.pow(1.5, attempt))
-            ); // 50ms, 75ms, 112ms...
-            const retryCache = await ctx.redis.get(cacheKey);
-            if (retryCache) {
-              const retryData = JSON.parse(retryCache) as {
-                binary: string;
-                streamId: string;
-              };
-              const binary = Buffer.from(retryData.binary, "base64");
-              Y.applyUpdate(baseDoc, binary);
-              startStreamId = retryData.streamId || "0-0";
-              break; // Cache warmed, exit retry loop
-            }
-          }
-          // If still no cache after retries, proceed to S3 (lock holder may have failed)
-          if (
-            !startStreamId ||
-            startStreamId === board.lastSnapshotStreamId ||
-            "0-0"
-          ) {
-            if (board.s3Key) {
-              try {
-                // 🔥 FIX #5: S3 timeout protection (10s max)
-                const s3Binary = await Promise.race([
-                  downloadSnapshot(board.s3Key),
-                  new Promise<never>((_, reject) =>
-                    setTimeout(() => reject(new Error("S3 timeout")), 10000)
-                  ),
-                ]);
-                Y.applyUpdate(baseDoc, s3Binary);
-              } catch (s3Error) {
-                // S3 download failed - start with empty doc
-              }
-            }
-          }
-        } else {
-          // We own the lock, proceed with S3 cold start
-          try {
-            if (board.s3Key) {
-              // 🔥 FIX #5: S3 timeout protection (10s max)
-              const s3Binary = await Promise.race([
-                downloadSnapshot(board.s3Key),
-                new Promise<never>((_, reject) =>
-                  setTimeout(() => reject(new Error("S3 timeout")), 10000)
-                ),
-              ]);
-              Y.applyUpdate(baseDoc, s3Binary);
-            }
-          } finally {
-            // Always release lock
-            await LockingService.release(lockKey, lockOwner);
-          }
+        if (!validationResult.success) {
+          throw validationResult.error!;
         }
-      }
-    } else {
-      // CACHE MISS: Cold start from S3, then merge ALL stream delta
-      logger.warn("❌ Cache MISS - initiating cold start", { boardId });
-      baseDoc = new Y.Doc();
-      startStreamId = board.lastSnapshotStreamId || "0-0";
 
-      // 🔥 FIX #1: Cold-start lock (thundering herd prevention) via LockingService
-      const lockKey = `lock:board:snapshot:${boardId}`;
-      logger.info("🔒 Attempting to acquire cold-start lock", {
-        lockKey,
-        lockOwner,
-      });
-      const lockAcquired = await LockingService.acquire(lockKey, lockOwner, 10);
+        testDoc.destroy();
 
-      if (!lockAcquired) {
-        logger.info("⏳ Lock not acquired - waiting for other request", {
+        // Validation passed - use this snapshot
+        snapshotBinary = binary;
+        snapshotStreamId = parsed.streamId || "0-0";
+        redisHit = true;
+
+        logger.info("✅ Redis HIT - fast path", {
           boardId,
+          streamId: snapshotStreamId,
+          version: parsed.version,
         });
-        // 🔥 CRITICAL FIX: Proper retry loop (not single 100ms wait)
-        // Poll for cache up to lock TTL (10s) with exponential backoff
-        for (let attempt = 0; attempt < 10; attempt++) {
-          await new Promise((r) => setTimeout(r, 50 * Math.pow(1.5, attempt))); // 50ms, 75ms, 112ms...
-          const retryCache = await ctx.redis.get(cacheKey);
-          if (retryCache) {
-            const retryData = JSON.parse(retryCache) as {
-              binary: string;
-              streamId: string;
-            };
-            const binary = Buffer.from(retryData.binary, "base64");
-            Y.applyUpdate(baseDoc, binary);
-            startStreamId = retryData.streamId || "0-0";
-            break; // Cache warmed, exit retry loop
-          }
-        }
-        // If still no cache after retries, proceed to S3 (lock holder may have failed)
-        if (
-          !startStreamId ||
-          startStreamId === board.lastSnapshotStreamId ||
-          "0-0"
-        ) {
-          if (board.s3Key) {
-            try {
-              // 🔥 FIX #5: S3 timeout protection (10s max)
-              const s3Binary = await Promise.race([
-                downloadSnapshot(board.s3Key),
-                new Promise<never>((_, reject) =>
-                  setTimeout(() => reject(new Error("S3 timeout")), 10000)
-                ),
-              ]);
-              Y.applyUpdate(baseDoc, s3Binary);
-            } catch (s3Error) {
-              // S3 download failed - start with empty doc
-            }
-          }
-        }
-      } else {
-        // We own the lock, proceed with S3 cold start
-        logger.info("✅ Lock acquired - proceeding with S3 download", {
+      } catch (parseError) {
+        // Corrupted cache - fall through to S3
+        logger.error("❌ Corrupted Redis cache - falling back to S3", {
           boardId,
-          s3Key: board.s3Key,
+          error: parseError,
         });
-        try {
-          if (board.s3Key) {
-            logger.info("☁️  Downloading snapshot from S3", {
-              boardId,
-              s3Key: board.s3Key,
-            });
-            // 🔥 FIX #5: S3 timeout protection (10s max)
-            const s3Binary = await Promise.race([
-              downloadSnapshot(board.s3Key),
-              new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error("S3 timeout")), 10000)
-              ),
-            ]);
-            Y.applyUpdate(baseDoc, s3Binary);
-            logger.info("✅ S3 snapshot applied successfully", {
-              boardId,
-              snapshotSize: s3Binary.length,
-            });
-          } else {
-            logger.info("ℹ️  No S3 snapshot - starting with empty doc", {
-              boardId,
-            });
-          }
-        } finally {
-          // Always release lock
-          await LockingService.release(lockKey, lockOwner);
-        }
+
+        // Delete corrupted cache
+        await ctx.redis.del(snapshotKey);
+        redisHit = false;
       }
     }
 
-    // 3. CRITICAL: ALWAYS merge unmerged stream updates
+    if (!redisHit) {
+      // ❌ REDIS MISS - S3 fallback (~100ms)
+      logger.warn("❌ Redis MISS - loading from S3", { boardId });
+
+      if (!board.s3Key) {
+        // New board - return empty Y.Doc
+        logger.info("ℹ️  New board - starting empty", { boardId });
+        const emptyDoc = new Y.Doc();
+        const emptySnapshot = Y.encodeStateAsUpdate(emptyDoc);
+        emptyDoc.destroy();
+
+        return {
+          boardId,
+          snapshot: Buffer.from(emptySnapshot).toString("base64"),
+          lastStreamId: "0-0",
+          snapshotTimestamp: null,
+        };
+      }
+
+      try {
+        // Download from S3 with timeout
+        const s3Binary = await Promise.race([
+          downloadSnapshot(board.s3Key),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("S3 timeout")), 10000)
+          ),
+        ]);
+
+        snapshotBinary = s3Binary;
+        snapshotStreamId = board.lastSnapshotStreamId || "0-0";
+
+        logger.info("✅ S3 snapshot loaded", {
+          boardId,
+          size: s3Binary.length,
+          streamId: snapshotStreamId,
+        });
+
+        // Warm Redis cache for next query
+        await ctx.redis.setex(
+          snapshotKey,
+          WhiteboardTTLs.SNAPSHOT_LATEST,
+          JSON.stringify({
+            snapshot: Buffer.from(snapshotBinary).toString("base64"),
+            streamId: snapshotStreamId,
+            version: 0,
+            updatedAt: Date.now(),
+          } as RedisSnapshot)
+        );
+
+        logger.info("✅ Redis cache warmed", { boardId });
+      } catch (s3Error) {
+        logger.error("❌ S3 download failed", {
+          boardId,
+          s3Key: board.s3Key,
+          error: s3Error,
+        });
+
+        throw new AppError("Failed to load board snapshot. Please try again.");
+      }
+    }
+
+    // 3. Apply delta from stream (handle worker lag)
     // Worker updates Redis every 5s (debounced).
     // In those 5s, stream accumulates 0-50 updates.
     // Handler MUST merge these to return absolute latest state.
-    const streamKey = WhiteboardKeys.BoardStream(board.id);
-    let cursor = startStreamId;
-    let totalReplayed = 0;
-    const MAX_REPLAY = 50000; // Safety: prevent OOM
-    let lastStreamId: string | null = null;
+    const tempDoc = new Y.Doc({ guid: boardId }); // ✅ Deterministic GUID
+    Y.applyUpdate(tempDoc, snapshotBinary);
 
-    while (totalReplayed < MAX_REPLAY) {
-      const batch = (await ctx.redis.xrange(
-        streamKey,
-        `(${cursor}`, // Exclusive start (don't re-apply startStreamId)
-        "+",
-        "COUNT",
-        5000
-      )) as Array<[string, string[]]>;
+    const streamKey = WhiteboardKeys.BoardStream(boardId);
+    const newerUpdates = (await ctx.redis.xrange(
+      streamKey,
+      `(${snapshotStreamId}`, // Exclusive start (don't re-apply base)
+      "+", // Up to latest
+      "COUNT",
+      5000
+    )) as Array<[string, string[]]>;
 
-      if (batch.length === 0) break;
-
-      for (const [id, fields] of batch) {
-        // Parse Redis stream fields: ["boardId", "abc", "update", "base64...", ...]
-        const data: Record<string, string> = {};
-        for (let i = 0; i < fields.length; i += 2) {
-          data[fields[i]] = fields[i + 1];
-        }
-
-        const updateB64 = data.update;
-        if (updateB64) {
-          const update = Buffer.from(updateB64, "base64");
-          Y.applyUpdate(baseDoc, update);
-          lastStreamId = id;
-        }
+    let lastStreamId = snapshotStreamId;
+    for (const [id, fields] of newerUpdates) {
+      // Parse Redis stream fields: ["boardId", "abc", "update", "base64...", ...]
+      const data: Record<string, string> = {};
+      for (let i = 0; i < fields.length; i += 2) {
+        data[fields[i]] = fields[i + 1];
       }
 
-      totalReplayed += batch.length;
-      cursor = batch[batch.length - 1][0];
+      const updateB64 = data.update;
+      if (updateB64) {
+        const update = Buffer.from(updateB64, "base64");
+        const deltaResult = safeApplyUpdate(
+          tempDoc,
+          update,
+          {
+            context: "server:stream-delta",
+            boardId,
+            streamId: id,
+            throwOnError: false, // Non-fatal, continue processing
+          },
+          logger
+        );
 
-      // 🔥 FIX #2: Yield event loop between large batches
-      if (batch.length === 5000) {
-        await new Promise((resolve) => setImmediate(resolve));
+        if (deltaResult.success) {
+          lastStreamId = id;
+        }
+        // Note: Failed updates are logged but don't block processing
       }
     }
 
-    // 🔥 CRITICAL: Log if MAX_REPLAY hit (silent truncation)
-    if (totalReplayed >= MAX_REPLAY) {
-      logger.warn("⚠️  MAX_REPLAY limit reached - stream replay truncated", {
+    if (newerUpdates.length > 0) {
+      logger.info("✅ Applied delta updates (worker lag)", {
         boardId,
-        totalReplayed,
-        MAX_REPLAY,
+        baseStreamId: snapshotStreamId,
+        lastStreamId,
+        deltaCount: newerUpdates.length,
       });
     }
 
-    logger.info("✅ Stream replay complete", {
-      boardId,
-      totalReplayed,
-      lastStreamId,
-    });
+    // 3. BIDIRECTIONAL SYNC: Handle client's offline updates
+    // If client sends their snapshot, they may have updates server doesn't have (offline edits)
+    // We need to:
+    // 1. Compute client→server diff (what server is missing)
+    // 2. Apply to server's Y.Doc
+    // 3. Write to stream
+    // 4. Broadcast to other subscribed users
+    let clientUploadedUpdates = false;
 
-    // 4. Warm cache for next query (with version comparison)
-    if (totalReplayed > 0 || cachedJSON) {
+    if (input.clientSnapshot) {
       try {
-        const latestStreamId = lastStreamId || startStreamId;
-        const freshBinary = Y.encodeStateAsUpdate(baseDoc);
+        logger.info("📤 Client sent snapshot for bidirectional sync", {
+          boardId,
+          userId,
+          clientSnapshotSize: input.clientSnapshot.length,
+        });
 
-        // 🔥 FIX #3: Cache version comparison (prevent regression)
-        // Only write if our streamId >= existing streamId
-        let shouldWriteCache = true;
-        if (cachedJSON) {
-          try {
-            const existingCache = JSON.parse(cachedJSON) as {
-              streamId: string;
-            };
-            // 🔥 CRITICAL FIX: Numeric comparison (string comparison is WRONG)
-            // "10-0" < "9-0" lexically, but 10 > 9 numerically
-            if (compareStreamIds(latestStreamId, existingCache.streamId) < 0) {
-              shouldWriteCache = false; // Don't regress cache
-            }
-          } catch {
-            // Ignore parse error, write cache anyway
-          }
-        }
+        // Create client's Y.Doc from their snapshot
+        const clientDoc = new Y.Doc({ guid: boardId }); // ✅ Deterministic GUID
+        const clientBinary = Buffer.from(input.clientSnapshot, "base64");
+        Y.applyUpdate(clientDoc, clientBinary);
 
-        if (shouldWriteCache) {
-          const cachePayload = {
-            binary: Buffer.from(freshBinary).toString("base64"),
-            streamId: latestStreamId,
-            updatedAt: Date.now(),
-          };
-          await ctx.redis.setex(
-            cacheKey,
-            604800, // 7 days TTL
-            JSON.stringify(cachePayload)
+        // Compute what server is missing (client has but server doesn't)
+        const serverStateVector = Y.encodeStateVector(tempDoc);
+        const clientToServerDiff = Y.encodeStateAsUpdate(
+          clientDoc,
+          serverStateVector
+        );
+
+        // If client has updates server doesn't have
+        if (clientToServerDiff.length > 0) {
+          logger.info("📥 Client has updates server is missing", {
+            boardId,
+            userId,
+            diffSize: clientToServerDiff.length,
+          });
+
+          // Apply client's offline updates with validation
+          const applyResult = safeApplyUpdate(
+            tempDoc,
+            clientToServerDiff,
+            {
+              context: "server:client-offline-updates",
+              boardId,
+              throwOnError: true, // Critical for bidirectional sync
+            },
+            logger
           );
+
+          if (!applyResult.success) {
+            logger.error("❌ CRITICAL: Failed to apply client updates", {
+              boardId,
+              userId,
+            });
+            throw applyResult.error!;
+          }
+
+          // Write to Redis stream using Lua script (atomic deduplication + append)
+          const streamKey = WhiteboardKeys.BoardStream(boardId);
+          const dedupeId = `client-sync-${userId}-${Date.now()}`;
+          const dedupeKey = WhiteboardKeys.DedupeKey(boardId, dedupeId);
+          const timestamp = Date.now();
+
+          const luaResult = (await ctx.redis.eval(
+            CLIENT_SYNC_SCRIPT,
+            2, // Number of KEYS
+            dedupeKey,
+            streamKey,
+            WhiteboardTTLs.DEDUPE_KEY.toString(),
+            "1000", // maxStreamLength
+            boardId,
+            userId,
+            Buffer.from(clientToServerDiff).toString("base64"),
+            timestamp.toString()
+          )) as string;
+
+          const parsedResult = JSON.parse(luaResult) as {
+            ok: boolean;
+            streamId?: string;
+            code?: string;
+          };
+
+          if (!parsedResult.ok || parsedResult.code === "DUPLICATE") {
+            logger.warn("⚠️  Duplicate client sync detected", {
+              boardId,
+              userId,
+            });
+            clientUploadedUpdates = false;
+          } else {
+            logger.info("✅ Client updates written to stream", {
+              boardId,
+              userId,
+              streamId: parsedResult.streamId,
+            });
+
+            // Broadcast to other subscribed users
+            const channel = WhiteboardKeys.BoardEvents(boardId);
+
+            const boardUpdateFrame = createSuccessFrame(
+              undefined,
+              "whiteboard:board-update",
+              {
+                boardId,
+                streamId: parsedResult.streamId!,
+                update: Buffer.from(clientToServerDiff).toString("base64"),
+                authorId: userId,
+                sequence: 0,
+                timestamp: new Date(timestamp).toISOString(),
+              }
+            );
+
+            const pubSubMessage = JSON.stringify({
+              message: boardUpdateFrame,
+              originSocketId: null, // Broadcast to everyone (including sender on other devices)
+            });
+
+            await ctx.redis.publish(channel, pubSubMessage);
+
+            logger.info("📡 Broadcast client's offline updates", {
+              boardId,
+              userId,
+              streamId: parsedResult.streamId,
+              diffSize: clientToServerDiff.length,
+            });
+
+            clientUploadedUpdates = true;
+          }
+        } else {
+          logger.info("ℹ️  Client snapshot in sync with server", {
+            boardId,
+            userId,
+          });
         }
-      } catch (cacheError) {
-        // Cache write failed - not critical, continue
+
+        clientDoc.destroy();
+      } catch (error) {
+        logger.error("❌ Failed to process client snapshot", {
+          boardId,
+          userId,
+          error,
+        });
+        // Non-fatal: Continue with normal snapshot response
       }
     }
 
-    // 5. Compute diff using state vector (bandwidth optimization)
+    // 4. Compute server→client diff
+    // Derive state vector from client's snapshot if provided
     let clientStateVector: Uint8Array | undefined;
-    if (stateVector) {
+    if (input.clientSnapshot) {
+      // We already have clientDoc created above, derive its state vector
+      // But if bidirectional sync didn't run (no clientSnapshot), we need full state
       try {
-        clientStateVector = Buffer.from(stateVector, "base64");
+        const clientDoc = new Y.Doc({ guid: boardId }); // ✅ Deterministic GUID
+        const vectorResult = safeApplyUpdate(
+          clientDoc,
+          Buffer.from(input.clientSnapshot, "base64"),
+          {
+            context: "server:state-vector-derivation",
+            boardId,
+            throwOnError: false, // Graceful fallback
+          },
+          logger
+        );
+
+        if (vectorResult.success) {
+          clientStateVector = Y.encodeStateVector(clientDoc);
+        } else {
+          clientStateVector = undefined;
+        }
+        clientDoc.destroy();
       } catch {
-        // Invalid state vector - ignore, return full state
+        // Invalid client snapshot - return full state
         clientStateVector = undefined;
       }
     }
 
-    // Generate diff (or full state if no state vector)
-    const diff = Y.encodeStateAsUpdate(baseDoc, clientStateVector);
+    const diff = Y.encodeStateAsUpdate(tempDoc, clientStateVector);
     const snapshotB64 = Buffer.from(diff).toString("base64");
 
-    // 🔥 FIX #4: Normalize streamId to "0-0" (never null)
-    const normalizedStreamId = lastStreamId || startStreamId || "0-0";
+    // Cleanup
+    tempDoc.destroy();
+
+    // 5. Log metrics
+    const latencyMs = Date.now() - startTime;
+    logger.info("📊 Query metrics", {
+      boardId,
+      redisHit,
+      deltaCount: newerUpdates.length,
+      latencyMs,
+      diffSize: diff.length,
+    });
 
     // 6. Return result
     return {
       boardId: board.id,
       snapshot: snapshotB64,
-      lastStreamId: normalizedStreamId,
+      lastStreamId,
       snapshotTimestamp: board.lastSnapshotAt,
     };
   } catch (error: unknown) {

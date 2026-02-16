@@ -2,7 +2,7 @@ import { appRedis as streamRedis } from "@/infra/redis";
 import { createLogger } from "@/shared/lib/logger";
 import { Y } from "@/shared/yjs";
 import { WhiteboardKeys } from "../whiteboard-keys";
-import { s3Client } from "../s3-client-wrapper";
+import { s3Client } from "../s3-client";
 import type { BoardState } from "./types";
 import { REPLAY_BATCH_SIZE } from "./config";
 

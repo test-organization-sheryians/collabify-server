@@ -3,9 +3,9 @@ import { createLogger } from "@/shared/lib/logger";
 import { Y } from "@/shared/yjs";
 import { LockingService } from "@/services/locking/locking.service";
 import { WhiteboardKeys } from "../whiteboard-keys";
-import { s3Client } from "../s3-client-wrapper";
 import type { BoardState, SnapshotReason } from "./types";
 import { SNAPSHOT_CONFIG, CONSUMER_NAME } from "./config";
+import { s3Client } from "../s3-client";
 
 const logger = createLogger("whiteboard:stream-worker:snapshot");
 
@@ -115,10 +115,13 @@ export async function createSnapshot(
     state.lastSnapshotTime = timestamp;
     state.pendingSnapshot = false;
 
-    logger.info("Snapshot created", {
+    // ✅ LOG: Track element count for verification
+    const yElements = state.ydoc.getArray("elements");
+    logger.info("📸 Snapshot created and uploaded", {
       boardId,
       s3Key,
       streamId,
+      elementCount: yElements.length,
       sizeKB: Math.round(snapshot.length / 1024),
       reason,
     });

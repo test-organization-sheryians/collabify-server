@@ -94,8 +94,16 @@ export function scheduleCacheUpdate(
       // Update accurate size after encode
       state.approxSize = snapshot.length;
 
+      // ✅ LOG: Track cache update with element count
+      const yElements = state.ydoc.getArray("elements");
+      logger.info("💾 Redis cache updated", {
+        boardId,
+        streamId,
+        elementCount: yElements.length,
+        cacheSize: snapshot.length,
+      });
+
       cacheUpdateTimers.delete(boardId);
-      logger.debug("Redis cache updated (versioned)", { boardId, streamId });
     } catch (error) {
       logger.error("Cache update failed", { error, boardId });
     }

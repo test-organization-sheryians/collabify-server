@@ -13,7 +13,8 @@ export const WhiteboardKeys = {
   BoardSequence: (boardId: string) => `board:${boardId}:sequence`,
 
   // State Cache (Worker)
-  BoardSnapshot: (boardId: string) => `board:${boardId}:snapshot`, // Redis cache of Y.Doc state
+  BoardSnapshot: (boardId: string) => `board:${boardId}:snapshot`, // Redis cache of Y.Doc state (old)
+  SnapshotLatest: (boardId: string) => `board:${boardId}:snapshot:latest`, // ✅ NEW: Latest snapshot (V5)
 
   // Backpressure & Health
   BoardCircuitBreaker: (boardId: string) => `board:${boardId}:circuit_breaker`,
@@ -74,6 +75,7 @@ export const WhiteboardTTLs = {
   BOARD_LOCK: 3600, // 1 hour
   SNAPSHOT_LOCK: 300, // 5 minutes
   CACHED_SNAPSHOT: 300, // 5 minutes
+  SNAPSHOT_LATEST: 3600, // ✅ NEW: 1 hour (expires after all users unsubscribe)
   RATE_LIMIT_WINDOW: 2, // 2 seconds (cleanup window)
   DUPLICATE_UPDATE: 1, // 1 second (duplicate detection)
   UPDATE_TRACE: 5, // 5 seconds (loop detection trace)

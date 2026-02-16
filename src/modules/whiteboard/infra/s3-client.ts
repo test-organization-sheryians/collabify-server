@@ -1,16 +1,16 @@
 /**
- * S3 Client for Whiteboard Snapshots
+ * S3 Client for Whiteboard Snapshots (V4 - Merged)
  *
- * Wrapper around AWS S3 SDK for snapshot operations
+ * Unified S3 operations for both query handlers and stream worker
  */
 
 import { PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
-import { s3Client } from "@/infra/aws/s3";
+import { s3Client as awsS3Client } from "@/infra/aws/s3";
 import { env } from "@/shared/config/env";
 import { createLogger } from "@/shared/lib/logger";
+import { WhiteboardKeys } from "./whiteboard-keys";
 
 const logger = createLogger("whiteboard:infra:s3");
-import { WhiteboardKeys } from "./whiteboard-keys";
 
 export type S3SnapshotMetadata = {
   boardId: string;
@@ -20,68 +20,160 @@ export type S3SnapshotMetadata = {
 };
 
 /**
- * Generate S3 key for board snapshot
- *
- * @deprecated Use WhiteboardKeys.S3SnapshotTimestamped() directly
+ * Get latest board snapshot from S3
+ * Used by stream worker for cold start
  */
-export const generateSnapshotKey = (
-  boardId: string,
-  timestamp: number
-): string => {
-  return WhiteboardKeys.S3SnapshotTimestamped(boardId, timestamp);
-};
+export async function getLatestSnapshot(
+  boardId: string
+): Promise<{ data: Uint8Array; streamId: string } | null> {
+  try {
+    const key = WhiteboardKeys.S3SnapshotLatest(boardId);
+
+    const command = new GetObjectCommand({
+      Bucket: env.S3_WHITEBOARD_BUCKET,
+      Key: key,
+    });
+
+    const response = await awsS3Client.send(command);
+
+    if (!response.Body) {
+      return null;
+    }
+
+    // Convert stream to buffer
+    const chunks: Uint8Array[] = [];
+    for await (const chunk of response.Body as any) {
+      chunks.push(chunk);
+    }
+    const data = Buffer.concat(chunks);
+
+    // ✅ FIX: Use lowercase (AWS S3 normalizes metadata keys to lowercase)
+    const streamId = response.Metadata?.streamid || "0-0";
+
+    logger.debug("Loaded S3 snapshot", {
+      boardId,
+      streamId,
+      size: data.length,
+    });
+
+    return {
+      data: new Uint8Array(data),
+      streamId,
+    };
+  } catch (error: any) {
+    if (error.name === "NoSuchKey") {
+      logger.debug("No S3 snapshot found (new board)", { boardId });
+      return null;
+    }
+
+    logger.error("S3 getLatestSnapshot failed", { error, boardId });
+    throw error;
+  }
+}
 
 /**
- * Upload snapshot to S3
+ * Put snapshot to S3 with metadata
+ * Used by stream worker for snapshot creation
  */
-export const uploadSnapshot = async (
+export async function putSnapshot(
   boardId: string,
-  binary: Uint8Array,
-  metadata: S3SnapshotMetadata
-): Promise<string> => {
-  const s3Key = generateSnapshotKey(boardId, metadata.timestamp);
+  data: Uint8Array,
+  metadata: {
+    streamId: string;
+    timestamp: string;
+    size?: string;
+    reason?: string;
+  },
+  isLatest: boolean = false
+): Promise<string> {
+  const key = isLatest
+    ? WhiteboardKeys.S3SnapshotLatest(boardId)
+    : WhiteboardKeys.S3SnapshotTimestamped(boardId, Date.now());
 
   try {
     const command = new PutObjectCommand({
       Bucket: env.S3_WHITEBOARD_BUCKET,
-      Key: s3Key,
-      Body: binary,
+      Key: key,
+      Body: Buffer.from(data),
       ContentType: "application/octet-stream",
+      // ✅ FIX: Use lowercase keys (AWS normalizes to lowercase)
       Metadata: {
-        boardId: metadata.boardId,
-        streamId: metadata.streamId,
-        timestamp: metadata.timestamp.toString(),
-        elementCount: metadata.elementCount.toString(),
+        boardid: boardId,
+        streamid: metadata.streamId,
+        timestamp: metadata.timestamp,
+        size: metadata.size || String(data.length),
+        reason: metadata.reason || "manual",
       },
       StorageClass: "STANDARD",
     });
 
-    await s3Client.send(command);
+    await awsS3Client.send(command);
+
+    logger.info("S3 snapshot written", {
+      boardId,
+      key,
+      size: data.length,
+      streamId: metadata.streamId,
+      isLatest,
+    });
+
+    return key;
+  } catch (error) {
+    logger.error("S3 putSnapshot failed", { error, boardId, key });
+    throw error;
+  }
+}
+
+/**
+ * Upload snapshot to S3 (used by create-board service)
+ * Legacy wrapper for backward compatibility
+ */
+export async function uploadSnapshot(
+  boardId: string,
+  binary: Uint8Array,
+  metadata: S3SnapshotMetadata
+): Promise<string> {
+  const key = WhiteboardKeys.S3SnapshotTimestamped(boardId, metadata.timestamp);
+
+  try {
+    const command = new PutObjectCommand({
+      Bucket: env.S3_WHITEBOARD_BUCKET,
+      Key: key,
+      Body: binary,
+      ContentType: "application/octet-stream",
+      Metadata: {
+        boardid: metadata.boardId,
+        streamid: metadata.streamId,
+        timestamp: metadata.timestamp.toString(),
+        elementcount: metadata.elementCount.toString(),
+      },
+      StorageClass: "STANDARD",
+    });
+
+    await awsS3Client.send(command);
 
     logger.info("Snapshot uploaded to S3", {
       boardId,
-      s3Key,
+      key,
       sizeBytes: binary.byteLength,
     });
 
-    return s3Key;
+    return key;
   } catch (error) {
     logger.error("Failed to upload snapshot to S3", {
       err: error,
       boardId,
-      s3Key,
+      key,
     });
     throw error;
   }
-};
+}
 
 /**
- * Download snapshot from S3
+ * Download snapshot from S3 (used by query handler)
  */
-export const downloadSnapshot = async (s3Key: string): Promise<Uint8Array> => {
+export async function downloadSnapshot(s3Key: string): Promise<Uint8Array> {
   try {
-    const { GetObjectCommand } = await import("@aws-sdk/client-s3");
-
     const command = new GetObjectCommand({
       Bucket: env.S3_WHITEBOARD_BUCKET,
       Key: s3Key,
@@ -89,7 +181,7 @@ export const downloadSnapshot = async (s3Key: string): Promise<Uint8Array> => {
 
     logger.info("Downloading snapshot from S3", { s3Key });
 
-    const response = await s3Client.send(command);
+    const response = await awsS3Client.send(command);
 
     if (!response.Body) {
       throw new Error("S3 response body is empty");
@@ -97,8 +189,7 @@ export const downloadSnapshot = async (s3Key: string): Promise<Uint8Array> => {
 
     // Convert stream to buffer
     const chunks: Uint8Array[] = [];
-    // @ts-expect-error - AWS SDK stream types are complex
-    for await (const chunk of response.Body) {
+    for await (const chunk of response.Body as any) {
       chunks.push(chunk);
     }
     const binary = Buffer.concat(chunks);
@@ -117,70 +208,10 @@ export const downloadSnapshot = async (s3Key: string): Promise<Uint8Array> => {
     });
     throw error;
   }
-};
+}
 
-/**
- * List snapshots for a board
- */
-export const listSnapshots = async (
-  boardId: string
-): Promise<Array<{ s3Key: string; timestamp: Date; size: number }>> => {
-  // TODO: V4 Architecture - List Snapshots
-  // ============================================
-  //
-  // STEP 1: List Objects by Prefix
-  // ------------------------------
-  // import { S3Client, ListObjectsV2Command } from "@aws-sdk/client-s3";
-  // const prefix = `whiteboard/${boardId}/snapshots/`;
-  // const command = new ListObjectsV2Command({
-  //   Bucket: env.S3_WHITEBOARD_BUCKET,
-  //   Prefix: prefix,
-  // });
-  // const response = await s3.send(command);
-  //
-  // STEP 2: Parse and Sort
-  // ----------------------
-  // - Extract: Key, LastModified, Size
-  // - Sort by LastModified DESC (most recent first)
-  //
-  // STEP 3: Return Metadata
-  // ----------------------
-  // return response.Contents.map(obj => ({
-  //   s3Key: obj.Key,
-  //   timestamp: obj.LastModified,
-  //   size: obj.Size
-  // }));
-  //
-  // ============================================
-
-  throw new Error("TODO: Implement listSnapshots");
-};
-
-/**
- * Delete snapshot from S3
- */
-export const deleteSnapshot = async (s3Key: string): Promise<void> => {
-  // TODO: V4 Architecture - Delete Snapshot
-  // ============================================
-  //
-  // STEP 1: Delete Object
-  // --------------------
-  // import { S3Client, DeleteObjectCommand } from "@aws-sdk/client-s3";
-  // const command = new DeleteObjectCommand({
-  //   Bucket: env.S3_WHITEBOARD_BUCKET,
-  //   Key: s3Key,
-  // });
-  // await s3.send(command);
-  //
-  // STEP 2: Clear Cache
-  // ------------------
-  // - DEL snapshot:${s3Key}
-  //
-  // WARNING:
-  // - Only delete old snapshots when new one is confirmed safe
-  // - Never delete the most recent snapshot
-  //
-  // ============================================
-
-  throw new Error("TODO: Implement deleteSnapshot");
+// Export consolidated s3Client object for worker compatibility
+export const s3Client = {
+  getLatestSnapshot,
+  putSnapshot,
 };

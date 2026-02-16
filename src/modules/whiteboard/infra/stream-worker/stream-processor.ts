@@ -116,6 +116,16 @@ export async function processUpdate(
   // This ensures cache versioning is accurate
   state.streamIdWhenLoaded = id;
 
+  // ✅ LOG: Verify update applied successfully
+  const yElements = state.ydoc.getArray("elements");
+  logger.info("✅ Update applied to Y.Doc", {
+    boardId,
+    streamId: id,
+    elementCount: yElements.length,
+    updatesSinceSnapshot: state.updatesSinceSnapshot,
+    updateSize: update.length,
+  });
+
   // 🔥 FIX: Do NOT accumulate approxSize per update (Yjs deltas compress)
   // approxSize is updated only on snapshot encode (debounced every 5s)
 

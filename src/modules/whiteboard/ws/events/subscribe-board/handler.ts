@@ -13,20 +13,19 @@ import {
 } from "@/modules/whiteboard/infra/lua-scripts";
 
 /**
- * Subscribe Board Handler (V4 Snapshot-Primary Architecture)
+ * Subscribe Board Handler (V5 Replay Gap Architecture)
  *
  * DESIGN PHILOSOPHY:
  * - Gateway is stateless (I-5): No S3, no Y.Doc, no state merging
  * - Separation of concerns: GraphQL owns state fetching, WebSocket owns real-time
  * - Client must fetch snapshot via GraphQL BEFORE subscribing
- * - This handler ONLY manages: presence tracking + pub/sub subscriptions
+ * - This handler manages: replay gap + presence tracking + pub/sub subscriptions
  *
- * ARCHITECTURAL DECISION:
- * V4 removed hot replay from WebSocket layer because:
- * 1. Stream IDs not safely comparable (lexicographic "9-0" > "10-0" bug)
- * 2. Streams can be trimmed (snapshot-aware), causing gap detection failures
- * 3. GraphQL state vector sync is CRDT-correct and handles all gap scenarios
- * 4. Keeps gateway horizontally scalable (no S3/Y.Doc dependencies)
+ * V5 REPLAY GAP FEATURE:
+ * - Client sends lastStreamId from snapshot response
+ * - Handler calculates gap: XRANGE(lastStreamId, latest)
+ * - Sends missing updates via whiteboard:replay-updates event
+ * - Eliminates state divergence from snapshot→subscribe window
  *
  * PERFORMANCE OPTIMIZATION:
  * - Uses Lua scripts for atomic Redis operations (5 RTTs → 1 RTT)
@@ -185,12 +184,6 @@ export const subscribeBoardHandler = async (
     });
   }
 
-  // ==========================================
-  // Pub/Sub Subscription: Real-Time Event Channel
-  // ==========================================
-  // DESIGN: Subscribe BEFORE sending collaborators list
-  // Ensures client receives all events that happen during snapshot → subscribe window
-
   const topic = WhiteboardKeys.BoardEvents(boardId);
   await wsRegistry.subscribe(socketId, topic);
 
@@ -200,6 +193,90 @@ export const subscribeBoardHandler = async (
     socketId,
     topic,
   });
+
+  // ==========================================
+  // Replay Gap: Send Missing Updates
+  // ==========================================
+  // V5 FEATURE: Close the gap between snapshot fetch and subscribe
+  // - Client sends lastStreamId from snapshot response
+  // - Calculate updates from lastStreamId to latest
+  // - Send each missing update as individual board-update events
+  // - Reuses existing board-update handler (no new payload types!)
+
+  if (input.lastStreamId) {
+    const streamKey = WhiteboardKeys.BoardStream(boardId);
+
+    try {
+      // Get updates from lastStreamId (exclusive) to latest (inclusive)
+      const missingUpdates = (await appRedis.xrange(
+        streamKey,
+        `(${input.lastStreamId}`, // Exclusive: start AFTER lastStreamId
+        "+", // Inclusive: up to latest
+        "COUNT",
+        5000 // Limit: prevent OOM on large gaps
+      )) as Array<[string, string[]]>;
+
+      if (missingUpdates.length > 0) {
+        logger.info("✅ Replaying gap updates", {
+          boardId,
+          userId,
+          gapSize: missingUpdates.length,
+          from: input.lastStreamId,
+          to: missingUpdates[missingUpdates.length - 1][0],
+        });
+
+        // Send each update as individual board-update event (to THIS CLIENT ONLY)
+        for (const [id, fields] of missingUpdates) {
+          const data: Record<string, string> = {};
+          for (let i = 0; i < fields.length; i += 2) {
+            data[fields[i]] = fields[i + 1];
+          }
+
+          // Send as regular board-update (reuses existing handler!)
+          socket.send(
+            createSuccessFrame(undefined, "whiteboard:board-update", {
+              boardId: data.boardId,
+              streamId: id,
+              update: data.update, // Base64 Y.js update
+              authorId: data.userId,
+              sequence: 0, // Not used
+              timestamp: new Date(
+                parseInt(data.timestamp || "0", 10)
+              ).toISOString(),
+            })
+          );
+        }
+
+        logger.info("Replay gap complete", {
+          boardId,
+          userId,
+          updatesReplayed: missingUpdates.length,
+        });
+      } else {
+        // No gap - client is already up to date
+        logger.debug("No replay gap - client up to date", {
+          boardId,
+          userId,
+          lastStreamId: input.lastStreamId,
+        });
+      }
+    } catch (replayError) {
+      logger.error("❌ Replay gap failed (non-fatal)", {
+        boardId,
+        userId,
+        lastStreamId: input.lastStreamId,
+        error: replayError,
+      });
+
+      // Non-fatal: Continue with subscribe (client will use state vector sync)
+      // Worst case: small gap remains, state vector sync handles it
+    }
+  } else {
+    logger.debug("No lastStreamId provided (old client or first load)", {
+      boardId,
+      userId,
+    });
+  }
 
   // ==========================================
   // Fetch Active Collaborators (Batch Query)

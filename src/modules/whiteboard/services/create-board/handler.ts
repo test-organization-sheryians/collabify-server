@@ -108,23 +108,6 @@ export const handler = async (input: CreateBoardInput, ctx: ServiceContext) => {
       }
     }
 
-    // Step 4: Initialize Y.Doc with y-excalidraw structure
-    const Y = await import("yjs");
-    const ydoc = new Y.Doc();
-
-    // ✅ CRITICAL: Initialize at root level for y-excalidraw library
-    // y-excalidraw expects:
-    // - ydoc.getArray('elements') → Y.Array<Y.Map<any>> (root level)
-    // - ydoc.getMap('assets') → Y.Map (root level)
-    //
-    // OLD (WRONG): nested under 'excalidraw' map
-    // NEW (CORRECT): root level access
-    ydoc.getArray("elements"); // Creates empty Y.Array
-    ydoc.getMap("assets"); // Creates empty Y.Map
-
-    // Encode to binary
-    const initialState = Y.encodeStateAsUpdate(ydoc);
-
     // Step 5: Create Board + Collaborators (Atomic Transaction)
     const result = await ctx.db.$transaction(async (tx) => {
       // 5.1 Create whiteboard
@@ -137,7 +120,7 @@ export const handler = async (input: CreateBoardInput, ctx: ServiceContext) => {
           createdBy: userId,
           s3Key: "", // TODO V4-1: Will be updated after S3 upload
           elementCount: 0,
-          fileSizeBytes: BigInt(initialState.byteLength),
+          // fileSizeBytes: BigInt(initialState.byteLength),
         },
       });
 
@@ -195,7 +178,18 @@ export const handler = async (input: CreateBoardInput, ctx: ServiceContext) => {
       }
 
       return { board, addedCollaborators };
-    });
+    }); // End of transaction
+
+    // Step 4: Initialize Y.Doc with y-excalidraw structure (AFTER board created)
+    const Y = await import("yjs");
+    const ydoc = new Y.Doc({ guid: result.board.id }); // ✅ Deterministic GUID!
+
+    // ✅ CRITICAL: Initialize at root level for y-excalidraw library
+    ydoc.getArray("elements"); // Creates empty Y.Array
+    ydoc.getMap("assets"); // Creates empty Y.Map
+
+    // Encode to binary
+    const initialState = Y.encodeStateAsUpdate(ydoc);
 
     // V4-1: Upload initial snapshot to S3
     const s3Key = await uploadSnapshot(result.board.id, initialState, {
@@ -205,9 +199,14 @@ export const handler = async (input: CreateBoardInput, ctx: ServiceContext) => {
       elementCount: 0,
     });
 
+    // ✅ FIX: Update both s3Key AND snapshot metadata
     await ctx.db.whiteboard.update({
       where: { id: result.board.id },
-      data: { s3Key },
+      data: {
+        s3Key,
+        lastSnapshotStreamId: "0-0", // Initial snapshot stream position
+        lastSnapshotAt: new Date(), // Track when snapshot was created
+      },
     });
 
     // V4-2: Create Redis stream + consumer group
