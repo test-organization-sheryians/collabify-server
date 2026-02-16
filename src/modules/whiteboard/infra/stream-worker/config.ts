@@ -1,7 +1,7 @@
 /**
  * Stream Worker V2 Configuration
  *
- * Environment-driven configuration for stateless stream worker
+ * Simplified configuration with extensible threshold system
  */
 
 import * as os from "os";
@@ -15,30 +15,22 @@ export const BATCH_COUNT = 100; // Process up to 100 updates per batch
 export const BLOCK_MS = 100; // Block for 100ms waiting for new entries
 export const MAX_UPDATES_PER_BATCH = 100; // Limit batch size to prevent OOM
 
-// Historical Snapshot Triggers (configurable via env)
-export const SNAPSHOT_CONFIG = {
-  COUNT_THRESHOLD: parseInt(process.env.SNAPSHOT_COUNT_THRESHOLD || "1000"),
-  TIME_INTERVAL_MS: parseInt(
-    process.env.SNAPSHOT_TIME_INTERVAL_MS || String(5 * 60 * 1000)
-  ), // 5 min
-  MEMORY_THRESHOLD_MB: parseInt(process.env.SNAPSHOT_SIZE_THRESHOLD_MB || "10"),
-
-  // S3 sync policy
-  SYNC_LATEST_CONTINUOUS:
-    process.env.SNAPSHOT_SYNC_LATEST_CONTINUOUS !== "false", // Default true
+// Threshold Configuration (Extensible)
+export const THRESHOLDS = {
+  STREAM_LENGTH: {
+    enabled: true,
+    maxLength: 50,
+  },
+  // Future thresholds can be added here:
+  // TIME_BASED: {
+  //   enabled: process.env.ENABLE_TIME_THRESHOLD === "true",
+  //   intervalMs: parseInt(process.env.SNAPSHOT_TIME_INTERVAL_MS || "300000"),
+  // },
 };
-
-// Stream Trimming
-export const STREAM_TRIM_CONFIG = {
-  MIN_LENGTH: 10_000, // Only trim if stream has >10k messages
-  REQUIRE_NO_SUBSCRIBERS: true, // Only trim if no active subscribers
-  REQUIRE_S3_SYNC: true, // Only trim after S3 sync
-};
-
-// Timeouts & Retries
-export const RECOVERY_INTERVAL_MS = 60_000; // 60 seconds
-export const S3_RETRY_ATTEMPTS = 3;
-export const S3_RETRY_DELAY_MS = 1000; // Exponential backoff base
 
 // Redis Keys TTL
 export const SNAPSHOT_TTL_SECONDS = 3600; // 1 hour
+
+// Worker Loops
+export const RECOVERY_INTERVAL_MS = 60_000; // 60 seconds
+export const METRICS_INTERVAL_MS = 60_000; // 60 seconds

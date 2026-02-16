@@ -31,27 +31,38 @@ export async function startConsumptionLoop(state: WorkerState): Promise<void> {
 
   while (state.isRunning) {
     try {
-      // Get all active board streams
-      const pattern = "board:*:stream";
-      const cursor = "0";
-      const scanResult = await appRedis.scan(
-        cursor,
-        "MATCH",
-        pattern,
-        "COUNT",
-        100
-      );
+      // SCAN all board streams with proper cursor iteration
+      const allStreamKeys: string[] = [];
+      let cursor = "0";
+      const pattern = WhiteboardKeys.BoardStreamPattern();
 
-      const streamKeys = (scanResult[1] || []) as string[];
+      do {
+        const scanResult = await appRedis.scan(
+          cursor,
+          "MATCH",
+          pattern,
+          "COUNT",
+          100
+        );
 
-      if (streamKeys.length === 0) {
+        cursor = scanResult[0] as string;
+        const keys = (scanResult[1] || []) as string[];
+        allStreamKeys.push(...keys);
+      } while (cursor !== "0");
+
+      if (allStreamKeys.length === 0) {
         // No active boards - wait before next poll
         await new Promise((r) => setTimeout(r, BLOCK_MS * 10)); // 1s
         continue;
       }
 
+      logger.debug("📡 Found streams to process", {
+        count: allStreamKeys.length,
+        keys: allStreamKeys,
+      });
+
       // Process each board stream
-      for (const streamKey of streamKeys) {
+      for (const streamKey of allStreamKeys) {
         await ensureConsumerGroup(streamKey, state.knownGroups);
 
         try {
@@ -98,7 +109,7 @@ export async function startConsumptionLoop(state: WorkerState): Promise<void> {
           for (const [boardId, boardUpdates] of byBoard) {
             const startTime = Date.now();
 
-            await processBoardBatch(boardId, boardUpdates);
+            await processBoardBatch(state, boardId, boardUpdates);
 
             // Update metrics
             state.metrics.boardsProcessed++;
@@ -108,6 +119,16 @@ export async function startConsumptionLoop(state: WorkerState): Promise<void> {
             state.metrics.avgProcessingTimeMs =
               state.metrics.avgProcessingTimeMs * 0.9 + duration * 0.1 ||
               duration;
+
+            // Log metrics immediately after processing
+            logger.debug("📊 Metrics updated", {
+              boardsProcessed: state.metrics.boardsProcessed,
+              updatesProcessed: state.metrics.updatesProcessed,
+              snapshotsCreated: state.metrics.snapshotsCreated,
+              avgProcessingTimeMs: Math.round(
+                state.metrics.avgProcessingTimeMs
+              ),
+            });
           }
 
           // Yield event loop between streams
@@ -146,7 +167,7 @@ export async function startRecoveryLoop(state: WorkerState): Promise<void> {
       await new Promise((r) => setTimeout(r, RECOVERY_INTERVAL_MS));
 
       // Get all board streams
-      const pattern = "board:*:stream";
+      const pattern = WhiteboardKeys.BoardStreamPattern();
       const scanResult = await appRedis.scan(
         "0",
         "MATCH",
@@ -198,7 +219,7 @@ export async function startRecoveryLoop(state: WorkerState): Promise<void> {
           }
 
           for (const [boardId, boardUpdates] of byBoard) {
-            await processBoardBatch(boardId, boardUpdates);
+            await processBoardBatch(state, boardId, boardUpdates);
           }
         } catch (claimError) {
           logger.error("❌ Recovery claim failed", {
@@ -229,7 +250,6 @@ export async function startMetricsLoop(state: WorkerState): Promise<void> {
         boardsProcessed: state.metrics.boardsProcessed,
         updatesProcessed: state.metrics.updatesProcessed,
         snapshotsCreated: state.metrics.snapshotsCreated,
-        historicalSnapshotsCreated: state.metrics.historicalSnapshotsCreated,
         s3SyncSuccesses: state.metrics.s3SyncSuccesses,
         s3SyncFailures: state.metrics.s3SyncFailures,
         redisErrors: state.metrics.redisErrors,

@@ -60,24 +60,21 @@ const getGroup = (flag: string): GroupFlag | null => {
  * Maps file flags to their related flow groups
  */
 const FLOW_GROUPS: Record<string, GroupFlag[]> = {
-  // Whiteboard Stream Worker Flow
+  // Whiteboard Stream Worker V2 Flow
   "whiteboard:infra:stream-worker": ["whiteboard-stream-worker"],
-  "whiteboard:stream-worker:board-init": [
-    "whiteboard-stream-worker",
-    "whiteboard-cold-start",
-  ],
-  "whiteboard:stream-worker:snapshot": [
-    "whiteboard-stream-worker",
-    "whiteboard-snapshot-flow",
-  ],
-  "whiteboard:stream-worker:cache": ["whiteboard-stream-worker"],
   "whiteboard:stream-worker:processor": [
     "whiteboard-stream-worker",
     "whiteboard-board-update-flow",
     "whiteboard-cold-start",
   ],
   "whiteboard:stream-worker:loops": ["whiteboard-stream-worker"],
-  "whiteboard:stream-worker:health": ["whiteboard-stream-worker"],
+  "whiteboard:stream-worker:s3-sync": [
+    "whiteboard-stream-worker",
+    "whiteboard-snapshot-flow",
+  ],
+  "whiteboard:stream-worker:lua": ["whiteboard-stream-worker"],
+  "whiteboard:threshold:registry": ["whiteboard-stream-worker"],
+  "whiteboard:threshold:stream-length": ["whiteboard-stream-worker"],
 
   // Whiteboard WebSocket Flow
   "whiteboard:ws:subscribe": ["whiteboard-ws"],
@@ -196,11 +193,14 @@ export function createLogger(flag: string): Logger {
         );
       };
     },
-    warn: (msg: string, context?: object) => {
-      baseLogger.warn(
-        { ...context, caller: getCallerInfo() },
-        `${prefix} ${msg}`
-      );
+    get warn() {
+      if (!isEnabled(flag)) return () => {};
+      return (msg: string, context?: object) => {
+        baseLogger.warn(
+          { ...context, caller: getCallerInfo() },
+          `${prefix} ${msg}`
+        );
+      };
     },
     error: (msg: string, context?: object | Error) => {
       if (context instanceof Error) {

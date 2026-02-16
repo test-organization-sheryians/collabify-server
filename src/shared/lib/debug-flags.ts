@@ -9,7 +9,7 @@
 // ═══════════════════════════════════════════════════════════════
 // MASTER SWITCH
 // ═══════════════════════════════════════════════════════════════
-export const ALL = false;
+export const ALL = false; // ❌ DISABLED - Using targeted flags only
 
 // ═══════════════════════════════════════════════════════════════
 // GROUP FLAGS (enable entire feature/module)
@@ -18,21 +18,21 @@ export const GROUPS = {
   // ═══════════════════════════════════════════════════════════════
   // Module Groups (enable entire feature)
   // ═══════════════════════════════════════════════════════════════
-  chat: false, // All chat module logs (jobs, WS, services)
-  whiteboard: false, // All whiteboard module logs (WS, jobs, services)
-  notification: false, // All notification engine + channel logs
-  user: false, // All user module logs
-  workspace: false, // All workspace module logs
-  project: false, // All project module logs
+  chat: false, // ❌ All chat module logs (jobs, WS, services)
+  whiteboard: false, // ❌ All whiteboard module logs (WS, jobs, services)
+  notification: false, // ❌ All notification engine + channel logs
+  user: false, // ❌ All user module logs
+  workspace: false, // ❌ All workspace module logs
+  project: false, // ❌ All project module logs
 
   // ═══════════════════════════════════════════════════════════════
   // Infrastructure Groups
   // ═══════════════════════════════════════════════════════════════
-  infra: false, // All infrastructure (db, redis, s3, ses, ws)
-  ws: false, // All WebSocket infrastructure (gateway, router, worker, registry)
-  db: false, // Database infrastructure
-  api: false, // API layer
-  services: false, // Core services (bullmq, clerk, providers)
+  infra: false, // ❌ All infrastructure (db, redis, s3, ses, ws)
+  ws: false, // ❌ All WebSocket infrastructure (gateway, router, worker, registry)
+  db: false, // ❌ Database infrastructure
+  api: false, // ❌ API layer
+  services: false, // ❌ Core services (bullmq, clerk, providers)
 
   // ═══════════════════════════════════════════════════════════════
   // Whiteboard Flow Groups (🎯 For Easy Debugging)
@@ -50,28 +50,28 @@ export const GROUPS = {
    * Enables: board-update WS handler + stream processor + cache
    * Use when: Tracing board updates from client to Redis stream
    */
-  "whiteboard-board-update-flow": false,
+  "whiteboard-board-update-flow": false, // ❌
 
   /**
    * Snapshot Flow (Triggers → S3 → Trim)
    * Enables: snapshot manager, S3 client, stream worker
    * Use when: Debugging snapshot creation, S3 uploads, stream trimming
    */
-  "whiteboard-snapshot-flow": false,
+  "whiteboard-snapshot-flow": false, // ❌
 
   /**
    * Whiteboard WebSocket Flow
    * Enables: All WS handlers (subscribe, board-update, cursor, selection)
    * Use when: Debugging real-time collaboration events
    */
-  "whiteboard-ws": false,
+  "whiteboard-ws": false, // ❌
 
   /**
    * Cold Start & Initialization
    * Enables: board-init, S3 client, stream processor
    * Use when: Debugging board loading from S3 + stream replay
    */
-  "whiteboard-cold-start": false,
+  "whiteboard-cold-start": false, // ❌
 
   // ═══════════════════════════════════════════════════════════════
   // Chat Flow Groups
@@ -82,22 +82,22 @@ export const GROUPS = {
    * Enables: send-message WS + persist jobs + outbox cleanup
    * Use when: Debugging message delivery and persistence
    */
-  "chat-message-flow": false,
+  "chat-message-flow": false, // ❌
 
   /**
    * Reactions Flow
    * Enables: add/remove reaction WS + persist/reconcile jobs + domain helpers
    * Use when: Debugging reactions system
    */
-  "chat-reactions": false,
+  "chat-reactions": false, // ❌
 
   // ═══════════════════════════════════════════════════════════════
   // Development & Testing
   // ═══════════════════════════════════════════════════════════════
-  stream: false, // All stream-related logs (Redis streams)
-  auth: false, // Authentication & authorization
-  shared: false, // Shared utilities
-  modules: false, // All modules (chat, whiteboard, notification, etc.)
+  stream: false, // ❌ All stream-related logs (Redis streams)
+  auth: false, // ❌ Authentication & authorization
+  shared: false, // ❌ Shared utilities
+  modules: false, // ❌ All modules (chat, whiteboard, notification, etc.)
 } as const;
 
 // ═══════════════════════════════════════════════════════════════
@@ -160,27 +160,30 @@ export const FILES: Record<string, boolean | undefined> = {
   "chat:domain:reactions:metrics": false, // modules/chat/domain/reactions/metrics.ts
 
   // ─────────────────────────────────────
-  // Whiteboard Module (✅ STATE SYNC TESTING)
+  // Whiteboard Module (✅ STREAM WORKER V2 ONLY)
   // ─────────────────────────────────────
-  "whiteboard:engine": true, // modules/whiteboard/index.ts - Worker startup
+  "whiteboard:engine": false, // modules/whiteboard/index.ts - Worker startup
   "whiteboard:ws:subscribe": false, // modules/whiteboard/ws/subscribe-handler.ts
   "whiteboard:ws:unsubscribe": false, // modules/whiteboard/ws/unsubscribe-handler.ts
-  "whiteboard:ws:board-update": false, // modules/whiteboard/ws/board-update-handler.ts - Update handling
+  "whiteboard:ws:board-update": true, // modules/whiteboard/ws/board-update-handler.ts - Update handling ✅
   "whiteboard:ws:cursor": false, // modules/whiteboard/ws/cursor-handler.ts
   "whiteboard:ws:selection": false, // modules/whiteboard/ws/selection-handler.ts
-  "whiteboard:infra:stream-worker": true, // modules/whiteboard/infra/stream-worker/ - Worker core
-  "whiteboard:stream-worker:board-init": true, // modules/whiteboard/infra/stream-worker/board-initializer.ts
-  "whiteboard:stream-worker:snapshot": true, // modules/whiteboard/infra/stream-worker/snapshot-manager.ts
-  "whiteboard:stream-worker:cache": true, // modules/whiteboard/infra/stream-worker/cache-manager.ts
-  "whiteboard:stream-worker:processor": true, // modules/whiteboard/infra/stream-worker/stream-processor.ts
-  "whiteboard:stream-worker:loops": true, // modules/whiteboard/infra/stream-worker/worker-loops.ts
-  "whiteboard:stream-worker:health": false, // modules/whiteboard/infra/stream-worker/health-monitor.ts
-  "whiteboard:infra:s3": true, // modules/whiteboard/infra/s3-client.ts - S3 operations
+
+  // Stream Worker V2 - Exact Logger Names (from createLogger calls)
+  "whiteboard:stream-worker-v2": true, // worker.ts actual logger ✅
+  "whiteboard:stream-worker-v2:loops": true, // worker-loops.ts actual logger ✅
+  "whiteboard:stream-worker-v2:processor": true, // processor.ts actual logger ✅
+  "whiteboard:stream-worker-v2:s3-sync": true, // s3-sync.ts actual logger ✅
+
+  "whiteboard:stream-worker:lua": true, // lua-scripts.ts actual logger ✅
+  "whiteboard:threshold:registry": true, // thresholds/index.ts actual logger ✅
+  "whiteboard:threshold:stream-length": true, // thresholds/stream-length.ts actual logger ✅
+  "whiteboard:infra:s3": true, // modules/whiteboard/infra/s3-client.ts - S3 operations ✅
   "whiteboard:infra:loop-prevention": false, // modules/whiteboard/infra/loop-prevention.ts
   "whiteboard:jobs:snapshot": false, // modules/whiteboard/jobs/snapshot.ts
   "whiteboard:jobs:cleanup": false, // modules/whiteboard/jobs/cleanup.ts
   "whiteboard:services:create-board": false, // modules/whiteboard/services/create-board/
-  "whiteboard:queries:get-snapshot": true, // modules/whiteboard/queries/get-board-snapshot/ - Query handler
+  "whiteboard:queries:get-snapshot": false, // modules/whiteboard/queries/get-board-snapshot/ - Query handler
 
   // ─────────────────────────────────────
   // Internal Module

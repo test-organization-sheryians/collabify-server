@@ -12,11 +12,6 @@ export interface RedisLatestSnapshot {
   streamId: string; // Last stream ID applied
   version: number; // Monotonic counter
   updatedAt: number; // Timestamp
-  elementCount: number; // For monitoring
-
-  // Historical snapshot tracking
-  updatesSinceLastHistorical: number; // Counter for threshold
-  lastHistoricalTimestamp: number; // For time-based trigger
 }
 
 /**
@@ -35,20 +30,11 @@ export interface WorkerMetrics {
   boardsProcessed: number;
   updatesProcessed: number;
   snapshotsCreated: number;
-  historicalSnapshotsCreated: number;
   s3SyncSuccesses: number;
   s3SyncFailures: number;
   redisErrors: number;
   avgProcessingTimeMs: number;
 }
-
-/**
- * Historical snapshot reason
- */
-export type HistoricalSnapshotReason =
-  | "count-threshold"
-  | "time-threshold"
-  | "memory-threshold";
 
 /**
  * Worker state (minimal - no caches)

@@ -9,7 +9,7 @@ export { resolvers as whiteboardResolvers } from "./graphql/resolvers";
 export { typeDefs as whiteboardTypeDefs } from "./graphql/type-defs";
 
 import { createLogger } from "@/shared/lib/logger";
-import { whiteboardStreamWorkerV2 } from "./infra/stream-worker";
+import { startWhiteboardStreamWorkerV2 } from "./infra/stream-worker/worker";
 
 const logger = createLogger("whiteboard:engine");
 
@@ -21,7 +21,7 @@ export const WhiteboardModule = {
     logger.info("Starting Whiteboard Module Engine");
 
     // Start Stream Worker (Y.js CRDT processor)
-    await whiteboardStreamWorkerV2.init();
+    await startWhiteboardStreamWorkerV2();
 
     logger.info("Whiteboard Module Engine Started");
   },

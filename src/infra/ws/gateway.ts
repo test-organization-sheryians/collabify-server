@@ -10,14 +10,14 @@ import { db } from "../db";
 /**
  * Validates the connection request (Clerk Token)
  * TODO: Move to shared/auth later
-*/
+ */
 import { verifyToken } from "@clerk/backend";
 import { env } from "../../shared/config/env";
 
 /**
  * Validates the connection request (Clerk Token)
  * TODO: Move to shared/auth later
-*/
+ */
 const logger = createLogger("infra:ws:gateway");
 
 async function authenticate(c: Context): Promise<{ userId: string } | null> {

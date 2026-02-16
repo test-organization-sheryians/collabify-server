@@ -233,9 +233,9 @@ export const handler = async (
           JSON.stringify({
             snapshot: Buffer.from(snapshotBinary).toString("base64"),
             streamId: snapshotStreamId,
-            version: 0,
+            version: Date.now(),
             updatedAt: Date.now(),
-          } as RedisSnapshot)
+          })
         );
 
         logger.info("✅ Redis cache warmed", { boardId });

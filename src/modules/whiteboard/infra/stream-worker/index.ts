@@ -1,17 +1,11 @@
 /**
- * Stream Worker V2 - Stateless Architecture
+ * Stream Worker V2 - Public API
  *
- * Export main worker entry point
+ * Exports main worker functions and types
  */
 
-export {
-  startWhiteboardStreamWorkerV2,
-  whiteboardStreamWorkerV2,
-} from "./worker";
-export type {
-  WorkerState,
-  WorkerMetrics,
-  RedisLatestSnapshot,
-  StreamUpdate,
-} from "./types";
-export { SNAPSHOT_CONFIG, WORKER_GROUP_NAME, CONSUMER_NAME } from "./config";
+export { startWhiteboardStreamWorkerV2 } from "./worker";
+export type { RedisLatestSnapshot, StreamUpdate, WorkerMetrics } from "./types";
+export { WORKER_GROUP_NAME, CONSUMER_NAME } from "./config";
+export { thresholdRegistry } from "./processor";
+export type { ThresholdChecker, ThresholdConfig } from "./thresholds";

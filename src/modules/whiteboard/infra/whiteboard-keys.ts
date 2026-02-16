@@ -61,6 +61,9 @@ export const WhiteboardKeys = {
     `board:${boardId}:dedupe:${userId}:${hash}`,
   UpdateTrace: (boardId: string) => `board:${boardId}:loop_trace`,
   LoopCircuitBreaker: (boardId: string) => `board:${boardId}:loop_circuit`,
+
+  // Pattern Matching (for SCAN operations)
+  BoardStreamPattern: () => `board:*:stream`,
 } as const;
 
 /**
