@@ -14,10 +14,18 @@ export const handler = async (
   try {
     const board = await ctx.db.whiteboard.findUnique({
       where: { id: boardId },
-      select: { createdBy: true },
+      select: {
+        createdBy: true,
+        isArchived: true,
+      },
     });
 
     if (!board) throw AppError.notFound("Whiteboard not found");
+
+    if (board.isArchived) {
+      throw AppError.badRequest("Board is already archived");
+    }
+
     if (board.createdBy !== userId) {
       throw AppError.forbidden("Only the creator can archive this board");
     }

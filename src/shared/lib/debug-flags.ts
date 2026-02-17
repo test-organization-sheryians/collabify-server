@@ -163,8 +163,8 @@ export const FILES: Record<string, boolean | undefined> = {
   // Whiteboard Module (✅ STREAM WORKER V2 ONLY)
   // ─────────────────────────────────────
   "whiteboard:engine": false, // modules/whiteboard/index.ts - Worker startup
-  "whiteboard:ws:subscribe": false, // modules/whiteboard/ws/subscribe-handler.ts
-  "whiteboard:ws:unsubscribe": false, // modules/whiteboard/ws/unsubscribe-handler.ts
+  "whiteboard:ws:subscribe": true, // modules/whiteboard/ws/subscribe-handler.ts
+  "whiteboard:ws:unsubscribe": true, // modules/whiteboard/ws/unsubscribe-handler.ts
   "whiteboard:ws:board-update": true, // modules/whiteboard/ws/board-update-handler.ts - Update handling ✅
   "whiteboard:ws:cursor": false, // modules/whiteboard/ws/cursor-handler.ts
   "whiteboard:ws:selection": false, // modules/whiteboard/ws/selection-handler.ts

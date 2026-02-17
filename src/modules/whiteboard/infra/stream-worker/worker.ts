@@ -119,12 +119,12 @@ export const startWhiteboardStreamWorkerV2 = async () => {
 /**
  * Graceful shutdown handlers
  */
-process.on("SIGTERM", () => {
-  logger.info("SIGTERM received, initiating graceful shutdown");
-  void whiteboardStreamWorkerV2.shutdown();
-});
+// process.on("SIGTERM", () => {
+//   logger.info("SIGTERM received, initiating graceful shutdown");
+//   void whiteboardStreamWorkerV2.shutdown();
+// });
 
-process.on("SIGINT", () => {
-  logger.info("SIGINT received, initiating graceful shutdown");
-  void whiteboardStreamWorkerV2.shutdown();
-});
+// process.on("SIGINT", () => {
+//   logger.info("SIGINT received, initiating graceful shutdown");
+//   void whiteboardStreamWorkerV2.shutdown();
+// });
