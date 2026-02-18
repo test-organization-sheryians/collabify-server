@@ -133,11 +133,23 @@ export async function startConsumptionLoop(state: WorkerState): Promise<void> {
 
           // Yield event loop between streams
           await new Promise((resolve) => setImmediate(resolve));
-        } catch (streamError) {
-          logger.error("❌ Stream processing error", {
-            streamKey,
-            error: streamError,
-          });
+        } catch (streamError: any) {
+          // Stream deleted while worker was blocking on it (e.g. board deleted mid-read).
+          // ioredis throws with no message, only a command object — this is expected.
+          const isDeletedStreamError =
+            !streamError?.message &&
+            streamError?.command?.name === "xreadgroup";
+
+          if (isDeletedStreamError) {
+            logger.debug("🗑️ Stream deleted mid-read (board deleted)", {
+              streamKey,
+            });
+          } else {
+            logger.error("❌ Stream processing error", {
+              streamKey,
+              error: streamError,
+            });
+          }
         }
       }
     } catch (err: any) {
