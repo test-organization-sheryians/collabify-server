@@ -183,6 +183,8 @@ export const FILES: Record<string, boolean | undefined> = {
   "whiteboard:jobs:snapshot": false, // modules/whiteboard/jobs/snapshot.ts
   "whiteboard:jobs:cleanup": false, // modules/whiteboard/jobs/cleanup.ts
   "whiteboard:services:create-board": false, // modules/whiteboard/services/create-board/
+  "whiteboard:services:delete-board": true, // ✅ modules/whiteboard/services/delete-board/handler.ts
+  "whiteboard:services:delete-board:cleanup": true, // ✅ modules/whiteboard/services/delete-board/cleanup.ts
   "whiteboard:queries:get-snapshot": false, // modules/whiteboard/queries/get-board-snapshot/ - Query handler
 
   // ─────────────────────────────────────
