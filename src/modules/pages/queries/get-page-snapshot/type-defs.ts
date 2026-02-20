@@ -1,13 +1,32 @@
 export const typeDefs = /* GraphQL */ `
+  """
+  Returned by getPageSnapshot.
+
+  snapshot         — base64 Y.js diff. Client calls Y.applyUpdate(localDoc, decode(snapshot)).
+  lastStreamId     — client passes this to subscribe-page for gap-fill replay.
+  snapshotTimestamp — when the base snapshot was last compacted by the stream worker. Null for new pages.
+  """
+  type PageSnapshot {
+    snapshot: String!
+    lastStreamId: String!
+    snapshotTimestamp: DateTime
+  }
+
   extend type Query {
     """
-    Returns the current authoritative Y.Doc snapshot + lastStreamId for gap-fill.
+    Returns the authoritative Y.Doc snapshot diff + a stream cursor for gap-fill.
 
-    If 'clientSnapshot' is provided, the server merges it (offline sync) and writes
-    the client's delta back to the Redis stream before returning.
+    First open (no offline state):
+      getPageSnapshot(pageId: "cuid")
 
-    Called once on page open. After this, the client switches to WS stream consumption.
+    Reconnect with offline edits:
+      getPageSnapshot(pageId: "cuid", clientSnapshot: "<base64 Y.encodeStateAsUpdate>")
+
+    Client workflow:
+      1. Call this query → receive { snapshot, lastStreamId }
+      2. Apply snapshot: Y.applyUpdate(localDoc, base64Decode(snapshot))
+      3. Open WS: page:subscribe-page { pageId, lastStreamId }  ← gap-fill
     """
-    getPageSnapshot(pageId: ID!, clientSnapshot: String): GetPageSnapshotResult!
+    getPageSnapshot(pageId: ID!): PageSnapshot!
   }
 `;
