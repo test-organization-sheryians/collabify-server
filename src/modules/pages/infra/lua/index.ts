@@ -1,19 +1,14 @@
 /**
  * Lua Scripts Index — Loader + barrel re-export.
  *
- * USAGE:
- *   // In PagesModule.startEngine():
+ * USAGE (in PagesModule.startEngine()):
  *   const luaShas = await loadAllLuaScripts(redis)
- *   // Store luaShas in a module singleton for use by WS handlers and stream worker.
+ *   // Store in module singleton; WS handlers use EVALSHA via these SHAs.
  *
- * WHY PRE-LOAD at startup:
- * Using EVALSHA (run by SHA) instead of EVAL (send script every time) reduces
- * Redis CPU and network bandwidth on the hot path. Scripts must be loaded once
- * before any handler invokes EVALSHA, otherwise Redis returns NOSCRIPT error.
- *
- * IMPORTANT: loadAllLuaScripts() must complete before the WS server starts
- * accepting connections. If handlers run before scripts are loaded, EVALSHA will
- * fail with NOSCRIPT and the handler will throw.
+ * WHY PRE-LOAD:
+ * EVALSHA (run by SHA) vs EVAL (send full script) reduces Redis CPU and
+ * bandwidth on the hot path. Scripts must be loaded before handlers run,
+ * otherwise Redis returns NOSCRIPT and the handler throws.
  */
 
 import type { Redis } from "ioredis";
@@ -21,12 +16,14 @@ import { PRESENCE_TRACKING_SCRIPT, PAGE_ACTIVATION_SCRIPT } from "./presence";
 import { ATOMIC_PAGE_UPDATE_SCRIPT } from "./page-update";
 import { UNSUBSCRIBE_CLEANUP_SCRIPT } from "./cleanup";
 import { SNAPSHOT_LOCK_RELEASE_SCRIPT } from "./snapshot-lock";
+import { CLIENT_SYNC_SCRIPT } from "./client-sync";
 
-// Re-export all script strings (needed by tests that SCRIPT LOAD manually)
+// Re-export all script strings (used by tests that SCRIPT LOAD manually)
 export * from "./presence";
 export * from "./page-update";
 export * from "./cleanup";
 export * from "./snapshot-lock";
+export * from "./client-sync";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,8 +37,10 @@ export interface LuaShas {
   atomicUpdateSha: string;
   /** SHA for UNSUBSCRIBE_CLEANUP_SCRIPT */
   cleanupSha: string;
-  /** SHA for SNAPSHOT_LOCK_RELEASE_SCRIPT */
+  /** SHA for SNAPSHOT_LOCK_RELEASE_SCRIPT (stream worker) */
   lockReleaseSha: string;
+  /** SHA for CLIENT_SYNC_SCRIPT (getPageSnapshot bidirectional merge) */
+  clientSyncSha: string;
 }
 
 // ─── Loader ───────────────────────────────────────────────────────────────────
@@ -49,21 +48,31 @@ export interface LuaShas {
 /**
  * Pre-load all Lua scripts into Redis and return their SHAs.
  * Called once per process in PagesModule.startEngine().
- *
- * Uses Promise.all for parallel loading — all 5 scripts are independent.
- *
- * TODO: Implement
- * const [presenceSha, activationSha, atomicUpdateSha, cleanupSha, lockReleaseSha] =
- *   await Promise.all([
- *     redis.script('LOAD', PRESENCE_TRACKING_SCRIPT),
- *     redis.script('LOAD', PAGE_ACTIVATION_SCRIPT),
- *     redis.script('LOAD', ATOMIC_PAGE_UPDATE_SCRIPT),
- *     redis.script('LOAD', UNSUBSCRIBE_CLEANUP_SCRIPT),
- *     redis.script('LOAD', SNAPSHOT_LOCK_RELEASE_SCRIPT),
- *   ])
- * return { presenceSha, activationSha, atomicUpdateSha, cleanupSha, lockReleaseSha }
+ * All 6 scripts are loaded in parallel.
  */
 export const loadAllLuaScripts = async (redis: Redis): Promise<LuaShas> => {
-  // TODO: see JSDoc above
-  throw new Error("loadAllLuaScripts: not implemented");
+  const [
+    presenceSha,
+    activationSha,
+    atomicUpdateSha,
+    cleanupSha,
+    lockReleaseSha,
+    clientSyncSha,
+  ] = (await Promise.all([
+    redis.script("LOAD", PRESENCE_TRACKING_SCRIPT),
+    redis.script("LOAD", PAGE_ACTIVATION_SCRIPT),
+    redis.script("LOAD", ATOMIC_PAGE_UPDATE_SCRIPT),
+    redis.script("LOAD", UNSUBSCRIBE_CLEANUP_SCRIPT),
+    redis.script("LOAD", SNAPSHOT_LOCK_RELEASE_SCRIPT),
+    redis.script("LOAD", CLIENT_SYNC_SCRIPT),
+  ])) as string[];
+
+  return {
+    presenceSha,
+    activationSha,
+    atomicUpdateSha,
+    cleanupSha,
+    lockReleaseSha,
+    clientSyncSha,
+  };
 };

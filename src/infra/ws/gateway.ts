@@ -2,7 +2,7 @@ import { Context } from "hono";
 import { createLogger } from "../../shared/lib/logger";
 
 import { Server, ServerWebSocket } from "bun";
-import { ChatWebSocket, WSSocketData } from "./types";
+import { WSSocketData } from "./types";
 import { wsRegistry } from "./subscription-registry";
 import { wsRouter } from "./router";
 import { db } from "../db";

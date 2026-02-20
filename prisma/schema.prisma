@@ -53,8 +53,10 @@ model User {
   messageReactions MessageReaction[]
   meetParticipants MeetParticipant[]
 
-  authoredPages Page[]
-  uploadedFiles VaultFile[]
+  createdPages       Page[]             @relation("CreatedPages")
+  lockedPages        Page[]             @relation("PageLockHolder")
+  pageCollaborations PageCollaborator[] @relation("PageCollaborations")
+  uploadedFiles      VaultFile[]
 
   createdWhiteboards       Whiteboard[]             @relation("CreatedWhiteboards")
   whiteboardCollaborations WhiteboardCollaborator[] @relation("BoardCollaborators")
@@ -293,33 +295,73 @@ model ProjectMember {
   @@map("project_members")
 }
 
+enum PageCollaboratorRole {
+  EDITOR
+  VIEWER
+}
+
 model Page {
-  id            String  @id @default(cuid())
-  workspaceId   String  @map("workspace_id")
-  projectId     String  @map("project_id")
-  parentPageId  String? @map("parent_page_id")
+  id           String  @id @default(cuid())
+  workspaceId  String  @map("workspace_id")
+  projectId    String  @map("project_id")
+  parentPageId String? @map("parent_page_id")
+
+  // ── Content ──────────────────────────────────────────────────────────────
   title         String  @default("Untitled")
   emojiIcon     String? @map("emoji_icon")
   coverImageUrl String? @map("cover_image_url")
-  isLocked      Boolean @default(false) @map("is_locked")
 
-  contentS3Key   String? @map("content_s3_key")
-  contentVersion Int     @default(1) @map("content_version")
+  // ── Yjs Snapshot (mirrors Whiteboard) ────────────────────────────────────
+  s3Key                String?   @map("s3_key")
+  lastSnapshotStreamId String?   @map("last_snapshot_stream_id") @db.VarChar(50)
+  lastSnapshotAt       DateTime? @map("last_snapshot_at")
 
-  authorUserId String? @map("author_user_id")
+  // ── State & Lifecycle ─────────────────────────────────────────────────────
+  isLocked   Boolean @default(false) @map("is_locked")
+  lockedBy   String? @map("locked_by")
+  isArchived Boolean @default(false) @map("is_archived")
 
+  // ── Ordering (fractional indexing for sidebar tree) ───────────────────────
+  position Float @default(0) @map("position")
+
+  // ── Ownership & Timestamps ───────────────────────────────────────────────
+  createdBy String    @map("created_by")
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  author    User?     @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+  // ── Relations ────────────────────────────────────────────────────────────
+  workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator    User      @relation("CreatedPages", fields: [createdBy], references: [id])
+  lockHolder User?     @relation("PageLockHolder", fields: [lockedBy], references: [id], onDelete: SetNull)
 
   parentPage Page?  @relation("PageHierarchy", fields: [parentPageId], references: [id])
   childPages Page[] @relation("PageHierarchy")
 
+  collaborators PageCollaborator[]
+
+  @@index([projectId, position])
+  @@index([projectId, parentPageId])
+  @@index([createdBy])
+  @@index([updatedAt(sort: Desc)])
   @@map("pages")
+}
+
+model PageCollaborator {
+  id     String               @id @default(cuid())
+  pageId String               @map("page_id")
+  userId String               @map("user_id")
+  role   PageCollaboratorRole @default(VIEWER) @map("role")
+
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  user User @relation("PageCollaborations", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([pageId, userId])
+  @@index([userId])
+  @@map("page_collaborators")
 }
 
 model VaultFolder {

@@ -2,6 +2,8 @@
  * Stream Worker Types — shared type definitions for the worker loop.
  */
 
+import { Y } from "@/shared/yjs";
+
 /** A single raw entry from XREADGROUP (Redis stream entry) */
 export interface RawStreamEntry {
   id: string;
@@ -16,7 +18,7 @@ export interface RawStreamEntry {
 /** Result of applying a batch of updates to a Y.Doc */
 export interface PageUpdateResult {
   pageId: string;
-  doc: import("yjs").Doc;
+  doc: Y.Doc;
   updateCount: number;
   latestStreamId: string;
 }
