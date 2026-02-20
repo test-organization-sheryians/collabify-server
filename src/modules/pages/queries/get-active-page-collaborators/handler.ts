@@ -9,12 +9,9 @@ const logger = createLogger("pages:queries:get-active-page-collaborators");
 /**
  * getActivePageCollaborators handler — live presence from Redis ZSET.
  *
- * NOTE: DataLoaders are per-GraphQL-request; WebSocket handlers use ctx.db.user.findMany directly.
- * This handler uses ctx.dataloaders.page.userById for N+1 prevention (same pattern as whiteboard).
- *
  * Workflow:
  * 1. Auth + access check
- * 2. ZRANGEBYSCORE on PageSubscribers ZSET
+ * 2. ZRANGE on PageSubscribers ZSET
  * 3. Batch user lookup via DataLoader
  * 4. Return joined result
  */
@@ -27,22 +24,46 @@ export const getActivePageCollaboratorsHandler = async (
 
   try {
     // Step 1 — Access check
-    // TODO: const collab = await ctx.db.pageCollaborator.findUnique({ where: { pageId: input.pageId, userId } })
-    // if (!collab) throw AppError.forbidden("Not a collaborator on this page")
+    const collab = await ctx.db.pageCollaborator.findUnique({
+      where: { pageId_userId: { pageId: input.pageId, userId } },
+    });
+    if (!collab) throw AppError.forbidden("Not a collaborator on this page");
 
     // Step 2 — Redis ZSET presence
-    // TODO: const activeIds = await ctx.redis.zrange(PageKeys.PageSubscribers(input.pageId), 0, -1)
+    const activeIds = await ctx.redis.zrange(
+      PageKeys.PageSubscribers(input.pageId),
+      0,
+      -1
+    );
 
-    // Step 3 — Batch user lookup (DataLoader, not direct DB — we're in a GraphQL request)
-    // TODO: const users = await Promise.all(activeIds.map(id => ctx.dataloaders.page.userById.load(id)))
+    if (activeIds.length === 0) return [];
+
+    // Step 3 — Batch user lookup directly from DB
+    // (DataLoaders are for field resolvers only — query handlers use ctx.db directly)
+    const users = await ctx.db.user.findMany({
+      where: { id: { in: activeIds } },
+      select: { id: true, fullName: true, email: true, avatarUrl: true },
+    });
+    const userMap = new Map(users.map((u) => [u.id, u]));
 
     // Step 4 — Join + return
-    // TODO: return activeIds.map((id, i) => ({ userId: id, user: users[i] }))
-
-    throw new AppError(
-      "getActivePageCollaborators: not yet implemented",
-      "INTERNAL_SERVER_ERROR"
-    );
+    return activeIds
+      .map((id) => {
+        const user = userMap.get(id);
+        if (!user) return null;
+        return {
+          userId: id,
+          role: "VIEWER" as const, // presence doesn't carry role — default to VIEWER
+          joinedAt: new Date().toISOString(),
+          user: {
+            id: user.id,
+            fullName: user.fullName ?? "",
+            email: user.email,
+            avatarUrl: user.avatarUrl,
+          },
+        };
+      })
+      .filter(Boolean);
   } catch (error: unknown) {
     if (error instanceof AppError) throw error;
     logger.error("Failed to get active collaborators", {

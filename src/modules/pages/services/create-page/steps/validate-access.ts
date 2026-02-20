@@ -1,0 +1,50 @@
+/**
+ * Step: Validate Access
+ *
+ * Checks 3 things before any write happens:
+ * 1. User is a workspace member
+ * 2. Project belongs to the workspace
+ * 3. Parent page (if provided) belongs to the same project
+ *
+ * All 3 checks throw AppError on failure — validated before the DB transaction opens.
+ */
+
+import { AppError } from "@/shared/errors";
+import type { ServiceContext } from "@/graphql/types";
+import type { CreatePageInput } from "../schema";
+
+export async function validateAccess(
+  input: CreatePageInput,
+  ctx: ServiceContext,
+  userId: string
+): Promise<void> {
+  // 1 — Workspace membership
+  const member = await ctx.db.workspaceMember.findUnique({
+    where: { workspaceId_userId: { workspaceId: input.workspaceId, userId } },
+  });
+  if (!member)
+    throw AppError.forbidden("You are not a member of this workspace");
+
+  // 2 — Project belongs to the workspace
+  const project = await ctx.db.project.findUnique({
+    where: { id: input.projectId },
+    select: { workspaceId: true },
+  });
+  if (!project || project.workspaceId !== input.workspaceId) {
+    throw AppError.badRequest("Invalid project for this workspace");
+  }
+
+  // 3 — Parent page belongs to the same project (cross-project injection guard)
+  if (input.parentId) {
+    const parent = await ctx.db.page.findUnique({
+      where: { id: input.parentId },
+      select: { projectId: true, deletedAt: true },
+    });
+    if (!parent || parent.deletedAt !== null) {
+      throw AppError.badRequest("Parent page not found");
+    }
+    if (parent.projectId !== input.projectId) {
+      throw AppError.badRequest("Parent page belongs to a different project");
+    }
+  }
+}

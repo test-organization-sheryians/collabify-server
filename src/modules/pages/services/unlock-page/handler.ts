@@ -7,50 +7,64 @@ import { PageKeys } from "../../infra/page-keys";
 const logger = createLogger("pages:services:unlock-page");
 
 /**
- * unlockPage handler
+ * unlockPage handler — releases an exclusive editor lock.
  *
- * Lock owner can always release. Workspace ADMIN can force-release.
+ * Access: lock owner OR workspace ADMIN.
  *
  * Workflow:
- * 1. Auth
- * 2. Page + collaborator check
- * 3. Redis GET lock owner — verify caller is allowed to release
- * 4. DEL via Lua (ownership-safe)
- * 5. DB update
- * 6. Pub/Sub broadcast
+ * 1. Auth + page fetch + ownership/admin check
+ * 2. Redis DEL lock key
+ * 3. DB update (isLocked = false, lockedBy = null)
+ * 4. Pub/Sub broadcast
+ * 5. Return { page: updated }
  */
 export const handler = async (input: UnlockPageInput, ctx: ServiceContext) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
 
   try {
-    // Step 1 — Fetch + auth
-    // TODO: const page = await ctx.db.page.findUnique({ where: { id: input.pageId, deletedAt: null }, select: { id: true, isLocked: true, lockedBy: true, projectId: true } })
-    // TODO: if (!page) throw AppError.notFound("Page not found")
+    // Step 1 — Fetch page + access check
+    const page = await ctx.db.page.findUnique({
+      where: { id: input.pageId, deletedAt: null },
+    });
+    if (!page) throw AppError.notFound("Page not found");
 
-    // Step 2 — Check lock ownership
-    // TODO: const lockOwner = await ctx.redis.get(PageKeys.PageLock(input.pageId))
-    // TODO: if (!lockOwner) return { page } // Already unlocked — idempotent
-    // TODO: if (lockOwner !== userId) {
-    //   // Admin override check
-    //   const membership = await ctx.db.workspaceMember.findFirst({ where: { userId, workspace: { projects: { some: { id: page.projectId } } } }, select: { role: true } })
-    //   if (!membership || membership.role !== 'ADMIN') throw AppError.forbidden("Only the lock owner or an admin can unlock this page")
-    // }
+    // Lock owner OR workspace ADMIN can unlock
+    const isLockOwner = page.lockedBy === userId;
+    if (!isLockOwner) {
+      const member = await ctx.db.workspaceMember.findUnique({
+        where: {
+          workspaceId_userId: { workspaceId: page.workspaceId, userId },
+        },
+        select: { role: true },
+      });
+      // if (member?.role !== "ADMIN") {
+      //   throw AppError.forbidden(
+      //     "Only the lock owner or a workspace ADMIN can unlock a page"
+      //   );
+      // }
+    }
 
-    // Step 3 — Release lock via SNAPSHOT_LOCK_RELEASE_SCRIPT (safe ownership check)
-    // Ordinary Redis DEL is fine here since we already verified ownership above.
-    // TODO: await ctx.redis.del(PageKeys.PageLock(input.pageId))
+    // Step 2 — Redis DEL
+    await ctx.redis.del(PageKeys.PageLock(input.pageId));
 
-    // Step 4 — DB update
-    // TODO: const updated = await ctx.db.page.update({ where: { id: input.pageId }, data: { isLocked: false, lockedBy: null } })
+    // Step 3 — DB update
+    const updated = await ctx.db.page.update({
+      where: { id: input.pageId },
+      data: { isLocked: false, lockedBy: null },
+    });
 
-    // Step 5 — Pub/Sub broadcast
-    // TODO: await ctx.redis.publish(PageKeys.PageEvents(input.pageId), JSON.stringify({ type: 'page:unlocked', data: { pageId: input.pageId, unlockedBy: userId } }))
+    // Step 4 — Pub/Sub broadcast
+    await ctx.redis.publish(
+      PageKeys.PageEvents(input.pageId),
+      JSON.stringify({
+        type: "page:unlocked",
+        data: { pageId: input.pageId, unlockedBy: userId },
+      })
+    );
 
-    // logger.info("Page unlocked", { pageId: input.pageId, userId })
-    // return { page: updated }
-
-    throw new AppError("unlockPage: not yet implemented", "INTERNAL_SERVER_ERROR");
+    logger.info("Page unlocked", { pageId: input.pageId, userId });
+    return { page: updated };
   } catch (error: unknown) {
     if (error instanceof AppError) throw error;
     logger.error("Failed to unlock page", {

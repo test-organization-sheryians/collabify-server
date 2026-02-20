@@ -16,6 +16,10 @@ import {
   whiteboardTypeDefs,
   whiteboardResolvers,
 } from "../modules/whiteboard";
+import {
+  pageTypeDefs,
+  pageResolvers,
+} from "../modules/pages";
 
 import { ServiceContext } from "./types";
 export const schema = createSchema<ServiceContext>({
@@ -42,6 +46,7 @@ export const schema = createSchema<ServiceContext>({
     projectTypeDefs,
     chatTypeDefs,
     ...whiteboardTypeDefs,
+    ...pageTypeDefs,
   ],
   resolvers: [
     {
@@ -57,5 +62,6 @@ export const schema = createSchema<ServiceContext>({
     projectResolvers,
     chatResolvers,
     whiteboardResolvers,
+    pageResolvers,
   ],
 });

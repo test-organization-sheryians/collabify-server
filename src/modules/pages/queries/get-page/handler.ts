@@ -23,22 +23,26 @@ export const getPageHandler = async (
 
   try {
     // Step 1 — Fetch page
-    // TODO: const page = await ctx.db.page.findFirst({
-    //   where: { id: input.pageId, deletedAt: null },
-    // })
-    // if (!page) throw AppError.notFound("Page not found")
+    const page = await ctx.db.page.findFirst({
+      where: { id: input.pageId, deletedAt: null },
+    });
+    if (!page) throw AppError.notFound("Page not found");
 
     // Step 2 — Access check (page collaborator OR workspace member)
-    // TODO: const collab = await ctx.db.pageCollaborator.findUnique({ where: { pageId: input.pageId, userId } })
-    // if (!collab) {
-    //   const member = await ctx.db.workspaceMember.findFirst({ where: { userId, workspace: { projects: { some: { id: page.projectId } } } } })
-    //   if (!member) throw AppError.forbidden("You do not have access to this page")
-    // }
+    const collab = await ctx.db.pageCollaborator.findUnique({
+      where: { pageId_userId: { pageId: input.pageId, userId } },
+    });
+    if (!collab) {
+      const member = await ctx.db.workspaceMember.findUnique({
+        where: {
+          workspaceId_userId: { workspaceId: page.workspaceId, userId },
+        },
+      });
+      if (!member)
+        throw AppError.forbidden("You do not have access to this page");
+    }
 
-    // Step 3 — Return (resolver applies toGraphQLPage mapper)
-    // return page
-
-    throw new AppError("getPage: not yet implemented", "INTERNAL_SERVER_ERROR");
+    return page;
   } catch (error: unknown) {
     if (error instanceof AppError) throw error;
     logger.error("Failed to get page", {

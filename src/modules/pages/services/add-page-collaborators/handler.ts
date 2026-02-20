@@ -6,14 +6,13 @@ import type { AddPageCollaboratorsInput } from "./schema";
 const logger = createLogger("pages:services:add-page-collaborators");
 
 /**
- * addPageCollaborators handler (upsert semantics)
+ * addPageCollaborators handler — upsert-semantics (invite + role changes).
  *
  * Workflow:
- * 1. Auth
- * 2. Page + EDITOR check
- * 3. Validate each userId is a workspace member
- * 4. Upsert PageCollaborator rows (createMany skipDuplicates)
- * 5. Return created/updated collaborators
+ * 1. Auth + EDITOR check on the page
+ * 2. Validate all target userIds exist
+ * 3. createMany with skipDuplicates=false (upsert via loop for role update semantics)
+ * 4. Return { addedCollaborators }
  */
 export const handler = async (
   input: AddPageCollaboratorsInput,
@@ -23,31 +22,62 @@ export const handler = async (
   if (!userId) throw AppError.unauthorized("User not authenticated");
 
   try {
-    // Step 1 — Fetch page + auth
-    // TODO: const page = await ctx.db.page.findUnique({ where: { id: input.pageId, deletedAt: null }, select: { id: true, project: { select: { workspaceId: true } } } })
-    // TODO: if (!page) throw AppError.notFound("Page not found")
-    // TODO: const collab = await ctx.db.pageCollaborator.findUnique({ where: { pageId: input.pageId, userId } })
-    // TODO: if (!collab || collab.role !== 'EDITOR') throw AppError.forbidden("Only editors can manage collaborators")
+    // Step 1 — Access check
+    const page = await ctx.db.page.findUnique({
+      where: { id: input.pageId, deletedAt: null },
+    });
+    if (!page) throw AppError.notFound("Page not found");
 
-    // Step 2 — Validate all collaborators are workspace members
-    // TODO: const unique = [...new Set(input.collaborators.map(c => c.userId))]
-    // TODO: const members = await ctx.db.workspaceMember.findMany({ where: { workspaceId: page.project.workspaceId, userId: { in: unique } }, select: { userId: true } })
-    // TODO: const validUserIds = new Set(members.map(m => m.userId))
-    // Log warning for any invalid users (graceful degradation — match whiteboard pattern)
+    const callerCollab = await ctx.db.pageCollaborator.findUnique({
+      where: { pageId_userId: { pageId: input.pageId, userId } },
+    });
+    if (!callerCollab || callerCollab.role !== "EDITOR") {
+      throw AppError.forbidden("Only editors can manage collaborators");
+    }
 
-    // Step 3 — Upsert (createMany + skipDuplicates)
-    // TODO: await ctx.db.pageCollaborator.createMany({ data: input.collaborators.filter(c => validUserIds.has(c.userId)).map(c => ({ pageId: input.pageId, userId: c.userId, role: c.role })), skipDuplicates: true })
+    // Step 2 — Validate target users exist
+    const targetIds = input.collaborators.map((c) => c.userId);
+    const existingUsers = await ctx.db.user.findMany({
+      where: { id: { in: targetIds } },
+      select: { id: true },
+    });
+    const foundIds = new Set(existingUsers.map((u) => u.id));
+    const missing = targetIds.filter((id) => !foundIds.has(id));
+    if (missing.length > 0) {
+      throw AppError.notFound(`Users not found: ${missing.join(", ")}`);
+    }
 
-    // Step 4 — Fetch created collaborators for response
-    // TODO: const added = await ctx.db.pageCollaborator.findMany({ where: { pageId: input.pageId, userId: { in: [...validUserIds] } }, include: { user: { select: { id: true, email: true, fullName: true, avatarUrl: true } } } })
-
-    // logger.info("Collaborators added", { pageId: input.pageId, count: added.length, userId })
-    // return { addedCollaborators: added }
-
-    throw new AppError(
-      "addPageCollaborators: not yet implemented",
-      "INTERNAL_SERVER_ERROR"
+    // Step 3 — Upsert collaborators (update role if already exists)
+    const upserted = await Promise.all(
+      input.collaborators.map((c) =>
+        ctx.db.pageCollaborator.upsert({
+          where: { pageId_userId: { pageId: input.pageId, userId: c.userId } },
+          create: {
+            pageId: input.pageId,
+            userId: c.userId,
+            role: c.role as any,
+          },
+          update: { role: c.role as any },
+          include: {
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        })
+      )
     );
+
+    logger.info("Collaborators added/updated", {
+      pageId: input.pageId,
+      count: upserted.length,
+      userId,
+    });
+    return { addedCollaborators: upserted };
   } catch (error: unknown) {
     if (error instanceof AppError) throw error;
     logger.error("Failed to add collaborators", {
@@ -55,6 +85,6 @@ export const handler = async (
       userId,
       pageId: input.pageId,
     });
-    throw new AppError("Failed to add collaborators");
+    throw new AppError("Failed to add page collaborators");
   }
 };

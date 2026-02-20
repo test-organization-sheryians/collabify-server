@@ -1,5 +1,6 @@
 import { GraphQLResolveInfo, GraphQLScalarType, GraphQLScalarTypeConfig } from 'graphql';
 import { Project as PrismaProject, ProjectMember as PrismaProjectMember, User as PrismaUser, Workspace as PrismaWorkspace, WorkspaceMember as PrismaWorkspaceMember, Notification as PrismaNotification, ChatMember as PrismaChatMember, ChatMessage as PrismaChatMessage } from '@prisma/client';
+import { GraphQLPagePartial } from '../modules/pages/graphql/mappers';
 import { ServiceContext } from './types';
 export type Maybe<T> = T | null;
 export type InputMaybe<T> = Maybe<T>;
@@ -61,8 +62,27 @@ export type AddGroupMembersResult = {
   success: Scalars['Boolean']['output'];
 };
 
+export type AddPageCollaboratorsInput = {
+  collaborators: Array<PageCollaboratorInput>;
+  pageId: Scalars['ID']['input'];
+};
+
+export type AddPageCollaboratorsResult = {
+  __typename?: 'AddPageCollaboratorsResult';
+  addedCollaborators: Array<PageCollaborator>;
+};
+
 export type ArchiveChannelInput = {
   channelId: Scalars['ID']['input'];
+};
+
+export type ArchivePageInput = {
+  pageId: Scalars['ID']['input'];
+};
+
+export type ArchivePageResult = {
+  __typename?: 'ArchivePageResult';
+  page: Page;
 };
 
 export type AvailabilityResponse = {
@@ -238,6 +258,24 @@ export type CreateGroupInput = {
   workspaceId: Scalars['ID']['input'];
 };
 
+export type CreatePageInput = {
+  collaboratorIds?: InputMaybe<Array<Scalars['ID']['input']>>;
+  coverUrl?: InputMaybe<Scalars['String']['input']>;
+  icon?: InputMaybe<Scalars['String']['input']>;
+  /** null = root-level page */
+  parentId?: InputMaybe<Scalars['ID']['input']>;
+  /** Fractional index position for sibling ordering */
+  position: Scalars['Float']['input'];
+  projectId: Scalars['ID']['input'];
+  title?: InputMaybe<Scalars['String']['input']>;
+  workspaceId: Scalars['ID']['input'];
+};
+
+export type CreatePageResult = {
+  __typename?: 'CreatePageResult';
+  page: Page;
+};
+
 export type CreateProjectInput = {
   description?: InputMaybe<Scalars['String']['input']>;
   name: Scalars['String']['input'];
@@ -281,6 +319,17 @@ export type DeleteGroupResult = {
   success: Scalars['Boolean']['output'];
 };
 
+export type DeletePageInput = {
+  pageId: Scalars['ID']['input'];
+  workspaceId: Scalars['ID']['input'];
+};
+
+export type DeletePageResult = {
+  __typename?: 'DeletePageResult';
+  pageId: Scalars['ID']['output'];
+  success: Scalars['Boolean']['output'];
+};
+
 export type DeleteThreadResult = {
   __typename?: 'DeleteThreadResult';
   success: Scalars['Boolean']['output'];
@@ -303,6 +352,18 @@ export type DmMember = {
   __typename?: 'DmMember';
   user: UserBasic;
   userId: Scalars['ID']['output'];
+};
+
+/** Returned by getPageSnapshot — everything the client needs to initialise the Y.Doc */
+export type GetPageSnapshotResult = {
+  __typename?: 'GetPageSnapshotResult';
+  /** Last Redis Stream entry ID processed into this snapshot — used for gap-fill on subscribe */
+  lastStreamId: Scalars['String']['output'];
+  pageId: Scalars['ID']['output'];
+  /** base64-encoded Y.encodeStateAsUpdate() — apply on client with Y.applyUpdate() */
+  snapshot: Scalars['String']['output'];
+  /** Unix timestamp (ms) of when this snapshot was compiled */
+  snapshotTimestamp: Scalars['Float']['output'];
 };
 
 export type GroupMemberInfo = {
@@ -351,6 +412,15 @@ export type LeaveGroupResult = {
   success: Scalars['Boolean']['output'];
 };
 
+export type LockPageInput = {
+  pageId: Scalars['ID']['input'];
+};
+
+export type LockPageResult = {
+  __typename?: 'LockPageResult';
+  page: Page;
+};
+
 export type MessageReaction = {
   __typename?: 'MessageReaction';
   count: Scalars['Int']['output'];
@@ -373,8 +443,12 @@ export type Mutation = {
   addBoardCollaborators: AddBoardCollaboratorsResult;
   addChannelMembers: AddChannelMembersResult;
   addGroupMembers: AddGroupMembersResult;
+  /** Upsert-semantics: can be used for both inviting and changing roles. */
+  addPageCollaborators: AddPageCollaboratorsResult;
   archiveBoard: Whiteboard;
   archiveChannel: Conversation;
+  /** Archives a page and all its descendants. */
+  archivePage: ArchivePageResult;
   checkChannelAvailability: ChannelAvailabilityResponse;
   checkProjectSlugAvailability: AvailabilityResponse;
   checkSlugAvailability: AvailabilityResponse;
@@ -384,6 +458,11 @@ export type Mutation = {
   createDm: Conversation;
   createGroup: Conversation;
   createOnboardingWorkspace: Workspace;
+  /**
+   * Creates a new page in a project. Initialises Y.Doc and uploads initial snapshot to S3.
+   * The calling user is automatically added as an EDITOR collaborator.
+   */
+  createPage: CreatePageResult;
   createProject: Project;
   createThread: Conversation;
   createWorkspace: Workspace;
@@ -391,10 +470,21 @@ export type Mutation = {
   deleteChannel: DeleteChannelResult;
   deleteDm: DeleteDmResult;
   deleteGroup: DeleteGroupResult;
+  /**
+   * Soft-deletes a page. Fails with 409 if the page has active subscribers.
+   * Does not cascade to child pages — handle descendants explicitly first.
+   */
+  deletePage: DeletePageResult;
   deleteThread: DeleteThreadResult;
   inviteToWorkspace: InviteResponse;
   leaveGroup: LeaveGroupResult;
   lockBoard: Whiteboard;
+  /**
+   * Acquires an exclusive editor lock on the page.
+   * Returns 423 if another user currently holds the lock.
+   * Lock auto-releases after 1 hour (safety net for crashed clients).
+   */
+  lockPage: LockPageResult;
   /** Mark all notifications as read. */
   markAllNotificationsRead: Scalars['Boolean']['output'];
   /** Mark specific notifications as read. */
@@ -403,16 +493,31 @@ export type Mutation = {
   removeBoardCollaborator: RemoveBoardCollaboratorResult;
   removeChannelMember: RemoveChannelMemberResult;
   removeGroupMember: RemoveGroupMemberResult;
+  /** Cannot remove the page creator. */
+  removePageCollaborator: RemovePageCollaboratorResult;
   removeWorkspaceMember: InviteResponse;
   renameBoard: Whiteboard;
   renameChannel: Conversation;
   renameGroup: RenameGroupResult;
+  renamePage: RenamePageResult;
   reopenThread: ReopenThreadResult;
+  /**
+   * Moves a page to a new position (and optionally a new parent).
+   * Validate no circular nesting before calling (circular guard runs server-side too).
+   */
+  reorderPage: ReorderPageResult;
   subscribeThread: SubscribeThreadResult;
   syncUser: User;
   unarchiveBoard: Whiteboard;
   unarchiveChannel: UnarchiveChannelResult;
+  /**
+   * Unarchives a page. Fails if the parent is still archived.
+   * Child pages are NOT automatically unarchived — handle each explicitly.
+   */
+  unarchivePage: UnarchivePageResult;
   unlockBoard: Whiteboard;
+  /** Lock owner or workspace ADMIN can unlock. */
+  unlockPage: UnlockPageResult;
   unsubscribeThread: UnsubscribeThreadResult;
   updateBoardDescription: Whiteboard;
   updateChannelDescription: UpdateChannelDescriptionResult;
@@ -446,6 +551,11 @@ export type MutationAddGroupMembersArgs = {
 };
 
 
+export type MutationAddPageCollaboratorsArgs = {
+  input: AddPageCollaboratorsInput;
+};
+
+
 export type MutationArchiveBoardArgs = {
   boardId: Scalars['ID']['input'];
 };
@@ -453,6 +563,11 @@ export type MutationArchiveBoardArgs = {
 
 export type MutationArchiveChannelArgs = {
   input: ArchiveChannelInput;
+};
+
+
+export type MutationArchivePageArgs = {
+  input: ArchivePageInput;
 };
 
 
@@ -498,6 +613,11 @@ export type MutationCreateGroupArgs = {
 };
 
 
+export type MutationCreatePageArgs = {
+  input: CreatePageInput;
+};
+
+
 export type MutationCreateProjectArgs = {
   input: CreateProjectInput;
   workspaceId: Scalars['ID']['input'];
@@ -538,6 +658,11 @@ export type MutationDeleteGroupArgs = {
 };
 
 
+export type MutationDeletePageArgs = {
+  input: DeletePageInput;
+};
+
+
 export type MutationDeleteThreadArgs = {
   threadId: Scalars['ID']['input'];
   workspaceId: Scalars['ID']['input'];
@@ -557,6 +682,11 @@ export type MutationLeaveGroupArgs = {
 
 export type MutationLockBoardArgs = {
   boardId: Scalars['ID']['input'];
+};
+
+
+export type MutationLockPageArgs = {
+  input: LockPageInput;
 };
 
 
@@ -591,6 +721,11 @@ export type MutationRemoveGroupMemberArgs = {
 };
 
 
+export type MutationRemovePageCollaboratorArgs = {
+  input: RemovePageCollaboratorInput;
+};
+
+
 export type MutationRemoveWorkspaceMemberArgs = {
   memberId: Scalars['ID']['input'];
   workspaceId: Scalars['ID']['input'];
@@ -615,9 +750,19 @@ export type MutationRenameGroupArgs = {
 };
 
 
+export type MutationRenamePageArgs = {
+  input: RenamePageInput;
+};
+
+
 export type MutationReopenThreadArgs = {
   threadId: Scalars['ID']['input'];
   workspaceId: Scalars['ID']['input'];
+};
+
+
+export type MutationReorderPageArgs = {
+  input: ReorderPageInput;
 };
 
 
@@ -646,8 +791,18 @@ export type MutationUnarchiveChannelArgs = {
 };
 
 
+export type MutationUnarchivePageArgs = {
+  input: UnarchivePageInput;
+};
+
+
 export type MutationUnlockBoardArgs = {
   boardId: Scalars['ID']['input'];
+};
+
+
+export type MutationUnlockPageArgs = {
+  input: UnlockPageInput;
 };
 
 
@@ -729,10 +884,47 @@ export type OnboardingStatus = {
   workspaceSlug?: Maybe<Scalars['String']['output']>;
 };
 
+/**
+ * A collaborative document page within a project.
+ * The Y.Doc content is synced via WebSocket and accessed via getPageSnapshot.
+ */
 export type Page = {
   __typename?: 'Page';
+  /** Populated only by getProjectPages — empty in all other contexts */
+  children: Array<Page>;
+  collaborators: Array<PageCollaborator>;
+  coverUrl?: Maybe<Scalars['String']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  createdBy: Scalars['ID']['output'];
+  creator: UserBasic;
+  /** Emoji or absolute URL for the page icon */
+  icon?: Maybe<Scalars['String']['output']>;
   id: Scalars['ID']['output'];
+  isArchived: Scalars['Boolean']['output'];
+  isLocked: Scalars['Boolean']['output'];
+  /** null = root-level page (no parent) */
+  parentId?: Maybe<Scalars['ID']['output']>;
+  /** Fractional index position for ordering within parent (e.g., 1.5 between 1.0 and 2.0) */
+  position: Scalars['Float']['output'];
+  projectId: Scalars['ID']['output'];
+  /** S3 key for the latest compiled Yjs snapshot (disaster recovery reference) */
+  s3Key?: Maybe<Scalars['String']['output']>;
   title: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  workspaceId: Scalars['ID']['output'];
+};
+
+export type PageCollaborator = {
+  __typename?: 'PageCollaborator';
+  joinedAt: Scalars['DateTime']['output'];
+  role: PageRole;
+  user: UserBasic;
+  userId: Scalars['ID']['output'];
+};
+
+export type PageCollaboratorInput = {
+  role: PageRole;
+  userId: Scalars['ID']['input'];
 };
 
 export type PageInfo = {
@@ -740,6 +932,12 @@ export type PageInfo = {
   endCursor?: Maybe<Scalars['String']['output']>;
   hasNextPage: Scalars['Boolean']['output'];
 };
+
+export enum PageRole {
+  Commenter = 'COMMENTER',
+  Editor = 'EDITOR',
+  Viewer = 'VIEWER'
+}
 
 export enum PresenceStatus {
   Away = 'AWAY',
@@ -774,6 +972,8 @@ export type Query = {
   __typename?: 'Query';
   activeCollaborators: Array<ActiveCollaborator>;
   boardCollaborators: Array<BoardCollaborator>;
+  /** Live presence from Redis ZSET (not DB). Reflects current editing sessions. */
+  getActivePageCollaborators: Array<PageCollaborator>;
   getBoard?: Maybe<Whiteboard>;
   getBoardSnapshot: BoardSnapshot;
   getChannelMembers: Array<ChatMemberRecord>;
@@ -783,6 +983,21 @@ export type Query = {
   getMessageById?: Maybe<ChatMessage>;
   getMessagesAfterCursor: Array<ChatMessage>;
   getMissingMessages: Array<ChatMessage>;
+  /** Fetch page metadata. Use getPageSnapshot for Y.Doc content. */
+  getPage: Page;
+  /** DB collaborator list (authoritative). For real-time presence, use getActivePageCollaborators. */
+  getPageCollaborators: Array<PageCollaborator>;
+  /**
+   * Returns the current authoritative Y.Doc snapshot + lastStreamId for gap-fill.
+   *
+   * If 'clientSnapshot' is provided, the server merges it (offline sync) and writes
+   * the client's delta back to the Redis stream before returning.
+   *
+   * Called once on page open. After this, the client switches to WS stream consumption.
+   */
+  getPageSnapshot: GetPageSnapshotResult;
+  /** Returns the full nested page tree for a project (non-archived, non-deleted). */
+  getProjectPages: Array<Page>;
   getReadReceipts: ReadReceiptsResponse;
   getThreadMessages: Array<ChatMessage>;
   getUnreadCounts: UnreadCountsResponse;
@@ -818,6 +1033,11 @@ export type QueryActiveCollaboratorsArgs = {
 
 export type QueryBoardCollaboratorsArgs = {
   boardId: Scalars['ID']['input'];
+};
+
+
+export type QueryGetActivePageCollaboratorsArgs = {
+  pageId: Scalars['ID']['input'];
 };
 
 
@@ -872,6 +1092,27 @@ export type QueryGetMissingMessagesArgs = {
   channelId: Scalars['ID']['input'];
   rangeEnd: Scalars['ID']['input'];
   rangeStart: Scalars['ID']['input'];
+};
+
+
+export type QueryGetPageArgs = {
+  pageId: Scalars['ID']['input'];
+};
+
+
+export type QueryGetPageCollaboratorsArgs = {
+  pageId: Scalars['ID']['input'];
+};
+
+
+export type QueryGetPageSnapshotArgs = {
+  clientSnapshot?: InputMaybe<Scalars['String']['input']>;
+  pageId: Scalars['ID']['input'];
+};
+
+
+export type QueryGetProjectPagesArgs = {
+  projectId: Scalars['ID']['input'];
 };
 
 
@@ -1026,6 +1267,16 @@ export type RemoveGroupMemberResult = {
   userId: Scalars['ID']['output'];
 };
 
+export type RemovePageCollaboratorInput = {
+  pageId: Scalars['ID']['input'];
+  userId: Scalars['ID']['input'];
+};
+
+export type RemovePageCollaboratorResult = {
+  __typename?: 'RemovePageCollaboratorResult';
+  success: Scalars['Boolean']['output'];
+};
+
 export type RenameChannelInput = {
   channelId: Scalars['ID']['input'];
   name: Scalars['String']['input'];
@@ -1038,10 +1289,32 @@ export type RenameGroupResult = {
   success: Scalars['Boolean']['output'];
 };
 
+export type RenamePageInput = {
+  pageId: Scalars['ID']['input'];
+  title: Scalars['String']['input'];
+};
+
+export type RenamePageResult = {
+  __typename?: 'RenamePageResult';
+  page: Page;
+};
+
 export type ReopenThreadResult = {
   __typename?: 'ReopenThreadResult';
   success: Scalars['Boolean']['output'];
   threadId: Scalars['ID']['output'];
+};
+
+export type ReorderPageInput = {
+  /** null = move to root (remove from parent) */
+  newParentId?: InputMaybe<Scalars['ID']['input']>;
+  newPosition: Scalars['Float']['input'];
+  pageId: Scalars['ID']['input'];
+};
+
+export type ReorderPageResult = {
+  __typename?: 'ReorderPageResult';
+  page: Page;
 };
 
 export type SubscribeThreadResult = {
@@ -1063,6 +1336,24 @@ export type UnarchiveChannelResult = {
   channelId: Scalars['ID']['output'];
   name: Scalars['String']['output'];
   success: Scalars['Boolean']['output'];
+};
+
+export type UnarchivePageInput = {
+  pageId: Scalars['ID']['input'];
+};
+
+export type UnarchivePageResult = {
+  __typename?: 'UnarchivePageResult';
+  page: Page;
+};
+
+export type UnlockPageInput = {
+  pageId: Scalars['ID']['input'];
+};
+
+export type UnlockPageResult = {
+  __typename?: 'UnlockPageResult';
+  page: Page;
 };
 
 export type UnreadCountsResponse = {
@@ -1241,7 +1532,11 @@ export type ResolversTypes = ResolversObject<{
   AddBoardCollaboratorsResult: ResolverTypeWrapper<AddBoardCollaboratorsResult>;
   AddChannelMembersResult: ResolverTypeWrapper<AddChannelMembersResult>;
   AddGroupMembersResult: ResolverTypeWrapper<AddGroupMembersResult>;
+  AddPageCollaboratorsInput: AddPageCollaboratorsInput;
+  AddPageCollaboratorsResult: ResolverTypeWrapper<AddPageCollaboratorsResult>;
   ArchiveChannelInput: ArchiveChannelInput;
+  ArchivePageInput: ArchivePageInput;
+  ArchivePageResult: ResolverTypeWrapper<Omit<ArchivePageResult, 'page'> & { page: ResolversTypes['Page'] }>;
   AvailabilityResponse: ResolverTypeWrapper<AvailabilityResponse>;
   BoardCollaborator: ResolverTypeWrapper<BoardCollaborator>;
   BoardConnection: ResolverTypeWrapper<BoardConnection>;
@@ -1263,6 +1558,8 @@ export type ResolversTypes = ResolversObject<{
   CreateChannelInput: CreateChannelInput;
   CreateDmInput: CreateDmInput;
   CreateGroupInput: CreateGroupInput;
+  CreatePageInput: CreatePageInput;
+  CreatePageResult: ResolverTypeWrapper<Omit<CreatePageResult, 'page'> & { page: ResolversTypes['Page'] }>;
   CreateProjectInput: CreateProjectInput;
   CreateThreadInput: CreateThreadInput;
   CursorPosition: ResolverTypeWrapper<CursorPosition>;
@@ -1271,10 +1568,13 @@ export type ResolversTypes = ResolversObject<{
   DeleteChannelResult: ResolverTypeWrapper<DeleteChannelResult>;
   DeleteDmResult: ResolverTypeWrapper<DeleteDmResult>;
   DeleteGroupResult: ResolverTypeWrapper<DeleteGroupResult>;
+  DeletePageInput: DeletePageInput;
+  DeletePageResult: ResolverTypeWrapper<DeletePageResult>;
   DeleteThreadResult: ResolverTypeWrapper<DeleteThreadResult>;
   DmConversation: ResolverTypeWrapper<DmConversation>;
   DmMember: ResolverTypeWrapper<DmMember>;
   Float: ResolverTypeWrapper<Scalars['Float']['output']>;
+  GetPageSnapshotResult: ResolverTypeWrapper<GetPageSnapshotResult>;
   GroupMemberInfo: ResolverTypeWrapper<GroupMemberInfo>;
   HistoryPayload: ResolverTypeWrapper<Omit<HistoryPayload, 'messages'> & { messages: Array<ResolversTypes['ChatMessage']> }>;
   ID: ResolverTypeWrapper<Scalars['ID']['output']>;
@@ -1285,6 +1585,8 @@ export type ResolversTypes = ResolversObject<{
   JoinResponse: ResolverTypeWrapper<JoinResponse>;
   LastMessagePreview: ResolverTypeWrapper<LastMessagePreview>;
   LeaveGroupResult: ResolverTypeWrapper<LeaveGroupResult>;
+  LockPageInput: LockPageInput;
+  LockPageResult: ResolverTypeWrapper<Omit<LockPageResult, 'page'> & { page: ResolversTypes['Page'] }>;
   MessageReaction: ResolverTypeWrapper<Omit<MessageReaction, 'recentUsers'> & { recentUsers: Array<ResolversTypes['User']> }>;
   MessagesDelta: ResolverTypeWrapper<Omit<MessagesDelta, 'messages'> & { messages: Array<ResolversTypes['ChatMessage']> }>;
   Mutation: ResolverTypeWrapper<Record<PropertyKey, never>>;
@@ -1293,8 +1595,11 @@ export type ResolversTypes = ResolversObject<{
   NotificationConnection: ResolverTypeWrapper<Omit<NotificationConnection, 'edges'> & { edges: Array<ResolversTypes['NotificationEdge']> }>;
   NotificationEdge: ResolverTypeWrapper<Omit<NotificationEdge, 'node'> & { node: ResolversTypes['Notification'] }>;
   OnboardingStatus: ResolverTypeWrapper<OnboardingStatus>;
-  Page: ResolverTypeWrapper<Page>;
+  Page: ResolverTypeWrapper<GraphQLPagePartial>;
+  PageCollaborator: ResolverTypeWrapper<PageCollaborator>;
+  PageCollaboratorInput: PageCollaboratorInput;
   PageInfo: ResolverTypeWrapper<PageInfo>;
+  PageRole: PageRole;
   PresenceStatus: PresenceStatus;
   Project: ResolverTypeWrapper<PrismaProject>;
   ProjectMember: ResolverTypeWrapper<PrismaProjectMember>;
@@ -1305,13 +1610,23 @@ export type ResolversTypes = ResolversObject<{
   RemoveBoardCollaboratorResult: ResolverTypeWrapper<RemoveBoardCollaboratorResult>;
   RemoveChannelMemberResult: ResolverTypeWrapper<RemoveChannelMemberResult>;
   RemoveGroupMemberResult: ResolverTypeWrapper<RemoveGroupMemberResult>;
+  RemovePageCollaboratorInput: RemovePageCollaboratorInput;
+  RemovePageCollaboratorResult: ResolverTypeWrapper<RemovePageCollaboratorResult>;
   RenameChannelInput: RenameChannelInput;
   RenameGroupResult: ResolverTypeWrapper<RenameGroupResult>;
+  RenamePageInput: RenamePageInput;
+  RenamePageResult: ResolverTypeWrapper<Omit<RenamePageResult, 'page'> & { page: ResolversTypes['Page'] }>;
   ReopenThreadResult: ResolverTypeWrapper<ReopenThreadResult>;
+  ReorderPageInput: ReorderPageInput;
+  ReorderPageResult: ResolverTypeWrapper<Omit<ReorderPageResult, 'page'> & { page: ResolversTypes['Page'] }>;
   String: ResolverTypeWrapper<Scalars['String']['output']>;
   SubscribeThreadResult: ResolverTypeWrapper<SubscribeThreadResult>;
   Task: ResolverTypeWrapper<Task>;
   UnarchiveChannelResult: ResolverTypeWrapper<UnarchiveChannelResult>;
+  UnarchivePageInput: UnarchivePageInput;
+  UnarchivePageResult: ResolverTypeWrapper<Omit<UnarchivePageResult, 'page'> & { page: ResolversTypes['Page'] }>;
+  UnlockPageInput: UnlockPageInput;
+  UnlockPageResult: ResolverTypeWrapper<Omit<UnlockPageResult, 'page'> & { page: ResolversTypes['Page'] }>;
   UnreadCountsResponse: ResolverTypeWrapper<UnreadCountsResponse>;
   UnsubscribeThreadResult: ResolverTypeWrapper<UnsubscribeThreadResult>;
   UpdateChannelDescriptionResult: ResolverTypeWrapper<UpdateChannelDescriptionResult>;
@@ -1332,7 +1647,11 @@ export type ResolversParentTypes = ResolversObject<{
   AddBoardCollaboratorsResult: AddBoardCollaboratorsResult;
   AddChannelMembersResult: AddChannelMembersResult;
   AddGroupMembersResult: AddGroupMembersResult;
+  AddPageCollaboratorsInput: AddPageCollaboratorsInput;
+  AddPageCollaboratorsResult: AddPageCollaboratorsResult;
   ArchiveChannelInput: ArchiveChannelInput;
+  ArchivePageInput: ArchivePageInput;
+  ArchivePageResult: Omit<ArchivePageResult, 'page'> & { page: ResolversParentTypes['Page'] };
   AvailabilityResponse: AvailabilityResponse;
   BoardCollaborator: BoardCollaborator;
   BoardConnection: BoardConnection;
@@ -1353,6 +1672,8 @@ export type ResolversParentTypes = ResolversObject<{
   CreateChannelInput: CreateChannelInput;
   CreateDmInput: CreateDmInput;
   CreateGroupInput: CreateGroupInput;
+  CreatePageInput: CreatePageInput;
+  CreatePageResult: Omit<CreatePageResult, 'page'> & { page: ResolversParentTypes['Page'] };
   CreateProjectInput: CreateProjectInput;
   CreateThreadInput: CreateThreadInput;
   CursorPosition: CursorPosition;
@@ -1361,10 +1682,13 @@ export type ResolversParentTypes = ResolversObject<{
   DeleteChannelResult: DeleteChannelResult;
   DeleteDmResult: DeleteDmResult;
   DeleteGroupResult: DeleteGroupResult;
+  DeletePageInput: DeletePageInput;
+  DeletePageResult: DeletePageResult;
   DeleteThreadResult: DeleteThreadResult;
   DmConversation: DmConversation;
   DmMember: DmMember;
   Float: Scalars['Float']['output'];
+  GetPageSnapshotResult: GetPageSnapshotResult;
   GroupMemberInfo: GroupMemberInfo;
   HistoryPayload: Omit<HistoryPayload, 'messages'> & { messages: Array<ResolversParentTypes['ChatMessage']> };
   ID: Scalars['ID']['output'];
@@ -1375,6 +1699,8 @@ export type ResolversParentTypes = ResolversObject<{
   JoinResponse: JoinResponse;
   LastMessagePreview: LastMessagePreview;
   LeaveGroupResult: LeaveGroupResult;
+  LockPageInput: LockPageInput;
+  LockPageResult: Omit<LockPageResult, 'page'> & { page: ResolversParentTypes['Page'] };
   MessageReaction: Omit<MessageReaction, 'recentUsers'> & { recentUsers: Array<ResolversParentTypes['User']> };
   MessagesDelta: Omit<MessagesDelta, 'messages'> & { messages: Array<ResolversParentTypes['ChatMessage']> };
   Mutation: Record<PropertyKey, never>;
@@ -1383,7 +1709,9 @@ export type ResolversParentTypes = ResolversObject<{
   NotificationConnection: Omit<NotificationConnection, 'edges'> & { edges: Array<ResolversParentTypes['NotificationEdge']> };
   NotificationEdge: Omit<NotificationEdge, 'node'> & { node: ResolversParentTypes['Notification'] };
   OnboardingStatus: OnboardingStatus;
-  Page: Page;
+  Page: GraphQLPagePartial;
+  PageCollaborator: PageCollaborator;
+  PageCollaboratorInput: PageCollaboratorInput;
   PageInfo: PageInfo;
   Project: PrismaProject;
   ProjectMember: PrismaProjectMember;
@@ -1394,13 +1722,23 @@ export type ResolversParentTypes = ResolversObject<{
   RemoveBoardCollaboratorResult: RemoveBoardCollaboratorResult;
   RemoveChannelMemberResult: RemoveChannelMemberResult;
   RemoveGroupMemberResult: RemoveGroupMemberResult;
+  RemovePageCollaboratorInput: RemovePageCollaboratorInput;
+  RemovePageCollaboratorResult: RemovePageCollaboratorResult;
   RenameChannelInput: RenameChannelInput;
   RenameGroupResult: RenameGroupResult;
+  RenamePageInput: RenamePageInput;
+  RenamePageResult: Omit<RenamePageResult, 'page'> & { page: ResolversParentTypes['Page'] };
   ReopenThreadResult: ReopenThreadResult;
+  ReorderPageInput: ReorderPageInput;
+  ReorderPageResult: Omit<ReorderPageResult, 'page'> & { page: ResolversParentTypes['Page'] };
   String: Scalars['String']['output'];
   SubscribeThreadResult: SubscribeThreadResult;
   Task: Task;
   UnarchiveChannelResult: UnarchiveChannelResult;
+  UnarchivePageInput: UnarchivePageInput;
+  UnarchivePageResult: Omit<UnarchivePageResult, 'page'> & { page: ResolversParentTypes['Page'] };
+  UnlockPageInput: UnlockPageInput;
+  UnlockPageResult: Omit<UnlockPageResult, 'page'> & { page: ResolversParentTypes['Page'] };
   UnreadCountsResponse: UnreadCountsResponse;
   UnsubscribeThreadResult: UnsubscribeThreadResult;
   UpdateChannelDescriptionResult: UpdateChannelDescriptionResult;
@@ -1440,6 +1778,14 @@ export type AddGroupMembersResultResolvers<ContextType = ServiceContext, ParentT
   members?: Resolver<Array<ResolversTypes['GroupMemberInfo']>, ParentType, ContextType>;
   skippedCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   success?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+}>;
+
+export type AddPageCollaboratorsResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['AddPageCollaboratorsResult'] = ResolversParentTypes['AddPageCollaboratorsResult']> = ResolversObject<{
+  addedCollaborators?: Resolver<Array<ResolversTypes['PageCollaborator']>, ParentType, ContextType>;
+}>;
+
+export type ArchivePageResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ArchivePageResult'] = ResolversParentTypes['ArchivePageResult']> = ResolversObject<{
+  page?: Resolver<ResolversTypes['Page'], ParentType, ContextType>;
 }>;
 
 export type AvailabilityResponseResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['AvailabilityResponse'] = ResolversParentTypes['AvailabilityResponse']> = ResolversObject<{
@@ -1557,6 +1903,10 @@ export type ConversationUnreadCountResolvers<ContextType = ServiceContext, Paren
   unreadCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
 }>;
 
+export type CreatePageResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['CreatePageResult'] = ResolversParentTypes['CreatePageResult']> = ResolversObject<{
+  page?: Resolver<ResolversTypes['Page'], ParentType, ContextType>;
+}>;
+
 export type CursorPositionResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['CursorPosition'] = ResolversParentTypes['CursorPosition']> = ResolversObject<{
   x?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
   y?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
@@ -1586,6 +1936,11 @@ export type DeleteGroupResultResolvers<ContextType = ServiceContext, ParentType 
   success?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
 }>;
 
+export type DeletePageResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['DeletePageResult'] = ResolversParentTypes['DeletePageResult']> = ResolversObject<{
+  pageId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  success?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+}>;
+
 export type DeleteThreadResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['DeleteThreadResult'] = ResolversParentTypes['DeleteThreadResult']> = ResolversObject<{
   success?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   threadId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
@@ -1605,6 +1960,13 @@ export type DmConversationResolvers<ContextType = ServiceContext, ParentType ext
 export type DmMemberResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['DmMember'] = ResolversParentTypes['DmMember']> = ResolversObject<{
   user?: Resolver<ResolversTypes['UserBasic'], ParentType, ContextType>;
   userId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+}>;
+
+export type GetPageSnapshotResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['GetPageSnapshotResult'] = ResolversParentTypes['GetPageSnapshotResult']> = ResolversObject<{
+  lastStreamId?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  pageId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  snapshot?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  snapshotTimestamp?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
 }>;
 
 export type GroupMemberInfoResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['GroupMemberInfo'] = ResolversParentTypes['GroupMemberInfo']> = ResolversObject<{
@@ -1646,6 +2008,10 @@ export type LeaveGroupResultResolvers<ContextType = ServiceContext, ParentType e
   success?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
 }>;
 
+export type LockPageResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['LockPageResult'] = ResolversParentTypes['LockPageResult']> = ResolversObject<{
+  page?: Resolver<ResolversTypes['Page'], ParentType, ContextType>;
+}>;
+
 export type MessageReactionResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['MessageReaction'] = ResolversParentTypes['MessageReaction']> = ResolversObject<{
   count?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   emoji?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
@@ -1665,8 +2031,10 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   addBoardCollaborators?: Resolver<ResolversTypes['AddBoardCollaboratorsResult'], ParentType, ContextType, RequireFields<MutationAddBoardCollaboratorsArgs, 'boardId' | 'userIds'>>;
   addChannelMembers?: Resolver<ResolversTypes['AddChannelMembersResult'], ParentType, ContextType, RequireFields<MutationAddChannelMembersArgs, 'channelId' | 'userIds' | 'workspaceId'>>;
   addGroupMembers?: Resolver<ResolversTypes['AddGroupMembersResult'], ParentType, ContextType, RequireFields<MutationAddGroupMembersArgs, 'groupId' | 'userIds' | 'workspaceId'>>;
+  addPageCollaborators?: Resolver<ResolversTypes['AddPageCollaboratorsResult'], ParentType, ContextType, RequireFields<MutationAddPageCollaboratorsArgs, 'input'>>;
   archiveBoard?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType, RequireFields<MutationArchiveBoardArgs, 'boardId'>>;
   archiveChannel?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<MutationArchiveChannelArgs, 'input'>>;
+  archivePage?: Resolver<ResolversTypes['ArchivePageResult'], ParentType, ContextType, RequireFields<MutationArchivePageArgs, 'input'>>;
   checkChannelAvailability?: Resolver<ResolversTypes['ChannelAvailabilityResponse'], ParentType, ContextType, RequireFields<MutationCheckChannelAvailabilityArgs, 'input'>>;
   checkProjectSlugAvailability?: Resolver<ResolversTypes['AvailabilityResponse'], ParentType, ContextType, RequireFields<MutationCheckProjectSlugAvailabilityArgs, 'slug' | 'workspaceId'>>;
   checkSlugAvailability?: Resolver<ResolversTypes['AvailabilityResponse'], ParentType, ContextType, RequireFields<MutationCheckSlugAvailabilityArgs, 'slug'>>;
@@ -1676,6 +2044,7 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   createDm?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<MutationCreateDmArgs, 'input'>>;
   createGroup?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<MutationCreateGroupArgs, 'input'>>;
   createOnboardingWorkspace?: Resolver<ResolversTypes['Workspace'], ParentType, ContextType>;
+  createPage?: Resolver<ResolversTypes['CreatePageResult'], ParentType, ContextType, RequireFields<MutationCreatePageArgs, 'input'>>;
   createProject?: Resolver<ResolversTypes['Project'], ParentType, ContextType, RequireFields<MutationCreateProjectArgs, 'input' | 'workspaceId'>>;
   createThread?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<MutationCreateThreadArgs, 'input'>>;
   createWorkspace?: Resolver<ResolversTypes['Workspace'], ParentType, ContextType, RequireFields<MutationCreateWorkspaceArgs, 'name' | 'slug'>>;
@@ -1683,26 +2052,33 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   deleteChannel?: Resolver<ResolversTypes['DeleteChannelResult'], ParentType, ContextType, RequireFields<MutationDeleteChannelArgs, 'channelId' | 'workspaceId'>>;
   deleteDm?: Resolver<ResolversTypes['DeleteDmResult'], ParentType, ContextType, RequireFields<MutationDeleteDmArgs, 'dmId' | 'workspaceId'>>;
   deleteGroup?: Resolver<ResolversTypes['DeleteGroupResult'], ParentType, ContextType, RequireFields<MutationDeleteGroupArgs, 'groupId' | 'workspaceId'>>;
+  deletePage?: Resolver<ResolversTypes['DeletePageResult'], ParentType, ContextType, RequireFields<MutationDeletePageArgs, 'input'>>;
   deleteThread?: Resolver<ResolversTypes['DeleteThreadResult'], ParentType, ContextType, RequireFields<MutationDeleteThreadArgs, 'threadId' | 'workspaceId'>>;
   inviteToWorkspace?: Resolver<ResolversTypes['InviteResponse'], ParentType, ContextType, RequireFields<MutationInviteToWorkspaceArgs, 'input'>>;
   leaveGroup?: Resolver<ResolversTypes['LeaveGroupResult'], ParentType, ContextType, RequireFields<MutationLeaveGroupArgs, 'groupId' | 'workspaceId'>>;
   lockBoard?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType, RequireFields<MutationLockBoardArgs, 'boardId'>>;
+  lockPage?: Resolver<ResolversTypes['LockPageResult'], ParentType, ContextType, RequireFields<MutationLockPageArgs, 'input'>>;
   markAllNotificationsRead?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   markNotificationRead?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationMarkNotificationReadArgs, 'ids'>>;
   muteConversation?: Resolver<ResolversTypes['MuteConversationResult'], ParentType, ContextType, RequireFields<MutationMuteConversationArgs, 'conversationId' | 'isMuted'>>;
   removeBoardCollaborator?: Resolver<ResolversTypes['RemoveBoardCollaboratorResult'], ParentType, ContextType, RequireFields<MutationRemoveBoardCollaboratorArgs, 'boardId' | 'userId'>>;
   removeChannelMember?: Resolver<ResolversTypes['RemoveChannelMemberResult'], ParentType, ContextType, RequireFields<MutationRemoveChannelMemberArgs, 'channelId' | 'userId' | 'workspaceId'>>;
   removeGroupMember?: Resolver<ResolversTypes['RemoveGroupMemberResult'], ParentType, ContextType, RequireFields<MutationRemoveGroupMemberArgs, 'groupId' | 'userId' | 'workspaceId'>>;
+  removePageCollaborator?: Resolver<ResolversTypes['RemovePageCollaboratorResult'], ParentType, ContextType, RequireFields<MutationRemovePageCollaboratorArgs, 'input'>>;
   removeWorkspaceMember?: Resolver<ResolversTypes['InviteResponse'], ParentType, ContextType, RequireFields<MutationRemoveWorkspaceMemberArgs, 'memberId' | 'workspaceId'>>;
   renameBoard?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType, RequireFields<MutationRenameBoardArgs, 'boardId' | 'title'>>;
   renameChannel?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<MutationRenameChannelArgs, 'input'>>;
   renameGroup?: Resolver<ResolversTypes['RenameGroupResult'], ParentType, ContextType, RequireFields<MutationRenameGroupArgs, 'groupId' | 'name' | 'workspaceId'>>;
+  renamePage?: Resolver<ResolversTypes['RenamePageResult'], ParentType, ContextType, RequireFields<MutationRenamePageArgs, 'input'>>;
   reopenThread?: Resolver<ResolversTypes['ReopenThreadResult'], ParentType, ContextType, RequireFields<MutationReopenThreadArgs, 'threadId' | 'workspaceId'>>;
+  reorderPage?: Resolver<ResolversTypes['ReorderPageResult'], ParentType, ContextType, RequireFields<MutationReorderPageArgs, 'input'>>;
   subscribeThread?: Resolver<ResolversTypes['SubscribeThreadResult'], ParentType, ContextType, RequireFields<MutationSubscribeThreadArgs, 'threadId'>>;
   syncUser?: Resolver<ResolversTypes['User'], ParentType, ContextType, RequireFields<MutationSyncUserArgs, 'clerkId' | 'email'>>;
   unarchiveBoard?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType, RequireFields<MutationUnarchiveBoardArgs, 'boardId'>>;
   unarchiveChannel?: Resolver<ResolversTypes['UnarchiveChannelResult'], ParentType, ContextType, RequireFields<MutationUnarchiveChannelArgs, 'channelId' | 'workspaceId'>>;
+  unarchivePage?: Resolver<ResolversTypes['UnarchivePageResult'], ParentType, ContextType, RequireFields<MutationUnarchivePageArgs, 'input'>>;
   unlockBoard?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType, RequireFields<MutationUnlockBoardArgs, 'boardId'>>;
+  unlockPage?: Resolver<ResolversTypes['UnlockPageResult'], ParentType, ContextType, RequireFields<MutationUnlockPageArgs, 'input'>>;
   unsubscribeThread?: Resolver<ResolversTypes['UnsubscribeThreadResult'], ParentType, ContextType, RequireFields<MutationUnsubscribeThreadArgs, 'threadId'>>;
   updateBoardDescription?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType, RequireFields<MutationUpdateBoardDescriptionArgs, 'boardId'>>;
   updateChannelDescription?: Resolver<ResolversTypes['UpdateChannelDescriptionResult'], ParentType, ContextType, RequireFields<MutationUpdateChannelDescriptionArgs, 'channelId' | 'workspaceId'>>;
@@ -1753,8 +2129,30 @@ export type OnboardingStatusResolvers<ContextType = ServiceContext, ParentType e
 }>;
 
 export type PageResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Page'] = ResolversParentTypes['Page']> = ResolversObject<{
+  children?: Resolver<Array<ResolversTypes['Page']>, ParentType, ContextType>;
+  collaborators?: Resolver<Array<ResolversTypes['PageCollaborator']>, ParentType, ContextType>;
+  coverUrl?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  createdBy?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  creator?: Resolver<ResolversTypes['UserBasic'], ParentType, ContextType>;
+  icon?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  isArchived?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  isLocked?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  parentId?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
+  position?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+  projectId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  s3Key?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  workspaceId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+}>;
+
+export type PageCollaboratorResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['PageCollaborator'] = ResolversParentTypes['PageCollaborator']> = ResolversObject<{
+  joinedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  role?: Resolver<ResolversTypes['PageRole'], ParentType, ContextType>;
+  user?: Resolver<ResolversTypes['UserBasic'], ParentType, ContextType>;
+  userId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
 }>;
 
 export type PageInfoResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['PageInfo'] = ResolversParentTypes['PageInfo']> = ResolversObject<{
@@ -1786,6 +2184,7 @@ export type ProjectMemberResolvers<ContextType = ServiceContext, ParentType exte
 export type QueryResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Query'] = ResolversParentTypes['Query']> = ResolversObject<{
   activeCollaborators?: Resolver<Array<ResolversTypes['ActiveCollaborator']>, ParentType, ContextType, RequireFields<QueryActiveCollaboratorsArgs, 'boardId'>>;
   boardCollaborators?: Resolver<Array<ResolversTypes['BoardCollaborator']>, ParentType, ContextType, RequireFields<QueryBoardCollaboratorsArgs, 'boardId'>>;
+  getActivePageCollaborators?: Resolver<Array<ResolversTypes['PageCollaborator']>, ParentType, ContextType, RequireFields<QueryGetActivePageCollaboratorsArgs, 'pageId'>>;
   getBoard?: Resolver<Maybe<ResolversTypes['Whiteboard']>, ParentType, ContextType, RequireFields<QueryGetBoardArgs, 'boardId'>>;
   getBoardSnapshot?: Resolver<ResolversTypes['BoardSnapshot'], ParentType, ContextType, RequireFields<QueryGetBoardSnapshotArgs, 'boardId'>>;
   getChannelMembers?: Resolver<Array<ResolversTypes['ChatMemberRecord']>, ParentType, ContextType, RequireFields<QueryGetChannelMembersArgs, 'channelId'>>;
@@ -1795,6 +2194,10 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   getMessageById?: Resolver<Maybe<ResolversTypes['ChatMessage']>, ParentType, ContextType, RequireFields<QueryGetMessageByIdArgs, 'messageId'>>;
   getMessagesAfterCursor?: Resolver<Array<ResolversTypes['ChatMessage']>, ParentType, ContextType, RequireFields<QueryGetMessagesAfterCursorArgs, 'afterCursor' | 'channelId'>>;
   getMissingMessages?: Resolver<Array<ResolversTypes['ChatMessage']>, ParentType, ContextType, RequireFields<QueryGetMissingMessagesArgs, 'channelId' | 'rangeEnd' | 'rangeStart'>>;
+  getPage?: Resolver<ResolversTypes['Page'], ParentType, ContextType, RequireFields<QueryGetPageArgs, 'pageId'>>;
+  getPageCollaborators?: Resolver<Array<ResolversTypes['PageCollaborator']>, ParentType, ContextType, RequireFields<QueryGetPageCollaboratorsArgs, 'pageId'>>;
+  getPageSnapshot?: Resolver<ResolversTypes['GetPageSnapshotResult'], ParentType, ContextType, RequireFields<QueryGetPageSnapshotArgs, 'pageId'>>;
+  getProjectPages?: Resolver<Array<ResolversTypes['Page']>, ParentType, ContextType, RequireFields<QueryGetProjectPagesArgs, 'projectId'>>;
   getReadReceipts?: Resolver<ResolversTypes['ReadReceiptsResponse'], ParentType, ContextType, RequireFields<QueryGetReadReceiptsArgs, 'messageId'>>;
   getThreadMessages?: Resolver<Array<ResolversTypes['ChatMessage']>, ParentType, ContextType, RequireFields<QueryGetThreadMessagesArgs, 'parentMessageId'>>;
   getUnreadCounts?: Resolver<ResolversTypes['UnreadCountsResponse'], ParentType, ContextType, RequireFields<QueryGetUnreadCountsArgs, 'projectId' | 'workspaceId'>>;
@@ -1853,15 +2256,27 @@ export type RemoveGroupMemberResultResolvers<ContextType = ServiceContext, Paren
   userId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
 }>;
 
+export type RemovePageCollaboratorResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['RemovePageCollaboratorResult'] = ResolversParentTypes['RemovePageCollaboratorResult']> = ResolversObject<{
+  success?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+}>;
+
 export type RenameGroupResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['RenameGroupResult'] = ResolversParentTypes['RenameGroupResult']> = ResolversObject<{
   groupId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   success?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
 }>;
 
+export type RenamePageResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['RenamePageResult'] = ResolversParentTypes['RenamePageResult']> = ResolversObject<{
+  page?: Resolver<ResolversTypes['Page'], ParentType, ContextType>;
+}>;
+
 export type ReopenThreadResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ReopenThreadResult'] = ResolversParentTypes['ReopenThreadResult']> = ResolversObject<{
   success?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   threadId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+}>;
+
+export type ReorderPageResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ReorderPageResult'] = ResolversParentTypes['ReorderPageResult']> = ResolversObject<{
+  page?: Resolver<ResolversTypes['Page'], ParentType, ContextType>;
 }>;
 
 export type SubscribeThreadResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['SubscribeThreadResult'] = ResolversParentTypes['SubscribeThreadResult']> = ResolversObject<{
@@ -1880,6 +2295,14 @@ export type UnarchiveChannelResultResolvers<ContextType = ServiceContext, Parent
   channelId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   success?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+}>;
+
+export type UnarchivePageResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['UnarchivePageResult'] = ResolversParentTypes['UnarchivePageResult']> = ResolversObject<{
+  page?: Resolver<ResolversTypes['Page'], ParentType, ContextType>;
+}>;
+
+export type UnlockPageResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['UnlockPageResult'] = ResolversParentTypes['UnlockPageResult']> = ResolversObject<{
+  page?: Resolver<ResolversTypes['Page'], ParentType, ContextType>;
 }>;
 
 export type UnreadCountsResponseResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['UnreadCountsResponse'] = ResolversParentTypes['UnreadCountsResponse']> = ResolversObject<{
@@ -1973,6 +2396,8 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   AddBoardCollaboratorsResult?: AddBoardCollaboratorsResultResolvers<ContextType>;
   AddChannelMembersResult?: AddChannelMembersResultResolvers<ContextType>;
   AddGroupMembersResult?: AddGroupMembersResultResolvers<ContextType>;
+  AddPageCollaboratorsResult?: AddPageCollaboratorsResultResolvers<ContextType>;
+  ArchivePageResult?: ArchivePageResultResolvers<ContextType>;
   AvailabilityResponse?: AvailabilityResponseResolvers<ContextType>;
   BoardCollaborator?: BoardCollaboratorResolvers<ContextType>;
   BoardConnection?: BoardConnectionResolvers<ContextType>;
@@ -1987,15 +2412,18 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   ConversationConnection?: ConversationConnectionResolvers<ContextType>;
   ConversationMember?: ConversationMemberResolvers<ContextType>;
   ConversationUnreadCount?: ConversationUnreadCountResolvers<ContextType>;
+  CreatePageResult?: CreatePageResultResolvers<ContextType>;
   CursorPosition?: CursorPositionResolvers<ContextType>;
   DateTime?: GraphQLScalarType;
   DeleteBoardResult?: DeleteBoardResultResolvers<ContextType>;
   DeleteChannelResult?: DeleteChannelResultResolvers<ContextType>;
   DeleteDmResult?: DeleteDmResultResolvers<ContextType>;
   DeleteGroupResult?: DeleteGroupResultResolvers<ContextType>;
+  DeletePageResult?: DeletePageResultResolvers<ContextType>;
   DeleteThreadResult?: DeleteThreadResultResolvers<ContextType>;
   DmConversation?: DmConversationResolvers<ContextType>;
   DmMember?: DmMemberResolvers<ContextType>;
+  GetPageSnapshotResult?: GetPageSnapshotResultResolvers<ContextType>;
   GroupMemberInfo?: GroupMemberInfoResolvers<ContextType>;
   HistoryPayload?: HistoryPayloadResolvers<ContextType>;
   InviteResponse?: InviteResponseResolvers<ContextType>;
@@ -2003,6 +2431,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   JoinResponse?: JoinResponseResolvers<ContextType>;
   LastMessagePreview?: LastMessagePreviewResolvers<ContextType>;
   LeaveGroupResult?: LeaveGroupResultResolvers<ContextType>;
+  LockPageResult?: LockPageResultResolvers<ContextType>;
   MessageReaction?: MessageReactionResolvers<ContextType>;
   MessagesDelta?: MessagesDeltaResolvers<ContextType>;
   Mutation?: MutationResolvers<ContextType>;
@@ -2012,6 +2441,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   NotificationEdge?: NotificationEdgeResolvers<ContextType>;
   OnboardingStatus?: OnboardingStatusResolvers<ContextType>;
   Page?: PageResolvers<ContextType>;
+  PageCollaborator?: PageCollaboratorResolvers<ContextType>;
   PageInfo?: PageInfoResolvers<ContextType>;
   Project?: ProjectResolvers<ContextType>;
   ProjectMember?: ProjectMemberResolvers<ContextType>;
@@ -2022,11 +2452,16 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   RemoveBoardCollaboratorResult?: RemoveBoardCollaboratorResultResolvers<ContextType>;
   RemoveChannelMemberResult?: RemoveChannelMemberResultResolvers<ContextType>;
   RemoveGroupMemberResult?: RemoveGroupMemberResultResolvers<ContextType>;
+  RemovePageCollaboratorResult?: RemovePageCollaboratorResultResolvers<ContextType>;
   RenameGroupResult?: RenameGroupResultResolvers<ContextType>;
+  RenamePageResult?: RenamePageResultResolvers<ContextType>;
   ReopenThreadResult?: ReopenThreadResultResolvers<ContextType>;
+  ReorderPageResult?: ReorderPageResultResolvers<ContextType>;
   SubscribeThreadResult?: SubscribeThreadResultResolvers<ContextType>;
   Task?: TaskResolvers<ContextType>;
   UnarchiveChannelResult?: UnarchiveChannelResultResolvers<ContextType>;
+  UnarchivePageResult?: UnarchivePageResultResolvers<ContextType>;
+  UnlockPageResult?: UnlockPageResultResolvers<ContextType>;
   UnreadCountsResponse?: UnreadCountsResponseResolvers<ContextType>;
   UnsubscribeThreadResult?: UnsubscribeThreadResultResolvers<ContextType>;
   UpdateChannelDescriptionResult?: UpdateChannelDescriptionResultResolvers<ContextType>;

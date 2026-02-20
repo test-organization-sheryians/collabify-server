@@ -25,6 +25,10 @@ const config: CodegenConfig = {
           ConversationMember: "@prisma/client#ChatMember as PrismaChatMember",
           ChatMemberRecord: "@prisma/client#ChatMember as PrismaChatMember",
           ChatMessage: "@prisma/client#ChatMessage as PrismaChatMessage",
+
+          // Pages: field resolver parent is GraphQLPagePartial (optional collaborators/creator/children).
+          // This eliminates all `as any` casts in Page field resolvers.
+          Page: "../modules/pages/graphql/mappers#GraphQLPagePartial",
         },
       },
     },

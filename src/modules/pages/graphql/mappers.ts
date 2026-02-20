@@ -1,32 +1,35 @@
 /**
  * Pages GraphQL Mappers — Prisma models → GraphQL shapes.
  *
- * RULES:
- * - Pure functions only (no I/O, no async).
- * - Called by resolvers AFTER handler returns data.
- * - All optional/nullable fields handled safely here so resolvers stay clean.
+ * PATTERN: Mirrors whiteboard/graphql/mappers.ts.
+ * - `toGraphQLPage` returns `GraphQLPagePartial` (registered in codegen.ts mapper).
+ * - `toGraphQLPageCollaborator` returns a fully typed collaborator shape.
+ * - Field resolvers (Page.creator, Page.collaborators, Page.children) complete
+ *   the type at resolution time via DataLoaders / tree builders.
+ *
+ * Prisma→GraphQL field renames handled here (single source of truth):
+ *   parentPageId  → parentId
+ *   emojiIcon     → icon
+ *   coverImageUrl → coverUrl
  */
 
-// ─── Types (inline until codegen is wired up) ────────────────────────────────
+import type {
+  Page as PrismaPage,
+  PageCollaborator as PrismaPageCollaborator,
+} from "@prisma/client";
+import { PageRole } from "@/graphql/generated";
 
-// TODO: Replace these inline types with generated types from @/graphql/generated
-// once `npx graphql-codegen` is run after type-defs.ts is finalised.
+// ─── Partial helper type (registered as codegen mapper for Page) ──────────────
 
-export interface GraphQLUserBasic {
-  id: string;
-  fullName: string;
-  email: string;
-  avatarUrl: string | null;
-}
-
-export interface GraphQLPageCollaborator {
-  userId: string;
-  role: "EDITOR" | "VIEWER" | "COMMENTER";
-  joinedAt: string; // ISO datetime
-  user: GraphQLUserBasic;
-}
-
-export interface GraphQLPage {
+/**
+ * Intermediate type passed as `parent` to Page field resolvers.
+ * `creator` and `collaborators` are optional — field resolvers populate them.
+ * `children` is seeded by getProjectPages tree builder.
+ *
+ * Registered in codegen.ts as:
+ *   Page: "../modules/pages/graphql/mappers#GraphQLPagePartial"
+ */
+export type GraphQLPagePartial = {
   id: string;
   workspaceId: string;
   projectId: string;
@@ -39,82 +42,83 @@ export interface GraphQLPage {
   isLocked: boolean;
   s3Key: string | null;
   createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-  // Populated by field resolvers via DataLoader:
-  collaborators: GraphQLPageCollaborator[];
-  creator: GraphQLUserBasic;
-  // Populated by getProjectPages tree builder:
-  children: GraphQLPage[];
-}
+  createdAt: Date;
+  updatedAt: Date;
+  // Optional — populated by field resolvers:
+  collaborators?: GraphQLPageCollaboratorShape[];
+  creator?: GraphQLUserBasicShape;
+  children?: GraphQLPagePartial[];
+};
+
+// ─── Collaborator / UserBasic shapes ─────────────────────────────────────────
+
+export type GraphQLUserBasicShape = {
+  id: string;
+  fullName: string;
+  email: string;
+  avatarUrl: string | null;
+};
+
+export type GraphQLPageCollaboratorShape = {
+  userId: string;
+  role: PageRole;
+  joinedAt: Date;
+  user: GraphQLUserBasicShape;
+};
 
 // ─── Mappers ─────────────────────────────────────────────────────────────────
 
 /**
- * Transform a Prisma Page record into the GraphQL Page shape.
- *
- * NOTE: collaborators, creator, and children are set to empty arrays/stub.
- * Their actual values are populated by:
- * - Page.collaborators → DataLoader (collaboratorsByPageId)
- * - Page.creator       → DataLoader (userById)
- * - Page.children      → in-memory tree builder in getProjectPages handler
- *
- * TODO: Implement — map each field from Prisma to GraphQL.
- * Null safety: prismaPage.title ?? 'Untitled'
- * Date conversion: createdAt.toISOString(), updatedAt.toISOString()
+ * Transform a Prisma Page record into GraphQLPagePartial.
+ * Field resolvers handle `creator`, `collaborators`, and `children`.
  */
-export function toGraphQLPage(prismaPage: any): GraphQLPage {
-  // TODO: return {
-  //   id: prismaPage.id,
-  //   workspaceId: prismaPage.workspaceId,
-  //   projectId: prismaPage.projectId,
-  //   parentId: prismaPage.parentId ?? null,
-  //   title: prismaPage.title ?? 'Untitled',
-  //   icon: prismaPage.icon ?? null,
-  //   coverUrl: prismaPage.coverUrl ?? null,
-  //   position: prismaPage.position,
-  //   isArchived: prismaPage.isArchived,
-  //   isLocked: prismaPage.isLocked,
-  //   s3Key: prismaPage.s3Key ?? null,
-  //   createdBy: prismaPage.createdBy,
-  //   createdAt: prismaPage.createdAt.toISOString(),
-  //   updatedAt: prismaPage.updatedAt.toISOString(),
-  //   collaborators: [],   // populated by DataLoader field resolver
-  //   creator: { id: '', fullName: '', email: '', avatarUrl: null }, // populated by DataLoader
-  //   children: [],        // populated by getProjectPages tree builder
-  // }
-  throw new Error("toGraphQLPage: not implemented");
-}
+export const toGraphQLPage = (
+  prisma: Partial<PrismaPage>
+): GraphQLPagePartial => ({
+  id: prisma.id!,
+  workspaceId: prisma.workspaceId!,
+  projectId: prisma.projectId!,
+  parentId: prisma.parentPageId ?? null,
+  title: prisma.title ?? "Untitled",
+  icon: prisma.emojiIcon ?? null,
+  coverUrl: prisma.coverImageUrl ?? null,
+  position: prisma.position!,
+  isArchived: prisma.isArchived!,
+  isLocked: prisma.isLocked!,
+  s3Key: prisma.s3Key ?? null,
+  createdBy: prisma.createdBy!,
+  createdAt: prisma.createdAt!,
+  updatedAt: prisma.updatedAt!,
+  // Stub — populated by field resolvers
+  collaborators: [],
+  creator: undefined,
+  children: [],
+});
 
 /**
- * Transform a Prisma PageCollaborator (with included user) into GraphQL shape.
+ * Transform a Prisma PageCollaborator (with included user) into
+ * GraphQLPageCollaboratorShape.
  *
- * TODO: Implement — map userId, role, joinedAt.toISOString(), user: toGraphQLUserBasic(prisma.user)
+ * `role` is cast from Prisma's `PageCollaboratorRole` enum to the generated
+ * `PageRole` enum — values are identical (EDITOR / VIEWER / COMMENTER).
  */
-export function toGraphQLPageCollaborator(
-  prismaCollaborator: any
-): GraphQLPageCollaborator {
-  // TODO: return {
-  //   userId: prismaCollaborator.userId,
-  //   role: prismaCollaborator.role,
-  //   joinedAt: prismaCollaborator.joinedAt.toISOString(),
-  //   user: toGraphQLUserBasic(prismaCollaborator.user),
-  // }
-  throw new Error("toGraphQLPageCollaborator: not implemented");
-}
-
-/**
- * Transform a Prisma User record into the GraphQL UserBasic shape.
- *
- * TODO: Implement
- * Null safety: user.fullName ?? 'Unknown User', user.avatarUrl ?? null
- */
-export function toGraphQLUserBasic(prismaUser: any): GraphQLUserBasic {
-  // TODO: return {
-  //   id: prismaUser.id,
-  //   fullName: prismaUser.fullName ?? 'Unknown User',
-  //   email: prismaUser.email,
-  //   avatarUrl: prismaUser.avatarUrl ?? null,
-  // }
-  throw new Error("toGraphQLUserBasic: not implemented");
-}
+export const toGraphQLPageCollaborator = (
+  prisma: PrismaPageCollaborator & {
+    user: {
+      id: string;
+      fullName: string | null;
+      email: string;
+      avatarUrl: string | null;
+    };
+  }
+): GraphQLPageCollaboratorShape => ({
+  userId: prisma.userId,
+  role: prisma.role as unknown as PageRole,
+  joinedAt: prisma.joinedAt,
+  user: {
+    id: prisma.user.id,
+    fullName: prisma.user.fullName ?? "",
+    email: prisma.user.email,
+    avatarUrl: prisma.user.avatarUrl ?? null,
+  },
+});

@@ -1,75 +1,84 @@
-import { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
+import type { ServiceContext } from "@/graphql/types";
 import type { CreatePageInput } from "./schema";
-import { PageKeys, PageTTLs } from "../../infra/page-keys";
+
+import { validateAccess } from "./steps/validate-access";
+import { validateCollaborators } from "./steps/validate-collaborators";
+import { createPageRecord } from "./steps/create-page-record";
+import { initPageContent } from "./steps/init-page-content";
+import { initPageStream } from "./steps/init-page-stream";
 
 const logger = createLogger("pages:services:create-page");
 
 /**
- * createPage handler
+ * createPage — orchestrator
  *
- * Workflow (7 steps):
- * 1. Auth — userId must be present
- * 2. Workspace membership check
- * 3. Parent page validation (if parentId provided)
- * 4. Project ownership validation
- * 5. Atomic DB transaction — create Page + creator PageCollaborator
- * 6. Initialize Redis stream & consumer group (MKSTREAM)
- * 7. Return new page
+ * Delegates each phase to a focused step file.
+ * This file contains only sequencing logic — no business rules live here.
+ *
+ * Execution order (each step throws AppError on failure):
+ *   1. validateAccess         — workspace, project, parent checks
+ *   2. validateCollaborators  — batch workspace-member check
+ *   3. createPageRecord       — atomic DB transaction (page + collaborators)
+ *   4. initPageContent        — Y.Doc + S3 upload + s3Key update
+ *   5. initPageStream         — Redis XGROUP CREATE MKSTREAM
  */
 export const handler = async (input: CreatePageInput, ctx: ServiceContext) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
 
+  let pageId: string | undefined;
+
   try {
-    // Step 1 — Workspace membership
-    // TODO: const member = await ctx.db.workspaceMember.findUnique({ where: { workspaceId_userId: { workspaceId: input.workspaceId, userId } } })
-    // TODO: if (!member) throw AppError.forbidden("You are not a member of this workspace")
+    await validateAccess(input, ctx, userId);
 
-    // Step 2 — Parent page check (if parentId provided)
-    // TODO: if (input.parentId) {
-    //   const parent = await ctx.db.page.findUnique({ where: { id: input.parentId, deletedAt: null } })
-    //   if (!parent) throw AppError.badRequest("Parent page not found")
-    //   if (parent.projectId !== input.projectId) throw AppError.badRequest("Parent page belongs to a different project")
-    // }
+    const validCollaboratorIds = await validateCollaborators(
+      input,
+      ctx,
+      userId
+    );
 
-    // Step 3 — Project ownership check
-    // TODO: const project = await ctx.db.project.findUnique({ where: { id: input.projectId }, select: { workspaceId: true } })
-    // TODO: if (!project || project.workspaceId !== input.workspaceId) throw AppError.badRequest("Invalid project")
+    const { page } = await createPageRecord(
+      input,
+      ctx,
+      userId,
+      validCollaboratorIds
+    );
+    pageId = page.id;
 
-    // Step 4 — Compute position (append to end of siblings)
-    // TODO: const lastSibling = await ctx.db.page.findFirst({
-    //   where: { projectId: input.projectId, parentId: input.parentId ?? null, deletedAt: null },
-    //   orderBy: { position: 'desc' },
-    //   select: { position: true },
-    // })
-    // const position = (lastSibling?.position ?? 0) + 1
+    await initPageContent(page.id, input.title ?? "Untitled", ctx);
 
-    // Step 5 — Atomic transaction: create page + add creator as collaborator
-    // TODO: const page = await ctx.db.$transaction(async (tx) => {
-    //   const p = await tx.page.create({ data: { ...input, createdBy: userId, position } })
-    //   await tx.pageCollaborator.create({ data: { pageId: p.id, userId, role: 'EDITOR' } })
-    //   return p
-    // })
+    await initPageStream(page.id);
 
-    // Step 6 — Initialize Redis stream + consumer group
-    // TODO: const streamKey = PageKeys.PageStream(page.id)
-    // try {
-    //   await ctx.redis.xgroup('CREATE', streamKey, 'page-workers', '0', 'MKSTREAM')
-    // } catch (err) {
-    //   const e = err as Error
-    //   if (!e.message?.includes('BUSYGROUP')) throw err
-    // }
+    logger.info("Page created", {
+      pageId: page.id,
+      projectId: input.projectId,
+      userId,
+      collaborators: validCollaboratorIds.length + 1,
+    });
 
-    // Step 7 — Log + return
-    // logger.info("Page created", { pageId: page.id, projectId: input.projectId, userId })
-    // return { page }
+    // Reload to include s3Key + snapshot fields populated by initPageContent
+    const freshPage = await ctx.db.page.findUniqueOrThrow({
+      where: { id: page.id },
+    });
 
-    throw new AppError("createPage: not yet implemented", "INTERNAL_SERVER_ERROR");
-  } catch (error: unknown) {
-    if (error instanceof AppError) throw error;
-    logger.error("Failed to create page", { err: error, userId, input });
+    return { page: freshPage };
+  } catch (err: unknown) {
+    // Run compensating delete for ALL failures if the page row was already committed.
+    // This must run BEFORE the AppError check — initPageContent throws a plain Error
+    // on S3 failure specifically so this branch is not short-circuited.
+    if (pageId) {
+      logger.warn("Compensating delete — removing orphaned page row", {
+        pageId,
+      });
+      await ctx.db.page.delete({ where: { id: pageId } }).catch(() => {});
+    }
+
+    // Re-throw known errors without double-wrapping
+    if (err instanceof AppError) throw err;
+
+    logger.error("createPage failed", { err, userId, input });
     throw new AppError("Failed to create page");
   }
 };
