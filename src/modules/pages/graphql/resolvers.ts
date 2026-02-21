@@ -95,7 +95,7 @@ export const resolvers: Resolvers = {
       await requireUser(ctx);
       const input = services.unarchivePage.schema.parse(args.input);
       const result = await services.unarchivePage.handler(input, ctx);
-      return { page: toGraphQLPage(result.page) };
+      return { page: toGraphQLPage(result!.page) };
     },
 
     lockPage: async (_, args, ctx) => {
