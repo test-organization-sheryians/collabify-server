@@ -1,39 +1,37 @@
-import {
-  WSHandlerContext,
-  ChatWebSocket,
-  createSuccessFrame,
-  createErrorFrame,
-} from "@/infra/ws/types";
-import { AppError } from "@/shared/errors/app-error";
+import { AppError } from "@/shared/errors";
+import { createErrorFrame } from "@/infra/ws/types";
 import { createLogger } from "@/shared/lib/logger";
-import { appRedis } from "@/infra/redis";
-import { PageKeys, PageTTLs } from "../../../infra/page-keys";
-import { validatePageUpdate } from "../../../infra/page-validator";
+import type { WSHandlerContext, ChatWebSocket } from "@/infra/ws/types";
 import type { PageUpdateInput } from "./schema";
+
+import { checkAuth } from "./steps/check-auth";
+import { validateUpdate } from "./steps/validate-update";
+import { appendToStream } from "./steps/append-to-stream";
+import { broadcast, ackDuplicate } from "./steps/broadcast";
 
 const logger = createLogger("pages:ws:page-update");
 
 /**
- * pageUpdate WS handler — HOT PATH (<10ms target)
+ * pageUpdate — WS Event Handler (stateless gateway, hot path <10ms)
  *
- * Architecture: Stateless gateway (mirrors board-update exactly).
- * No S3, no Y.Doc, no stream reads. Just: validate → dedupe+append (Lua) → ACK → broadcast.
+ * Execution order:
+ *   1+2. checkAuth       — ZSCORE subscriber + GET lock (2 Redis RTTs)
+ *   3.   validateUpdate  — base64 decode + size check (sync, no I/O)
+ *   4.   appendToStream  — Lua ATOMIC_PAGE_UPDATE_SCRIPT (1 Redis RTT)
+ *   5+6. broadcast       — ACK sender + PUBLISH to page:events (1 Redis RTT)
  *
- * Workflow:
- * 1. Subscriber check (ZSCORE — no DB hit)
- * 2. Lock check (Redis GET — best-effort, authoritative enforcement in GraphQL)
- * 3. Binary validation
- * 4. Atomic append (Lua: dedupe + backpressure + XADD MAXLEN)
- * 5. ACK sender (createSuccessFrame "page:update-ack")
- * 6. Pub/Sub broadcast with originSocketId (prevents self-echo)
+ * Total Redis RTTs: ~3  |  Target: <10ms p95
+ *
+ * No S3, no Y.Doc, no stream reads — pure gateway.
+ * See README.md for full system design.
  */
 export const pageUpdateHandler = async (
   ctx: WSHandlerContext,
   socket: ChatWebSocket,
   input: PageUpdateInput
-) => {
-  const { userId, socketId } = socket.data;
+): Promise<void> => {
   const { pageId, update, dedupeId } = input;
+  const { userId, socketId } = socket.data;
   const startTime = Date.now();
 
   logger.info("Processing page update", {
@@ -44,48 +42,52 @@ export const pageUpdateHandler = async (
   });
 
   try {
-    // Step 1 — Subscriber check (Redis-only, no DB)
-    // TODO: const isSubscribed = await appRedis.zscore(PageKeys.PageSubscribers(pageId), userId)
-    // if (isSubscribed === null) throw new AppError("Must subscribe before sending updates", "NOT_SUBSCRIBED")
+    // 1+2. Auth guards (subscriber check + lock check)
+    await checkAuth(pageId, userId, ctx.redis);
 
-    // Step 2 — Lock check (eventually consistent — best-effort)
-    // TODO: const lockOwner = await appRedis.get(PageKeys.PageLock(pageId))
-    // if (lockOwner && lockOwner !== userId) throw new AppError("Page is currently locked", "PAGE_LOCKED")
+    // 3. Binary validation (sync — no I/O)
+    validateUpdate(update);
 
-    // Step 3 — Binary validation
-    // TODO: const updateBinary = Buffer.from(update, "base64")
-    // isValid = validatePageUpdate(update)  // uses page-validator
-    // if (!isValid.ok) throw new AppError(isValid.reason, "INVALID_YJSUPDATE")
-
-    // Step 4 — Atomic XADD (same pattern as executeAtomicBoardUpdate)
-    // TODO: const streamKey = PageKeys.PageStream(pageId)
-    // const dedupeKey = PageKeys.PageDedupe(pageId, dedupeId)
-    // const result = await appRedis.eval(ATOMIC_PAGE_UPDATE_SCRIPT, 2, streamKey, dedupeKey, PageTTLs.DEDUPE, update, pageId, userId, dedupeId, Date.now())
-    // Handle: ok, DUPLICATE, BACKPRESSURE_LIMIT
-
-    // Step 5 — ACK
-    // TODO: socket.send(createSuccessFrame(dedupeId, "page:update-ack", { dedupeId, status: "sent", streamId: result.streamId, pageId }))
-
-    // Step 6 — Pub/Sub broadcast (with originSocketId for self-echo prevention)
-    // TODO: const frame = createSuccessFrame(undefined, "page:page-update", { pageId, streamId: result.streamId, update, userId, timestamp: Date.now() })
-    // await appRedis.publish(PageKeys.PageEvents(pageId), JSON.stringify({ message: frame, originSocketId: socketId }))
-
-    logger.debug("page-update: not yet implemented", {
+    // 4. Atomic stream append (Lua: dedupe + backpressure + XADD)
+    const result = await appendToStream(
       pageId,
       userId,
-      duration: Date.now() - startTime,
-    });
-    throw new AppError(
-      "pageUpdateHandler: not yet implemented",
-      "INTERNAL_SERVER_ERROR"
+      update,
+      dedupeId,
+      ctx.redis
     );
+
+    if (result.status === "duplicate") {
+      ackDuplicate(socket, dedupeId, pageId);
+      return;
+    }
+
+    // 5+6. ACK sender + Pub/Sub broadcast
+    await broadcast(socket, ctx.redis, {
+      pageId,
+      userId,
+      dedupeId,
+      socketId,
+      streamId: result.streamId,
+      update,
+    });
+
+    logger.info("Page update processed", {
+      pageId,
+      userId,
+      dedupeId,
+      streamId: result.streamId,
+      latencyMs: Date.now() - startTime,
+    });
   } catch (err: unknown) {
     logger.error("Failed to process page update", {
       err,
       pageId,
       userId,
       dedupeId,
+      latencyMs: Date.now() - startTime,
     });
+
     if (err instanceof AppError) {
       socket.send(
         createErrorFrame(dedupeId, "page:page-update", err.code, err.message)

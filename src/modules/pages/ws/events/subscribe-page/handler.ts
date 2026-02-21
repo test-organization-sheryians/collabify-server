@@ -2,25 +2,35 @@ import {
   WSHandlerContext,
   ChatWebSocket,
   createSuccessFrame,
-  createErrorFrame,
 } from "@/infra/ws/types";
 import { createLogger } from "@/shared/lib/logger";
-import { appRedis } from "@/infra/redis";
-import { wsRegistry } from "@/infra/ws/subscription-registry";
-import { PageKeys, PageTTLs } from "../../../infra/page-keys";
-import {
-  PRESENCE_TRACKING_SCRIPT,
-  PAGE_ACTIVATION_SCRIPT,
-} from "../../../infra/lua/presence";
 import type { SubscribePageInput } from "./schema";
+
+import { authCheck } from "./steps/auth-check";
+import { checkLock } from "./steps/check-lock";
+import { trackPresence } from "./steps/track-presence";
+import { registerSocket } from "./steps/register-socket";
+import { fetchCollaborators } from "./steps/fetch-collaborators";
+import { replayGap } from "./steps/replay-gap";
+import { broadcastJoin } from "./steps/broadcast-join";
 
 const logger = createLogger("pages:ws:subscribe-page");
 
 /**
- * subscribePage — WS event handler
+ * subscribePage — WS Event Handler
  *
- * Gateway is stateless: no Y.Doc, no S3, no state merging.
- * Client must call getPageSnapshot via GraphQL BEFORE subscribing.
+ * Stateless gateway — no Y.Doc, no S3, no state merging.
+ * Client calls getPageSnapshot via GraphQL BEFORE subscribing.
+ *
+ * Execution order:
+ *   1. authCheck          — DB collaborator check + deleted guard
+ *   2. checkLock          — GET page:lock (informational)
+ *   3. trackPresence      — PRESENCE_TRACKING_SCRIPT + PAGE_ACTIVATION_SCRIPT
+ *   4. registerSocket     — wsRegistry.subscribe both channels
+ *   5. fetchCollaborators — ZRANGE + user.findMany batch
+ *   6. [send success]     — page:subscribe-success to this socket
+ *   7. replayGap          — XRANGE gap-fill to this socket only
+ *   8. broadcastJoin      — PUBLISH page:user-joined (new users only)
  *
  * See README.md for full system design.
  */
@@ -31,110 +41,32 @@ export const subscribePageHandler = async (
 ) => {
   const { userId, socketId } = socket.data;
   const { pageId, lastStreamId } = input;
-
-  // ─── Step 1: Auth ────────────────────────────────────────────────────────────
-
-  const collaborator = await ctx.db.pageCollaborator.findFirst({
-    where: { pageId, userId },
-    select: {
-      id: true,
-      page: {
-        select: { id: true, deletedAt: true, isArchived: true },
-      },
-    },
-  });
-
-  if (!collaborator) {
-    socket.send(
-      createErrorFrame(
-        undefined,
-        "page:subscribe-error",
-        "FORBIDDEN",
-        "Not a collaborator on this page"
-      )
-    );
-    return;
-  }
-
-  if (collaborator.page.deletedAt) {
-    socket.send(
-      createErrorFrame(
-        undefined,
-        "page:subscribe-error",
-        "NOT_FOUND",
-        "Page has been deleted"
-      )
-    );
-    return;
-  }
-
-  // Archived pages: allowed (read-only is enforced in page-update handler, not here)
-
-  // ─── Step 2: Lock status (informational — enforcement is in page-update) ──────
-
-  const isLocked = Boolean(await appRedis.get(PageKeys.PageLock(pageId)));
-
-  // ─── Step 3: Presence tracking (Lua atomic, 1 RTT) ───────────────────────────
-
   const timestamp = Date.now();
-  const [isNew, subscriberCount] = (await appRedis.eval(
-    PRESENCE_TRACKING_SCRIPT,
-    1,
-    PageKeys.PageSubscribers(pageId),
-    userId,
-    timestamp.toString(),
-    PageTTLs.SUBSCRIBERS.toString()
-  )) as [number, number];
 
-  logger.info("Presence updated", {
+  logger.info("Subscribe request", { pageId, userId });
+
+  // 1. Auth — sends error frame + returns false on failure
+  const authorized = await authCheck(pageId, userId, socket, ctx.db);
+  if (!authorized) return;
+
+  // 2. Lock status (informational — enforcement in page-update)
+  const isLocked = await checkLock(pageId, ctx.redis);
+
+  // 3. Presence tracking + page activation (if first subscriber)
+  const { isNew, subscriberCount } = await trackPresence(
     pageId,
     userId,
-    subscriberCount,
-    isNew: isNew === 1,
-  });
-
-  // ─── Step 4: Page activation (only if this is the first subscriber) ───────────
-
-  if (subscriberCount === 1) {
-    await appRedis.eval(
-      PAGE_ACTIVATION_SCRIPT,
-      2,
-      PageKeys.SysActivePages(),
-      PageKeys.SysPagesEpoch(),
-      pageId,
-      timestamp.toString()
-    );
-    logger.info("Page activated", { pageId });
-  }
-
-  // ─── Step 5: Subscribe socket to BOTH channels ───────────────────────────────
-  // Pages: two separate channels (content updates + awareness cursors)
-  // Whiteboard: only subscribes to one (events).
-
-  await wsRegistry.subscribe(socketId, PageKeys.PageEvents(pageId));
-  await wsRegistry.subscribe(socketId, PageKeys.PageAwareness(pageId));
-
-  // ─── Step 6: Fetch active collaborators (batch — no DataLoader in WS handlers) ─
-
-  const activeUserIds = await appRedis.zrange(
-    PageKeys.PageSubscribers(pageId),
-    0,
-    -1
+    timestamp,
+    ctx.redis
   );
 
-  const users = await ctx.db.user.findMany({
-    where: { id: { in: activeUserIds } },
-    select: { id: true, fullName: true, avatarUrl: true },
-  });
+  // 4. Register socket to both pub/sub channels
+  await registerSocket(socketId, pageId);
 
-  const collaborators = users.map((u) => ({
-    userId: u.id,
-    fullName: u.fullName ?? "Unknown",
-    avatarUrl: u.avatarUrl ?? null,
-  }));
+  // 5. Fetch active collaborators for initial state
+  const collaborators = await fetchCollaborators(pageId, ctx.redis, ctx.db);
 
-  // ─── Step 7: Send subscribe-success ─────────────────────────────────────────
-
+  // 6. Subscribe success — includes lock state + active collaborators
   socket.send(
     createSuccessFrame(undefined, "page:subscribe-success", {
       pageId,
@@ -144,76 +76,12 @@ export const subscribePageHandler = async (
     })
   );
 
-  // ─── Step 7: Replay gap ───────────────────────────────────────────────────────
-  // Send updates from lastStreamId → latest to THIS socket only.
-  // "0-0" = first open after GraphQL snapshot → no replay needed.
+  // 7. Replay gap (reconnect path — "0-0" is skipped inside replayGap)
+  await replayGap(pageId, userId, lastStreamId, socket, ctx.redis);
 
-  if (lastStreamId && lastStreamId !== "0-0") {
-    try {
-      const missing = (await appRedis.xrange(
-        PageKeys.PageStream(pageId),
-        `(${lastStreamId}`, // exclusive start: AFTER lastStreamId
-        "+",
-        "COUNT",
-        5000
-      )) as Array<[string, string[]]>;
-
-      if (missing.length > 0) {
-        logger.info("Replaying gap", {
-          pageId,
-          userId,
-          count: missing.length,
-          from: lastStreamId,
-        });
-
-        for (const [id, fields] of missing) {
-          const data: Record<string, string> = {};
-          for (let i = 0; i < fields.length; i += 2)
-            data[fields[i]] = fields[i + 1];
-
-          socket.send(
-            createSuccessFrame(undefined, "page:page-update", {
-              pageId: data.pageId,
-              streamId: id,
-              update: data.update,
-              userId: data.userId,
-              timestamp: data.timestamp,
-            })
-          );
-        }
-      }
-    } catch (replayErr) {
-      // Non-fatal: state vector sync handles any remaining gap
-      logger.error("Replay gap failed (non-fatal)", {
-        pageId,
-        userId,
-        err: replayErr,
-      });
-    }
-  }
-
-  // ─── Step 8: Broadcast user-joined (only if isNew=1) ─────────────────────────
-  // isNew=0: reconnect / second tab → skip to avoid notification spam
-
+  // 8. Broadcast join (new users only — not reconnects/second tabs)
   if (isNew === 1) {
-    const user = await ctx.db.user.findUnique({
-      where: { id: userId },
-      select: { id: true, fullName: true, avatarUrl: true },
-    });
-
-    if (user) {
-      await appRedis.publish(
-        PageKeys.PageEvents(pageId),
-        createSuccessFrame(undefined, "page:user-joined", {
-          pageId,
-          userId: user.id,
-          fullName: user.fullName ?? "Unknown",
-          avatarUrl: user.avatarUrl ?? null,
-          timestamp,
-        })
-      );
-      logger.info("User-joined broadcast sent", { pageId, userId });
-    }
+    await broadcastJoin(pageId, userId, socketId, timestamp, ctx.redis, ctx.db);
   } else {
     logger.info("User reconnected — no join broadcast", { pageId, userId });
   }

@@ -1,39 +1,55 @@
-import { WSHandlerContext, ChatWebSocket } from "@/infra/ws/types";
 import { createLogger } from "@/shared/lib/logger";
-import { appRedis } from "@/infra/redis";
 import { PageKeys } from "../../../infra/page-keys";
+import type { WSHandlerContext, ChatWebSocket } from "@/infra/ws/types";
 import type { AwarenessUpdateInput } from "./schema";
 
 const logger = createLogger("pages:ws:awareness-update");
 
 /**
- * awarenessUpdate WS handler — ephemeral HOT PATH (<5ms target)
+ * awarenessUpdate — WS Event Handler (ephemeral hot path, <5ms target)
  *
- * y-protocols/awareness updates carry cursor + selection state.
- * NOT written to stream — ephemeral, no persistence.
- * One PUBLISH call, no ACK.
+ * Execution order:
+ *   1. Silent auth  — ZSCORE subscriber check (no error frame on failure)
+ *   2. PUBLISH      — page:{id}:awareness (no ACK, no stream, fire-and-forget)
  *
- * Workflow:
- * 1. Silent auth check (fire-and-forget — no error frame)
- * 2. PUBLISH to PageAwareness pub/sub channel with originSocketId
+ * No steps/ folder — only 2 Redis ops with no forking logic between them.
+ * No ACK, no stream write, no Lua — awareness is purely ephemeral.
+ *
+ * See README.md for full system design and channel isolation rationale.
  */
 export const awarenessUpdateHandler = async (
   ctx: WSHandlerContext,
   socket: ChatWebSocket,
   input: AwarenessUpdateInput
-) => {
-  const { userId, socketId } = socket.data;
+): Promise<void> => {
   const { pageId, update } = input;
+  const { userId, socketId } = socket.data;
 
-  // Step 1 — Silent auth: userId is guaranteed by WS upgrade flow
-  // Awareness is fire-and-forget — never error-frame for invalid input
-  if (!update || typeof update !== "string") return;
+  // 1. Silent auth — not subscribed = silently drop (no error frame)
+  // Awareness is fire-and-forget; an error frame for stale state wastes bandwidth.
+  const isSubscribed = await ctx.redis.zscore(
+    PageKeys.PageSubscribers(pageId),
+    userId
+  );
 
-  // Step 2 — PUBLISH to awareness channel (NOT PageEvents — separate channel)
-  // TODO: await appRedis.publish(
-  //   PageKeys.PageAwareness(pageId),
-  //   JSON.stringify({ update, userId, originSocketId: socketId })
-  // )
+  if (isSubscribed === null) {
+    logger.debug("Awareness dropped — user not subscribed", { pageId, userId });
+    return;
+  }
 
-  logger.debug("awareness-update: not yet implemented", { pageId, userId });
+  // 2. Publish to awareness channel (separate from page:events — see README)
+  // originSocketId: wsRegistry skips sender's own socket during dispatch.
+  // No ACK — client never waits for confirmation on cursor sends.
+  try {
+    await ctx.redis.publish(
+      PageKeys.PageAwareness(pageId),
+      JSON.stringify({ update, userId, originSocketId: socketId })
+    );
+
+    logger.debug("Awareness published", { pageId, userId });
+  } catch (err) {
+    // PUBLISH failure is silently absorbed — awareness is ephemeral.
+    // Next cursor move will self-heal for all subscribers.
+    logger.error("Awareness PUBLISH failed", { err, pageId, userId });
+  }
 };
