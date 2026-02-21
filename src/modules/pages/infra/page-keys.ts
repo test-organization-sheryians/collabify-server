@@ -76,6 +76,13 @@ export const PageKeys = {
    */
   PageSnapshotLock: (pageId: string) => `page:${pageId}:snapshot:lock`,
 
+  /**
+   * Unix ms timestamp of the last successful snapshot rebuild for this page.
+   * SET by stream worker after each rebuild. Read by CooldownThreshold.
+   * TTL = SNAPSHOT_COOLDOWN_MS * 2 (can safely expire for idle pages).
+   */
+  PageSnapshotLastAt: (pageId: string) => `page:${pageId}:snapshot:last-at`,
+
   // ── System-Wide (Worker Discovery & Coordination) ───────────────────────────
 
   /**

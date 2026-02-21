@@ -1,19 +1,25 @@
-import { ServiceContext } from "@/graphql/types";
+/**
+ * getProjectPages — Query Handler
+ *
+ * Returns the full nested page tree for a project.
+ * Archived pages are included — client decides whether to display the archive section.
+ *
+ * Execution:
+ *   Step 1 — checkAccess     : project exists + workspace membership gate
+ *   Step 2 — fetchFlatPages  : single DB query (position ASC)
+ *   Step 3 — buildTree       : O(N) in-memory BFS — pure sync, no IO
+ */
+
 import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
-import type { GetProjectPagesInput } from "./index";
+import type { ServiceContext } from "@/graphql/types";
+import type { GetProjectPagesInput } from "./schema";
+import { checkAccess } from "./steps/check-access";
+import { fetchFlatPages } from "./steps/fetch-flat-pages";
+import { buildTree } from "./steps/build-tree";
 
 const logger = createLogger("pages:queries:get-project-pages");
 
-/**
- * getProjectPages handler — returns full nested page tree.
- *
- * Workflow:
- * 1. Auth + workspace-member check
- * 2. Flat DB fetch (single query, ordered by position ASC)
- * 3. O(N) BFS tree builder — no recursive DB queries
- * 4. Return root pages (with nested children)
- */
 export const getProjectPagesHandler = async (
   input: GetProjectPagesInput,
   ctx: ServiceContext
@@ -22,47 +28,15 @@ export const getProjectPagesHandler = async (
   if (!userId) throw AppError.unauthorized("User not authenticated");
 
   try {
-    // Step 1 — Check project access via workspace membership
-    const project = await ctx.db.project.findUnique({
-      where: { id: input.projectId },
-      select: { workspaceId: true },
-    });
-    if (!project) throw AppError.notFound("Project not found");
+    // Step 1 — project exists + workspace member check
+    await checkAccess(input.projectId, userId, ctx.db);
 
-    const member = await ctx.db.workspaceMember.findUnique({
-      where: {
-        workspaceId_userId: { workspaceId: project.workspaceId, userId },
-      },
-    });
-    if (!member)
-      throw AppError.forbidden("You are not a member of this workspace");
+    // Step 2 — flat DB fetch (all non-deleted pages, position ASC)
+    const flat = await fetchFlatPages(input.projectId, ctx.db);
+    if (flat.length === 0) return [];
 
-    // Step 2 — Flat page fetch (non-deleted, non-archived by default)
-    const flat = await ctx.db.page.findMany({
-      where: { projectId: input.projectId, deletedAt: null },
-      orderBy: { position: "asc" },
-    });
-
-    // Step 3 — O(N) BFS tree builder
-    type PageWithChildren = (typeof flat)[number] & {
-      children: PageWithChildren[];
-    };
-
-    const pageMap = new Map<string, PageWithChildren>(
-      flat.map((p) => [p.id, { ...p, children: [] }])
-    );
-    const roots: PageWithChildren[] = [];
-
-    for (const page of pageMap.values()) {
-      if (page.parentPageId) {
-        const parent = pageMap.get(page.parentPageId);
-        if (parent) parent.children.push(page);
-      } else {
-        roots.push(page);
-      }
-    }
-
-    return roots;
+    // Step 3 — O(N) in-memory tree build (no DB calls)
+    return buildTree(flat);
   } catch (error: unknown) {
     if (error instanceof AppError) throw error;
     logger.error("Failed to get project pages", {

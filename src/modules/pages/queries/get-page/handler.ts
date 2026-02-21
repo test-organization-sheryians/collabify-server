@@ -1,19 +1,22 @@
-import { ServiceContext } from "@/graphql/types";
+/**
+ * getPage — Query Handler
+ *
+ * Fetches page metadata by ID. No content (Y.Doc) — use getPageSnapshot for that.
+ *
+ * Execution:
+ *   Step 1 — fetchPage    : DB fetch with soft-delete guard
+ *   Step 2 — checkAccess  : collaborator OR workspace-member gate
+ */
+
 import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
-import type { GetPageInput } from "./index";
+import type { ServiceContext } from "@/graphql/types";
+import type { GetPageInput } from "./schema";
+import { fetchPage } from "./steps/fetch-page";
+import { checkAccess } from "./steps/check-access";
 
 const logger = createLogger("pages:queries:get-page");
 
-/**
- * getPage handler — fetch page metadata by ID.
- *
- * Workflow:
- * 1. Auth
- * 2. Fetch page (deletedAt = null guard)
- * 3. Collaborator OR workspace-member access check
- * 4. Return page
- */
 export const getPageHandler = async (
   input: GetPageInput,
   ctx: ServiceContext
@@ -22,25 +25,11 @@ export const getPageHandler = async (
   if (!userId) throw AppError.unauthorized("User not authenticated");
 
   try {
-    // Step 1 — Fetch page
-    const page = await ctx.db.page.findFirst({
-      where: { id: input.pageId, deletedAt: null },
-    });
-    if (!page) throw AppError.notFound("Page not found");
+    // Step 1 — fetch page (NOT_FOUND if deleted or missing)
+    const page = await fetchPage(input.pageId, ctx.db);
 
-    // Step 2 — Access check (page collaborator OR workspace member)
-    const collab = await ctx.db.pageCollaborator.findUnique({
-      where: { pageId_userId: { pageId: input.pageId, userId } },
-    });
-    if (!collab) {
-      const member = await ctx.db.workspaceMember.findUnique({
-        where: {
-          workspaceId_userId: { workspaceId: page.workspaceId, userId },
-        },
-      });
-      if (!member)
-        throw AppError.forbidden("You do not have access to this page");
-    }
+    // Step 2 — access gate (collaborator OR workspace member)
+    await checkAccess(input.pageId, page.workspaceId, userId, ctx.db);
 
     return page;
   } catch (error: unknown) {

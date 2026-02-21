@@ -1,19 +1,25 @@
-import { ServiceContext } from "@/graphql/types";
+/**
+ * removePageCollaborator — Service Handler
+ *
+ * Removes a collaborator from a page. Hard-deletes the record.
+ * The creator cannot be removed (see guardCreator step).
+ *
+ * Execution:
+ *   Step 1 — checkAccess       : page exists + EDITOR role gate
+ *   Step 2 — guardCreator      : prevent removing the page creator
+ *   Step 3 — deleteCollaborator: hard-delete pageCollaborator record
+ */
+
 import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
+import type { ServiceContext } from "@/graphql/types";
 import type { RemovePageCollaboratorInput } from "./schema";
+import { checkAccess } from "./steps/check-access";
+import { guardCreator } from "./steps/guard-creator";
+import { deleteCollaborator } from "./steps/delete-collaborator";
 
 const logger = createLogger("pages:services:remove-page-collaborator");
 
-/**
- * removePageCollaborator handler
- *
- * Workflow:
- * 1. Auth + EDITOR check
- * 2. Guard: cannot remove the page creator
- * 3. DB delete
- * 4. Return { success: true }
- */
 export const handler = async (
   input: RemovePageCollaboratorInput,
   ctx: ServiceContext
@@ -22,36 +28,21 @@ export const handler = async (
   if (!userId) throw AppError.unauthorized("User not authenticated");
 
   try {
-    // Step 1 — Access check
-    const page = await ctx.db.page.findUnique({
-      where: { id: input.pageId, deletedAt: null },
-    });
-    if (!page) throw AppError.notFound("Page not found");
+    // Step 1 — EDITOR gate
+    await checkAccess(input.pageId, userId, ctx.db);
 
-    const callerCollab = await ctx.db.pageCollaborator.findUnique({
-      where: { pageId_userId: { pageId: input.pageId, userId } },
-    });
-    if (!callerCollab || callerCollab.role !== "EDITOR") {
-      throw AppError.forbidden("Only editors can remove collaborators");
-    }
+    // Step 2 — creator guard (cannot remove page owner)
+    await guardCreator(input.pageId, input.userId, ctx.db);
 
-    // Step 2 — Creator guard
-    if (page.createdBy === input.userId) {
-      throw AppError.conflict(
-        "Cannot remove the page creator as a collaborator"
-      );
-    }
-
-    // Step 3 — DB delete
-    await ctx.db.pageCollaborator.delete({
-      where: { pageId_userId: { pageId: input.pageId, userId: input.userId } },
-    });
+    // Step 3 — hard-delete collaborator record
+    await deleteCollaborator(input.pageId, input.userId, ctx.db);
 
     logger.info("Collaborator removed", {
       pageId: input.pageId,
-      removedUserId: input.userId,
+      targetUserId: input.userId,
       removedBy: userId,
     });
+
     return { success: true };
   } catch (error: unknown) {
     if (error instanceof AppError) throw error;
@@ -59,7 +50,6 @@ export const handler = async (
       err: error,
       userId,
       pageId: input.pageId,
-      removedUserId: input.userId,
     });
     throw new AppError("Failed to remove page collaborator");
   }

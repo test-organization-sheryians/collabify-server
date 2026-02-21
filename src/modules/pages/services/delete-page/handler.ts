@@ -1,60 +1,46 @@
-import { ServiceContext } from "@/graphql/types";
+/**
+ * deletePage — Service Handler
+ *
+ * Soft-deletes a page. The page record is NOT removed — deletedAt is set,
+ * making the page invisible to all queries that guard deletedAt: null.
+ *
+ * Execution:
+ *   Step 1 — checkAccess               : page exists + EDITOR role gate
+ *   Step 2 — checkNoActiveSubscribers  : ZCARD guard — no active editing sessions
+ *   Step 3 — softDelete                : page.update({ deletedAt: now() })
+ *   Step 4 — broadcast                 : PUBLISH page:deleted (best-effort)
+ */
+
 import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
+import type { ServiceContext } from "@/graphql/types";
 import type { DeletePageInput } from "./schema";
-import { PageKeys } from "../../infra/page-keys";
+import { checkAccess } from "./steps/check-access";
+import { checkNoActiveSubscribers } from "./steps/check-no-active-subscribers";
+import { softDelete } from "./steps/soft-delete";
+import { broadcast } from "./steps/broadcast";
 
 const logger = createLogger("pages:services:delete-page");
 
-/**
- * deletePage handler (soft delete)
- *
- * Workflow:
- * 1. Auth + fetch page + EDITOR role check
- * 2. Active subscriber guard (reject if anyone currently editing)
- * 3. Soft delete (set deletedAt)
- * 4. Pub/Sub broadcast page-deleted
- */
 export const handler = async (input: DeletePageInput, ctx: ServiceContext) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
 
   try {
-    // Step 1 — Fetch page + auth
-    const page = await ctx.db.page.findUnique({
-      where: { id: input.pageId, deletedAt: null },
-    });
-    if (!page) throw AppError.notFound("Page not found");
+    // Step 1 — EDITOR gate
+    await checkAccess(input.pageId, userId, ctx.db);
 
-    const collab = await ctx.db.pageCollaborator.findUnique({
-      where: { pageId_userId: { pageId: input.pageId, userId } },
-    });
-    if (!collab || collab.role !== "EDITOR") {
-      throw AppError.forbidden("Only editors can delete a page");
-    }
+    // Step 2 — no active subscribers guard
+    await checkNoActiveSubscribers(input.pageId, ctx.redis);
 
-    // Step 2 — Active subscriber guard
-    const activeCount = await ctx.redis.zcard(
-      PageKeys.PageSubscribers(input.pageId)
-    );
-    if (activeCount > 0) {
-      throw AppError.conflict(
-        "Cannot delete a page while collaborators are actively editing"
-      );
-    }
+    // Step 3 — soft delete
+    await softDelete(input.pageId, ctx.db);
 
-    // Step 3 — Soft delete
-    await ctx.db.page.update({
-      where: { id: input.pageId },
-      data: { deletedAt: new Date() },
-    });
-
-    // Step 4 — Pub/Sub broadcast
-    await ctx.redis.publish(
-      PageKeys.PageEvents(input.pageId),
-      JSON.stringify({
-        type: "page:deleted",
-        data: { pageId: input.pageId, deletedBy: userId },
+    // Step 4 — broadcast (best-effort)
+    await broadcast(input.pageId, userId, ctx.redis).catch((err) =>
+      logger.error("Broadcast failed after delete", {
+        err,
+        pageId: input.pageId,
       })
     );
 

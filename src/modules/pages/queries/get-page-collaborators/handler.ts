@@ -1,18 +1,23 @@
-import { ServiceContext } from "@/graphql/types";
+/**
+ * getPageCollaborators — Query Handler
+ *
+ * Returns the authoritative DB collaborator list with role + user profile.
+ * For live presence (currently online users), use getActivePageCollaborators.
+ *
+ * Execution:
+ *   Step 1 — checkAccess         : caller must be a collaborator (not just workspace member)
+ *   Step 2 — fetchCollaborators  : findMany with user join, ordered joinedAt ASC
+ */
+
 import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
-import type { GetPageCollaboratorsInput } from "./index";
+import type { ServiceContext } from "@/graphql/types";
+import type { GetPageCollaboratorsInput } from "./schema";
+import { checkAccess } from "./steps/check-access";
+import { fetchCollaborators } from "./steps/fetch-collaborators";
 
 const logger = createLogger("pages:queries:get-page-collaborators");
 
-/**
- * getPageCollaborators handler — authoritative DB collaborator list.
- *
- * Workflow:
- * 1. Auth + access check (must be a collaborator)
- * 2. Fetch all collaborators with user join
- * 3. Return { collaborators }
- */
 export const getPageCollaboratorsHandler = async (
   input: GetPageCollaboratorsInput,
   ctx: ServiceContext
@@ -21,22 +26,11 @@ export const getPageCollaboratorsHandler = async (
   if (!userId) throw AppError.unauthorized("User not authenticated");
 
   try {
-    // Step 1 — Access check
-    const collab = await ctx.db.pageCollaborator.findUnique({
-      where: { pageId_userId: { pageId: input.pageId, userId } },
-    });
-    if (!collab) throw AppError.forbidden("Not a collaborator on this page");
+    // Step 1 — collaborator-only gate
+    await checkAccess(input.pageId, userId, ctx.db);
 
-    // Step 2 — Fetch all collaborators with user data for the mapper
-    const collaborators = await ctx.db.pageCollaborator.findMany({
-      where: { pageId: input.pageId },
-      include: {
-        user: {
-          select: { id: true, email: true, fullName: true, avatarUrl: true },
-        },
-      },
-      orderBy: { joinedAt: "asc" },
-    });
+    // Step 2 — fetch full list with user join
+    const collaborators = await fetchCollaborators(input.pageId, ctx.db);
 
     return { collaborators };
   } catch (error: unknown) {

@@ -1,103 +1,107 @@
 /**
- * Stream Worker — Main entry point.
+ * Stream Worker — Entry point.
  *
- * Three cooperative async loops run in a single process (Bun supports top-level await):
- * 1. processLoop()   — XREADGROUP + apply updates + snapshot on threshold
- * 2. heartbeatLoop() — ZADD sys:page-workers every HEARTBEAT_INTERVAL_MS
- * 3. recoveryLoop()  — XAUTOCLAIM PEL entries from dead workers every cycle
+ * Initialises all Lua scripts, builds WorkerState, and starts the 3 cooperative loops:
+ *   - heartbeatLoop  (fire-and-forget)
+ *   - recoveryLoop   (fire-and-forget)
+ *   - processLoop    (await — blocking main loop)
  *
- * PARTITIONING:
- * Each worker only processes streams for pages it owns (ownsPage(pageId) === true).
- * Pages are re-assigned on each processLoop cycle when the epoch changes.
- *
- * START SEQUENCE:
- * 1. Load all Lua scripts into Redis → get LuaShas
- * 2. Start heartbeatLoop (background, non-blocking)
- * 3. Start recoveryLoop (background, non-blocking)
- * 4. Start processLoop (blocking main loop)
+ * SIGTERM: sets state.isRunning = false → all loops exit after current iteration.
  */
 
 import type { Redis } from "ioredis";
+import type { PrismaClient } from "@prisma/client";
+import { createLogger } from "@/shared/lib/logger";
 import { loadAllLuaScripts } from "../infra/lua";
-import {
-  registerHeartbeat,
-  ownsPage,
-  pruneDeadWorkers,
-  getActiveWorkers,
-} from "../infra/worker-coordinator";
-import {
-  applyUpdateBatch,
-  rebuildPageSnapshot,
-  shouldSnapshot,
-} from "./processor";
-import { PageKeys } from "../infra/page-keys";
+import { ThresholdRegistry } from "./thresholds/index";
+import { StreamLengthThreshold } from "./thresholds/stream-length";
+import { CooldownThreshold } from "./thresholds/cooldown";
+import { processLoop, heartbeatLoop, recoveryLoop } from "./worker-loops";
 import {
   CONSUMER_NAME,
-  WORKER_GROUP_NAME,
-  BATCH_SIZE,
-  BLOCK_TIMEOUT_MS,
-  HEARTBEAT_INTERVAL_MS,
-  PEL_CLAIM_THRESHOLD_MS,
-  RECOVERY_BATCH_SIZE,
+  WORKER_INDEX,
+  WORKER_COUNT,
+  SNAPSHOT_THRESHOLD,
+  SNAPSHOT_COOLDOWN_MS,
 } from "./config";
+import type { WorkerState } from "./types";
 
-/**
- * processLoop — the main XREADGROUP loop.
- *
- * FLOW (each iteration):
- *   1. Read current active pages: ZRANGEBYSCORE sys:pages:active -inf +inf
- *   2. Filter to owned pages (ownsPage)
- *   3. For each owned page: XREADGROUP GROUP page-workers CONSUMERAME COUNT BATCH_SIZE BLOCK TIMEOUT
- *   4. Apply updates via applyUpdateBatch
- *   5. XACK processed entries
- *   6. If shouldSnapshot: rebuildPageSnapshot
- *
- * TODO: Implement
- */
-async function processLoop(redis: Redis): Promise<void> {
-  // TODO: while (true) { ... }
-  throw new Error("processLoop: not implemented");
+const logger = createLogger("pages:stream-worker");
+
+export async function startWorker(
+  redis: Redis,
+  db: PrismaClient
+): Promise<void> {
+  logger.info("Stream worker starting", {
+    consumerName: CONSUMER_NAME,
+    workerIndex: WORKER_INDEX,
+    workerCount: WORKER_COUNT,
+  });
+
+  // 1. Pre-load all Lua scripts — must complete before any loop touches Redis
+  await loadAllLuaScripts(redis);
+  logger.info("Lua scripts loaded");
+
+  // 2. Build initial state
+  const state: WorkerState = {
+    isRunning: true,
+    workerIndex: WORKER_INDEX,
+    workerCount: WORKER_COUNT,
+    consumerName: CONSUMER_NAME,
+    lastSeenEpoch: "0",
+    thresholdRegistry: buildThresholdRegistry(redis, db),
+    metrics: {
+      pagesProcessed: 0,
+      updatesProcessed: 0,
+      snapshotsCreated: 0,
+      s3SyncSuccesses: 0,
+      s3SyncFailures: 0,
+      redisErrors: 0,
+      activePagesOwned: 0,
+      avgProcessingTimeMs: 0,
+      lastCycleMs: 0,
+    },
+  };
+
+  // 3. Graceful shutdown
+  process.on("SIGTERM", () => {
+    logger.info("SIGTERM received — stopping worker after current batch");
+    state.isRunning = false;
+  });
+
+  process.on("SIGINT", () => {
+    logger.info("SIGINT received — stopping worker");
+    state.isRunning = false;
+  });
+
+  // 4. Fire-and-forget background loops
+  heartbeatLoop(state, redis).catch((err) =>
+    logger.error("Heartbeat loop crashed", { err })
+  );
+
+  recoveryLoop(state, redis, db).catch((err) =>
+    logger.error("Recovery loop crashed", { err })
+  );
+
+  // 5. Blocking main loop
+  await processLoop(state, redis, db);
+
+  logger.info("Stream worker stopped cleanly");
 }
 
-/**
- * heartbeatLoop — periodically updates this worker's heartbeat in the registry.
- *
- * TODO: Implement
- *   setInterval(() => registerHeartbeat(redis), HEARTBEAT_INTERVAL_MS)
- */
-async function heartbeatLoop(redis: Redis): Promise<void> {
-  // TODO: setInterval(async () => { await registerHeartbeat(redis) }, HEARTBEAT_INTERVAL_MS)
-  throw new Error("heartbeatLoop: not implemented");
-}
+// ─── Threshold Registry Builder ───────────────────────────────────────────────
 
-/**
- * recoveryLoop — claims PEL entries from dead workers via XAUTOCLAIM.
- *
- * FLOW:
- *   1. pruneDeadWorkers(redis) — remove stale entries from registry
- *   2. getActiveWorkers(redis) — get current live worker set
- *   3. Get all active pages
- *   4. For each owned page: XAUTOCLAIM PEL entries older than PEL_CLAIM_THRESHOLD_MS
- *      (only entries NOT belonging to a currently active worker)
- *   5. Process claimed entries via applyUpdateBatch
- *
- * TODO: Implement
- */
-async function recoveryLoop(redis: Redis): Promise<void> {
-  // TODO: while (true) { ... }
-  throw new Error("recoveryLoop: not implemented");
-}
+function buildThresholdRegistry(
+  _redis: Redis,
+  _db: PrismaClient
+): ThresholdRegistry {
+  const registry = new ThresholdRegistry();
 
-/**
- * startWorker — initialises and launches all three loops.
- *
- * TODO: Implement
- *   1. const luaShas = await loadAllLuaScripts(redis)
- *   2. heartbeatLoop(redis)   // fire-and-forget
- *   3. recoveryLoop(redis)    // fire-and-forget
- *   4. await processLoop(redis)  // blocking
- */
-export async function startWorker(redis: Redis): Promise<void> {
-  // TODO: see JSDoc above
-  throw new Error("startWorker: not implemented");
+  // Trigger on stream length — bulk write bursts
+  registry.register(new StreamLengthThreshold(SNAPSHOT_THRESHOLD));
+
+  // Trigger on time elapsed — slow/constant pages that never hit length threshold
+  registry.register(new CooldownThreshold(SNAPSHOT_COOLDOWN_MS));
+
+  return registry;
 }

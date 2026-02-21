@@ -1,59 +1,49 @@
-import { ServiceContext } from "@/graphql/types";
+/**
+ * renamePage — Service Handler
+ *
+ * Updates the page title in the DB and broadcasts the change to connected clients.
+ *
+ * Execution:
+ *   Step 1 — checkAccess  : page exists + EDITOR role gate
+ *   Step 2 — updateTitle  : page.update({ title })
+ *   Step 3 — broadcast    : PUBLISH page:renamed with new title (best-effort)
+ */
+
 import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
+import type { ServiceContext } from "@/graphql/types";
 import type { RenamePageInput } from "./schema";
-import { PageKeys } from "../../infra/page-keys";
+import { checkAccess } from "./steps/check-access";
+import { updateTitle } from "./steps/update-title";
+import { broadcast } from "./steps/broadcast";
 
 const logger = createLogger("pages:services:rename-page");
 
-/**
- * renamePage handler
- *
- * Workflow:
- * 1. Auth + page fetch + EDITOR check
- * 2. DB update (title)
- * 3. Pub/Sub broadcast page-renamed
- * 4. Return { page: updated }
- */
 export const handler = async (input: RenamePageInput, ctx: ServiceContext) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
 
   try {
-    // Step 1 — Fetch page + access check
-    const page = await ctx.db.page.findUnique({
-      where: { id: input.pageId, deletedAt: null },
-    });
-    if (!page) throw AppError.notFound("Page not found");
-
-    const collab = await ctx.db.pageCollaborator.findUnique({
-      where: { pageId_userId: { pageId: input.pageId, userId } },
-    });
-    if (!collab || collab.role !== "EDITOR") {
-      throw AppError.forbidden("Only editors can rename a page");
-    }
+    // Step 1 — EDITOR gate
+    await checkAccess(input.pageId, userId, ctx.db);
 
     // Step 2 — DB update
-    const updated = await ctx.db.page.update({
-      where: { id: input.pageId },
-      data: { title: input.title },
-    });
+    const page = await updateTitle(input.pageId, input.title, ctx.db);
 
-    // Step 3 — Pub/Sub broadcast
-    await ctx.redis.publish(
-      PageKeys.PageEvents(input.pageId),
-      JSON.stringify({
-        type: "page:renamed",
-        data: { pageId: input.pageId, title: input.title, renamedBy: userId },
+    // Step 3 — broadcast (best-effort)
+    await broadcast(input.pageId, input.title, userId, ctx.redis).catch((err) =>
+      logger.error("Broadcast failed after rename", {
+        err,
+        pageId: input.pageId,
       })
     );
 
     logger.info("Page renamed", {
       pageId: input.pageId,
-      userId,
       title: input.title,
+      userId,
     });
-    return { page: updated };
+    return { page };
   } catch (error: unknown) {
     if (error instanceof AppError) throw error;
     logger.error("Failed to rename page", {

@@ -2,7 +2,8 @@
  * Stream Worker Types — shared type definitions for the worker loop.
  */
 
-import { Y } from "@/shared/yjs";
+import type { Y } from "@/shared/yjs";
+import type { ThresholdRegistry } from "./thresholds/index";
 
 /** A single raw entry from XREADGROUP (Redis stream entry) */
 export interface RawStreamEntry {
@@ -23,12 +24,28 @@ export interface PageUpdateResult {
   latestStreamId: string;
 }
 
-/** Metrics snapshot emitted by the worker for observability */
-export interface WorkerMetrics {
+/** Mutable state shared by all 3 worker loops */
+export interface WorkerState {
+  /** Set to false on SIGTERM — all loops exit cleanly. */
+  isRunning: boolean;
+  workerIndex: number;
+  workerCount: number;
   consumerName: string;
-  processedTotal: number;
-  snapshotsBuilt: number;
-  failedEntries: number;
+  /** Last seen value of sys:pages:epoch — re-partition when this changes. */
+  lastSeenEpoch: string;
+  thresholdRegistry: ThresholdRegistry;
+  metrics: WorkerMetrics;
+}
+
+/** Runtime observability counters */
+export interface WorkerMetrics {
+  pagesProcessed: number;
+  updatesProcessed: number;
+  snapshotsCreated: number;
+  s3SyncSuccesses: number;
+  s3SyncFailures: number;
+  redisErrors: number;
   activePagesOwned: number;
+  avgProcessingTimeMs: number;
   lastCycleMs: number;
 }

@@ -1,19 +1,24 @@
-import { ServiceContext } from "@/graphql/types";
+/**
+ * addPageCollaborators — Service Handler
+ *
+ * Upsert-semantics: invites new collaborators or updates existing roles in one call.
+ *
+ * Execution:
+ *   Step 1 — checkAccess          : caller must be EDITOR on the page
+ *   Step 2 — validateUsers        : all target userIds must exist in DB
+ *   Step 3 — upsertCollaborators  : parallel upsert (create + role update) with user join
+ */
+
 import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
+import type { ServiceContext } from "@/graphql/types";
 import type { AddPageCollaboratorsInput } from "./schema";
+import { checkAccess } from "./steps/check-access";
+import { validateUsers } from "./steps/validate-users";
+import { upsertCollaborators } from "./steps/upsert-collaborators";
 
 const logger = createLogger("pages:services:add-page-collaborators");
 
-/**
- * addPageCollaborators handler — upsert-semantics (invite + role changes).
- *
- * Workflow:
- * 1. Auth + EDITOR check on the page
- * 2. Validate all target userIds exist
- * 3. createMany with skipDuplicates=false (upsert via loop for role update semantics)
- * 4. Return { addedCollaborators }
- */
 export const handler = async (
   input: AddPageCollaboratorsInput,
   ctx: ServiceContext
@@ -22,62 +27,27 @@ export const handler = async (
   if (!userId) throw AppError.unauthorized("User not authenticated");
 
   try {
-    // Step 1 — Access check
-    const page = await ctx.db.page.findUnique({
-      where: { id: input.pageId, deletedAt: null },
-    });
-    if (!page) throw AppError.notFound("Page not found");
+    // Step 1 — EDITOR gate
+    await checkAccess(input.pageId, userId, ctx.db);
 
-    const callerCollab = await ctx.db.pageCollaborator.findUnique({
-      where: { pageId_userId: { pageId: input.pageId, userId } },
-    });
-    if (!callerCollab || callerCollab.role !== "EDITOR") {
-      throw AppError.forbidden("Only editors can manage collaborators");
-    }
-
-    // Step 2 — Validate target users exist
+    // Step 2 — pre-flight user existence check
     const targetIds = input.collaborators.map((c) => c.userId);
-    const existingUsers = await ctx.db.user.findMany({
-      where: { id: { in: targetIds } },
-      select: { id: true },
-    });
-    const foundIds = new Set(existingUsers.map((u) => u.id));
-    const missing = targetIds.filter((id) => !foundIds.has(id));
-    if (missing.length > 0) {
-      throw AppError.notFound(`Users not found: ${missing.join(", ")}`);
-    }
+    await validateUsers(targetIds, ctx.db);
 
-    // Step 3 — Upsert collaborators (update role if already exists)
-    const upserted = await Promise.all(
-      input.collaborators.map((c) =>
-        ctx.db.pageCollaborator.upsert({
-          where: { pageId_userId: { pageId: input.pageId, userId: c.userId } },
-          create: {
-            pageId: input.pageId,
-            userId: c.userId,
-            role: c.role as any,
-          },
-          update: { role: c.role as any },
-          include: {
-            user: {
-              select: {
-                id: true,
-                fullName: true,
-                email: true,
-                avatarUrl: true,
-              },
-            },
-          },
-        })
-      )
+    // Step 3 — parallel upsert with user join
+    const addedCollaborators = await upsertCollaborators(
+      input.pageId,
+      input.collaborators,
+      ctx.db
     );
 
     logger.info("Collaborators added/updated", {
       pageId: input.pageId,
-      count: upserted.length,
+      count: addedCollaborators.length,
       userId,
     });
-    return { addedCollaborators: upserted };
+
+    return { addedCollaborators };
   } catch (error: unknown) {
     if (error instanceof AppError) throw error;
     logger.error("Failed to add collaborators", {

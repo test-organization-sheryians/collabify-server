@@ -1,20 +1,25 @@
-import { ServiceContext } from "@/graphql/types";
+/**
+ * getActivePageCollaborators — Query Handler
+ *
+ * Returns live presence from Redis ZSET, NOT the authoritative DB collaborator list.
+ * For persistent collaborator list (all users with access), use getPageCollaborators.
+ *
+ * Execution:
+ *   Step 1 — checkAccess       : verify caller is a page collaborator
+ *   Step 2 — fetchActiveIds    : ZRANGE page:{id}:subscribers → userId[]
+ *   Step 3 — fetchUserProfiles : user.findMany batch + join → ActiveCollaborator[]
+ */
+
 import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
-import type { GetActivePageCollaboratorsInput } from "./index";
-import { PageKeys } from "../../infra/page-keys";
+import type { ServiceContext } from "@/graphql/types";
+import type { GetActivePageCollaboratorsInput } from "./schema";
+import { checkAccess } from "./steps/check-access";
+import { fetchActiveIds } from "./steps/fetch-active-ids";
+import { fetchUserProfiles } from "./steps/fetch-user-profiles";
 
 const logger = createLogger("pages:queries:get-active-page-collaborators");
 
-/**
- * getActivePageCollaborators handler — live presence from Redis ZSET.
- *
- * Workflow:
- * 1. Auth + access check
- * 2. ZRANGE on PageSubscribers ZSET
- * 3. Batch user lookup via DataLoader
- * 4. Return joined result
- */
 export const getActivePageCollaboratorsHandler = async (
   input: GetActivePageCollaboratorsInput,
   ctx: ServiceContext
@@ -23,47 +28,15 @@ export const getActivePageCollaboratorsHandler = async (
   if (!userId) throw AppError.unauthorized("User not authenticated");
 
   try {
-    // Step 1 — Access check
-    const collab = await ctx.db.pageCollaborator.findUnique({
-      where: { pageId_userId: { pageId: input.pageId, userId } },
-    });
-    if (!collab) throw AppError.forbidden("Not a collaborator on this page");
+    // Step 1 — access gate
+    await checkAccess(input.pageId, userId, ctx.db);
 
-    // Step 2 — Redis ZSET presence
-    const activeIds = await ctx.redis.zrange(
-      PageKeys.PageSubscribers(input.pageId),
-      0,
-      -1
-    );
-
+    // Step 2 — presence ZSET read
+    const activeIds = await fetchActiveIds(input.pageId, ctx.redis);
     if (activeIds.length === 0) return [];
 
-    // Step 3 — Batch user lookup directly from DB
-    // (DataLoaders are for field resolvers only — query handlers use ctx.db directly)
-    const users = await ctx.db.user.findMany({
-      where: { id: { in: activeIds } },
-      select: { id: true, fullName: true, email: true, avatarUrl: true },
-    });
-    const userMap = new Map(users.map((u) => [u.id, u]));
-
-    // Step 4 — Join + return
-    return activeIds
-      .map((id) => {
-        const user = userMap.get(id);
-        if (!user) return null;
-        return {
-          userId: id,
-          role: "VIEWER" as const, // presence doesn't carry role — default to VIEWER
-          joinedAt: new Date().toISOString(),
-          user: {
-            id: user.id,
-            fullName: user.fullName ?? "",
-            email: user.email,
-            avatarUrl: user.avatarUrl,
-          },
-        };
-      })
-      .filter(Boolean);
+    // Step 3 — batch user lookup + join
+    return fetchUserProfiles(activeIds, ctx.db);
   } catch (error: unknown) {
     if (error instanceof AppError) throw error;
     logger.error("Failed to get active collaborators", {

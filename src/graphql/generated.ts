@@ -939,6 +939,20 @@ export enum PageRole {
   Viewer = 'VIEWER'
 }
 
+/**
+ * Returned by getPageSnapshot.
+ *
+ * snapshot         — base64 Y.js diff. Client calls Y.applyUpdate(localDoc, decode(snapshot)).
+ * lastStreamId     — client passes this to subscribe-page for gap-fill replay.
+ * snapshotTimestamp — when the base snapshot was last compacted by the stream worker. Null for new pages.
+ */
+export type PageSnapshot = {
+  __typename?: 'PageSnapshot';
+  lastStreamId: Scalars['String']['output'];
+  snapshot: Scalars['String']['output'];
+  snapshotTimestamp?: Maybe<Scalars['DateTime']['output']>;
+};
+
 export enum PresenceStatus {
   Away = 'AWAY',
   Offline = 'OFFLINE',
@@ -988,14 +1002,20 @@ export type Query = {
   /** DB collaborator list (authoritative). For real-time presence, use getActivePageCollaborators. */
   getPageCollaborators: Array<PageCollaborator>;
   /**
-   * Returns the current authoritative Y.Doc snapshot + lastStreamId for gap-fill.
+   * Returns the authoritative Y.Doc snapshot diff + a stream cursor for gap-fill.
    *
-   * If 'clientSnapshot' is provided, the server merges it (offline sync) and writes
-   * the client's delta back to the Redis stream before returning.
+   * First open (no offline state):
+   *   getPageSnapshot(pageId: "cuid")
    *
-   * Called once on page open. After this, the client switches to WS stream consumption.
+   * Reconnect with offline edits:
+   *   getPageSnapshot(pageId: "cuid", clientSnapshot: "<base64 Y.encodeStateAsUpdate>")
+   *
+   * Client workflow:
+   *   1. Call this query → receive { snapshot, lastStreamId }
+   *   2. Apply snapshot: Y.applyUpdate(localDoc, base64Decode(snapshot))
+   *   3. Open WS: page:subscribe-page { pageId, lastStreamId }  ← gap-fill
    */
-  getPageSnapshot: GetPageSnapshotResult;
+  getPageSnapshot: PageSnapshot;
   /** Returns the full nested page tree for a project (non-archived, non-deleted). */
   getProjectPages: Array<Page>;
   getReadReceipts: ReadReceiptsResponse;
@@ -1106,7 +1126,6 @@ export type QueryGetPageCollaboratorsArgs = {
 
 
 export type QueryGetPageSnapshotArgs = {
-  clientSnapshot?: InputMaybe<Scalars['String']['input']>;
   pageId: Scalars['ID']['input'];
 };
 
@@ -1600,6 +1619,7 @@ export type ResolversTypes = ResolversObject<{
   PageCollaboratorInput: PageCollaboratorInput;
   PageInfo: ResolverTypeWrapper<PageInfo>;
   PageRole: PageRole;
+  PageSnapshot: ResolverTypeWrapper<PageSnapshot>;
   PresenceStatus: PresenceStatus;
   Project: ResolverTypeWrapper<PrismaProject>;
   ProjectMember: ResolverTypeWrapper<PrismaProjectMember>;
@@ -1713,6 +1733,7 @@ export type ResolversParentTypes = ResolversObject<{
   PageCollaborator: PageCollaborator;
   PageCollaboratorInput: PageCollaboratorInput;
   PageInfo: PageInfo;
+  PageSnapshot: PageSnapshot;
   Project: PrismaProject;
   ProjectMember: PrismaProjectMember;
   Query: Record<PropertyKey, never>;
@@ -2160,6 +2181,12 @@ export type PageInfoResolvers<ContextType = ServiceContext, ParentType extends R
   hasNextPage?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
 }>;
 
+export type PageSnapshotResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['PageSnapshot'] = ResolversParentTypes['PageSnapshot']> = ResolversObject<{
+  lastStreamId?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  snapshot?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  snapshotTimestamp?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+}>;
+
 export type ProjectResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Project'] = ResolversParentTypes['Project']> = ResolversObject<{
   createdAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
@@ -2196,7 +2223,7 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   getMissingMessages?: Resolver<Array<ResolversTypes['ChatMessage']>, ParentType, ContextType, RequireFields<QueryGetMissingMessagesArgs, 'channelId' | 'rangeEnd' | 'rangeStart'>>;
   getPage?: Resolver<ResolversTypes['Page'], ParentType, ContextType, RequireFields<QueryGetPageArgs, 'pageId'>>;
   getPageCollaborators?: Resolver<Array<ResolversTypes['PageCollaborator']>, ParentType, ContextType, RequireFields<QueryGetPageCollaboratorsArgs, 'pageId'>>;
-  getPageSnapshot?: Resolver<ResolversTypes['GetPageSnapshotResult'], ParentType, ContextType, RequireFields<QueryGetPageSnapshotArgs, 'pageId'>>;
+  getPageSnapshot?: Resolver<ResolversTypes['PageSnapshot'], ParentType, ContextType, RequireFields<QueryGetPageSnapshotArgs, 'pageId'>>;
   getProjectPages?: Resolver<Array<ResolversTypes['Page']>, ParentType, ContextType, RequireFields<QueryGetProjectPagesArgs, 'projectId'>>;
   getReadReceipts?: Resolver<ResolversTypes['ReadReceiptsResponse'], ParentType, ContextType, RequireFields<QueryGetReadReceiptsArgs, 'messageId'>>;
   getThreadMessages?: Resolver<Array<ResolversTypes['ChatMessage']>, ParentType, ContextType, RequireFields<QueryGetThreadMessagesArgs, 'parentMessageId'>>;
@@ -2443,6 +2470,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   Page?: PageResolvers<ContextType>;
   PageCollaborator?: PageCollaboratorResolvers<ContextType>;
   PageInfo?: PageInfoResolvers<ContextType>;
+  PageSnapshot?: PageSnapshotResolvers<ContextType>;
   Project?: ProjectResolvers<ContextType>;
   ProjectMember?: ProjectMemberResolvers<ContextType>;
   Query?: QueryResolvers<ContextType>;

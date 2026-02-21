@@ -1,55 +1,46 @@
-import { ServiceContext } from "@/graphql/types";
+/**
+ * archivePage — Service Handler
+ *
+ * Archives a single page (sets isArchived = true). Descendants are NOT
+ * recursively archived — see README improvement plan.
+ *
+ * Execution:
+ *   Step 1 — checkAccess  : page exists + EDITOR role gate
+ *   Step 2 — setArchived  : DB update isArchived = true
+ *   Step 3 — broadcast    : PUBLISH page:archived event (best-effort)
+ */
+
 import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
+import type { ServiceContext } from "@/graphql/types";
 import type { ArchivePageInput } from "./schema";
-import { PageKeys } from "../../infra/page-keys";
+import { checkAccess } from "./steps/check-access";
+import { setArchived } from "./steps/set-archived";
+import { broadcast } from "./steps/broadcast";
 
 const logger = createLogger("pages:services:archive-page");
 
-/**
- * archivePage handler — archives a page and all its descendants.
- *
- * Workflow:
- * 1. Auth + page fetch + EDITOR check
- * 2. updateMany on page + all descendants (recursive CTE via raw or in-memory subtree)
- * 3. Pub/Sub broadcast
- * 4. Return { page: updated }
- */
 export const handler = async (input: ArchivePageInput, ctx: ServiceContext) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
 
   try {
-    // Step 1 — Fetch page + access check
-    const page = await ctx.db.page.findUnique({
-      where: { id: input.pageId, deletedAt: null },
-    });
-    if (!page) throw AppError.notFound("Page not found");
+    // Step 1 — EDITOR gate
+    await checkAccess(input.pageId, userId, ctx.db);
 
-    const collab = await ctx.db.pageCollaborator.findUnique({
-      where: { pageId_userId: { pageId: input.pageId, userId } },
-    });
-    if (!collab || collab.role !== "EDITOR") {
-      throw AppError.forbidden("Only editors can archive a page");
-    }
+    // Step 2 — DB update
+    const page = await setArchived(input.pageId, ctx.db);
 
-    // Step 2 — Archive page (descendants are archived lazily client-side or in a background job)
-    const updated = await ctx.db.page.update({
-      where: { id: input.pageId },
-      data: { isArchived: true },
-    });
-
-    // Step 3 — Pub/Sub broadcast
-    await ctx.redis.publish(
-      PageKeys.PageEvents(input.pageId),
-      JSON.stringify({
-        type: "page:archived",
-        data: { pageId: input.pageId, archivedBy: userId },
+    // Step 3 — broadcast (best-effort)
+    await broadcast(input.pageId, userId, ctx.redis).catch((err) =>
+      logger.error("Broadcast failed after archive", {
+        err,
+        pageId: input.pageId,
       })
     );
 
     logger.info("Page archived", { pageId: input.pageId, userId });
-    return { page: updated };
+    return { page };
   } catch (error: unknown) {
     if (error instanceof AppError) throw error;
     logger.error("Failed to archive page", {
