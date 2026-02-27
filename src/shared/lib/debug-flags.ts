@@ -18,12 +18,13 @@ export const GROUPS = {
   // ═══════════════════════════════════════════════════════════════
   // Module Groups (enable entire feature)
   // ═══════════════════════════════════════════════════════════════
-  chat: false, // ❌ All chat module logs (jobs, WS, services)
-  whiteboard: false, // ❌ All whiteboard module logs (WS, jobs, services)
-  notification: false, // ❌ All notification engine + channel logs
-  user: false, // ❌ All user module logs
-  workspace: false, // ❌ All workspace module logs
-  project: false, // ❌ All project module logs
+  chat: false,
+  whiteboard: false,
+  notification: false,
+  user: false,
+  workspace: false,
+  project: false,
+  pages: true, // ✅ All pages module logs
 
   // ═══════════════════════════════════════════════════════════════
   // Infrastructure Groups
@@ -43,7 +44,7 @@ export const GROUPS = {
    * Enables: worker init, loops, processor, cache, snapshot, board-init, health
    * Use when: Debugging stream consumption, snapshot creation, cache updates
    */
-  "whiteboard-stream-worker": true, // ✅ ENABLED for testing
+  "whiteboard-stream-worker": false, // ❌ Disabled — use pages flags for page debugging
 
   /**
    * Board Update E2E Flow (Frontend → Backend → Stream)
@@ -163,29 +164,29 @@ export const FILES: Record<string, boolean | undefined> = {
   // Whiteboard Module (✅ STREAM WORKER V2 ONLY)
   // ─────────────────────────────────────
   "whiteboard:engine": false, // modules/whiteboard/index.ts - Worker startup
-  "whiteboard:ws:subscribe": true, // modules/whiteboard/ws/subscribe-handler.ts
-  "whiteboard:ws:unsubscribe": true, // modules/whiteboard/ws/unsubscribe-handler.ts
-  "whiteboard:ws:board-update": true, // modules/whiteboard/ws/board-update-handler.ts - Update handling ✅
-  "whiteboard:ws:cursor": false, // modules/whiteboard/ws/cursor-handler.ts
-  "whiteboard:ws:selection": false, // modules/whiteboard/ws/selection-handler.ts
+  "whiteboard:ws:subscribe": false,
+  "whiteboard:ws:unsubscribe": false,
+  "whiteboard:ws:board-update": false,
+  "whiteboard:ws:cursor": false,
+  "whiteboard:ws:selection": false,
 
-  // Stream Worker V2 - Exact Logger Names (from createLogger calls)
-  "whiteboard:stream-worker-v2": true, // worker.ts actual logger ✅
-  "whiteboard:stream-worker-v2:loops": true, // worker-loops.ts actual logger ✅
-  "whiteboard:stream-worker-v2:processor": true, // processor.ts actual logger ✅
-  "whiteboard:stream-worker-v2:s3-sync": true, // s3-sync.ts actual logger ✅
+  // Stream Worker V2
+  "whiteboard:stream-worker-v2": false,
+  "whiteboard:stream-worker-v2:loops": false,
+  "whiteboard:stream-worker-v2:processor": false,
+  "whiteboard:stream-worker-v2:s3-sync": false,
 
-  "whiteboard:stream-worker:lua": true, // lua-scripts.ts actual logger ✅
-  "whiteboard:threshold:registry": true, // thresholds/index.ts actual logger ✅
-  "whiteboard:threshold:stream-length": true, // thresholds/stream-length.ts actual logger ✅
-  "whiteboard:infra:s3": true, // modules/whiteboard/infra/s3-client.ts - S3 operations ✅
-  "whiteboard:infra:loop-prevention": false, // modules/whiteboard/infra/loop-prevention.ts
-  "whiteboard:jobs:snapshot": false, // modules/whiteboard/jobs/snapshot.ts
-  "whiteboard:jobs:cleanup": false, // modules/whiteboard/jobs/cleanup.ts
-  "whiteboard:services:create-board": false, // modules/whiteboard/services/create-board/
-  "whiteboard:services:delete-board": true, // ✅ modules/whiteboard/services/delete-board/handler.ts
-  "whiteboard:services:delete-board:cleanup": true, // ✅ modules/whiteboard/services/delete-board/cleanup.ts
-  "whiteboard:queries:get-snapshot": false, // modules/whiteboard/queries/get-board-snapshot/ - Query handler
+  "whiteboard:stream-worker:lua": false,
+  "whiteboard:threshold:registry": false,
+  "whiteboard:threshold:stream-length": false,
+  "whiteboard:infra:s3": false,
+  "whiteboard:infra:loop-prevention": false,
+  "whiteboard:jobs:snapshot": false,
+  "whiteboard:jobs:cleanup": false,
+  "whiteboard:services:create-board": false,
+  "whiteboard:services:delete-board": false,
+  "whiteboard:services:delete-board:cleanup": false,
+  "whiteboard:queries:get-snapshot": false,
 
   // ─────────────────────────────────────
   // Internal Module
@@ -228,20 +229,71 @@ export const FILES: Record<string, boolean | undefined> = {
   // ─────────────────────────────────────
   // Project Module
   // ─────────────────────────────────────
-  "project:services:create": false, // modules/project/services/create/
-  "project:queries:get": false, // modules/project/queries/get/
+  "project:services:create": false,
+  "project:queries:get": false,
 
   // ─────────────────────────────────────
   // Quota Module
   // ─────────────────────────────────────
-  "quota:enforce": false, // modules/quota/enforce.ts
+  "quota:enforce": false,
 
   // ─────────────────────────────────────
   // Infrastructure & Services (Core)
   // ─────────────────────────────────────
-  "services:bullmq": false, // services/bullmq/
-  "services:clerk": false, // services/clerk/
-  "services:providers": false, // services/providers/
+  "services:bullmq": false,
+  "services:clerk": false,
+  "services:providers": false,
+
+  // ─────────────────────────────────────
+  // Pages Module ✅ ENABLED
+  // ─────────────────────────────────────
+  // WS — subscribe-page
+  "pages:ws:subscribe-page": true,
+  "pages:ws:subscribe-page:auth-check": true,
+  "pages:ws:subscribe-page:fetch-collaborators": true,
+  "pages:ws:subscribe-page:replay-gap": true,
+  "pages:ws:subscribe-page:track-presence": true,
+  "pages:ws:subscribe-page:broadcast-join": true,
+  // WS — unsubscribe-page
+  "pages:ws:unsubscribe-page": true,
+  "pages:ws:unsubscribe-page:broadcast-left": true,
+  "pages:ws:unsubscribe-page:bump-epoch": true,
+  "pages:ws:unsubscribe-page:cleanup-presence": true,
+  "pages:ws:unsubscribe-page:clean-user-state": true,
+  "pages:ws:unsubscribe-page:deregister-socket": true,
+  // WS — page-update
+  "pages:ws:page-update": true,
+  "pages:ws:page-update:check-auth": true,
+  "pages:ws:page-update:append-to-stream": true,
+  "pages:ws:page-update:broadcast": true,
+  // WS — awareness
+  "pages:ws:awareness-update": true,
+  // Queries
+  "pages:queries:get-page-snapshot": true,
+  "pages:queries:get-page-snapshot:load-snapshot": true,
+  "pages:queries:get-page-snapshot:compute-diff": true,
+  "pages:queries:get-page": false,
+  "pages:queries:get-project-pages": false,
+  "pages:queries:get-page-collaborators": false,
+  "pages:queries:get-active-page-collaborators": false,
+  // Services
+  "pages:services:create-page": true,
+  "pages:services:delete-page": true,
+  "pages:services:rename-page": true,
+  "pages:services:lock-page": true,
+  "pages:services:unlock-page": true,
+  "pages:services:archive-page": true,
+  "pages:services:unarchive-page": false,
+  "pages:services:reorder-page": false,
+  "pages:services:add-page-collaborators": false,
+  "pages:services:remove-page-collaborator": false,
+  // Stream Worker
+  "pages:stream-worker": true,
+  "pages:stream-worker:loops": true,
+  "pages:stream-worker:processor": true,
+  "pages:stream-worker:threshold-registry": true,
+  "pages:stream-worker:threshold:cooldown": true,
+  "pages:stream-worker:threshold:stream-length": true,
 };
 
 export type GroupFlag = keyof typeof GROUPS;

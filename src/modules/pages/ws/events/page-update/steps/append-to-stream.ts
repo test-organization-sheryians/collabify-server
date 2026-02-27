@@ -45,7 +45,8 @@ export async function appendToStream(
   const streamKey = PageKeys.PageStream(pageId);
   const dedupeKey = PageKeys.PageDedupe(pageId, dedupeId);
 
-  // Flat array return — NOT JSON
+  // Redis eval returns Lua integers as JS numbers (not strings).
+  // ok=1 (number) means success; ok=0 (number) means duplicate/backpressure.
   const [ok, streamId, status] = (await redis.eval(
     ATOMIC_PAGE_UPDATE_SCRIPT,
     2,
@@ -57,9 +58,9 @@ export async function appendToStream(
     userId,
     dedupeId,
     String(MAX_STREAM_LEN)
-  )) as [string, string, string];
+  )) as [number, string, string];
 
-  if (ok !== "1") {
+  if (ok !== 1) {
     if (status === "duplicate") {
       logger.debug("Duplicate update — already in stream", {
         dedupeId,

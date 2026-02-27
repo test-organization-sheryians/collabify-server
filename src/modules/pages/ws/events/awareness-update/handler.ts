@@ -1,4 +1,5 @@
 import { createLogger } from "@/shared/lib/logger";
+import { createSuccessFrame } from "@/infra/ws/types";
 import { PageKeys } from "../../../infra/page-keys";
 import type { WSHandlerContext, ChatWebSocket } from "@/infra/ws/types";
 import type { AwarenessUpdateInput } from "./schema";
@@ -37,13 +38,21 @@ export const awarenessUpdateHandler = async (
     return;
   }
 
-  // 2. Publish to awareness channel (separate from page:events — see README)
-  // originSocketId: wsRegistry skips sender's own socket during dispatch.
-  // No ACK — client never waits for confirmation on cursor sends.
+  // 2. Publish to awareness channel wrapped in the standard redis-subscriber envelope:
+  //    { message: <WS frame string>, originSocketId } — subscriber extracts these and
+  //    passes `message` directly to socket.send(), excluding the originating socket.
   try {
+    // createSuccessFrame produces { type, success: true, data } — the format
+    // connection-manager validates (requires typeof success === 'boolean').
+    const frame = createSuccessFrame(undefined, "page:awareness-update", {
+      pageId,
+      update,
+      userId,
+    });
+
     await ctx.redis.publish(
       PageKeys.PageAwareness(pageId),
-      JSON.stringify({ update, userId, originSocketId: socketId })
+      JSON.stringify({ message: frame, originSocketId: socketId })
     );
 
     logger.debug("Awareness published", { pageId, userId });
