@@ -11,7 +11,7 @@ export const createPageSchema = z.object({
   /** Fractional indexing value — must be finite */
   position: z.number().finite(),
   /** Additional collaborator userIds to add at creation time (besides the creator) */
-  collaboratorIds: z.array(z.string().cuid()).optional(),
+  collaboratorIds: z.array(z.string()).optional(),
 });
 
 export type CreatePageInput = z.infer<typeof createPageSchema>;

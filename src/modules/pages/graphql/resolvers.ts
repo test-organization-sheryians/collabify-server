@@ -12,7 +12,11 @@
 
 import { Resolvers } from "@/graphql/generated";
 import { requireUser } from "@/shared/utils/graphql-helpers";
-import { toGraphQLPage, toGraphQLPageCollaborator } from "./mappers";
+import {
+  toGraphQLPage,
+  toGraphQLPageTree,
+  toGraphQLPageCollaborator,
+} from "./mappers";
 import * as queries from "../queries";
 import * as services from "../services";
 
@@ -37,7 +41,7 @@ export const resolvers: Resolvers = {
       await requireUser(ctx);
       const input = queries.getProjectPages.schema.parse(args);
       const roots = await queries.getProjectPages.handler(input, ctx);
-      return roots.map(toGraphQLPage);
+      return roots.map(toGraphQLPageTree);
     },
 
     getPageCollaborators: async (_, args, ctx) => {
