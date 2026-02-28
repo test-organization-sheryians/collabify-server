@@ -18,6 +18,7 @@ import type {
   PageCollaborator as PrismaPageCollaborator,
 } from "@prisma/client";
 import { PageRole } from "@/graphql/generated";
+import type { PageWithChildren } from "../queries/get-project-pages/types";
 
 // ─── Partial helper type (registered as codegen mapper for Page) ──────────────
 
@@ -93,6 +94,20 @@ export const toGraphQLPage = (
   collaborators: [],
   creator: undefined,
   children: [],
+});
+
+/**
+ * Recursively maps a PageWithChildren tree into GraphQLPagePartial.
+ * Preserves the nested children[] built by buildTree so the GQL resolver
+ * returns a proper hierarchy instead of a flat list with empty children.
+ *
+ * Use this in getProjectPages — NOT toGraphQLPage (which stubs children: []).
+ */
+export const toGraphQLPageTree = (
+  page: PageWithChildren
+): GraphQLPagePartial => ({
+  ...toGraphQLPage(page),
+  children: page.children.map(toGraphQLPageTree),
 });
 
 /**
