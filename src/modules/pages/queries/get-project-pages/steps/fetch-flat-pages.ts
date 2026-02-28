@@ -12,10 +12,15 @@ import type { FlatPage } from "../types";
 
 export async function fetchFlatPages(
   projectId: string,
+  userId: string,
   db: PrismaClient
 ): Promise<FlatPage[]> {
   return db.page.findMany({
-    where: { projectId, deletedAt: null },
+    where: {
+      projectId,
+      deletedAt: null,
+      collaborators: { some: { userId } },
+    },
     orderBy: { position: "asc" },
   });
 }

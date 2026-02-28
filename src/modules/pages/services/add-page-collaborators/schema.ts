@@ -4,7 +4,7 @@ export const addPageCollaboratorsSchema = z.object({
   collaborators: z
     .array(
       z.object({
-        userId: z.string().cuid(),
+        userId: z.string(),
         role: z.enum(["EDITOR", "VIEWER", "COMMENTER"]),
       })
     )

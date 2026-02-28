@@ -32,7 +32,7 @@ export const getProjectPagesHandler = async (
     await checkAccess(input.projectId, userId, ctx.db);
 
     // Step 2 — flat DB fetch (all non-deleted pages, position ASC)
-    const flat = await fetchFlatPages(input.projectId, ctx.db);
+    const flat = await fetchFlatPages(input.projectId, userId, ctx.db);
     if (flat.length === 0) return [];
 
     // Step 3 — O(N) in-memory tree build (no DB calls)
