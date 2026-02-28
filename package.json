@@ -1,8 +1,8 @@
 {
   "name": "collabify-server",
   "scripts": {
-    "dev": "docker compose up -d && bun run --hot src/app/server.ts",
-    "build": "bun build ./src/app/server.ts --outdir ./dist --target bun ",
+    "dev": "node init && docker compose up -d && bun run --hot src/app/server.ts",
+    "build": "node init && bun build ./src/app/server.ts --outdir ./dist --target bun ",
     "format": "prettier --write .",
     "lint": "eslint . --ext .ts",
     "gen": "bun run scripts/generate-schema.ts && graphql-codegen && bun run scripts/sync-schema.ts",
