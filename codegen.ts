@@ -29,6 +29,11 @@ const config: CodegenConfig = {
           // Pages: field resolver parent is GraphQLPagePartial (optional collaborators/creator/children).
           // This eliminates all `as any` casts in Page field resolvers.
           Page: "../modules/pages/graphql/mappers#GraphQLPagePartial",
+
+          // Vault: use the mapped types (string dates, number sizeBytes) rather than raw Prisma
+          // so the generated Resolvers type matches what toGraphQLFolder/toGraphQLFile return.
+          VaultFolder: "../modules/vault/graphql/mappers#GraphQLVaultFolder",
+          VaultFile: "../modules/vault/graphql/mappers#GraphQLVaultFile",
         },
       },
     },

@@ -53,10 +53,11 @@ model User {
   messageReactions MessageReaction[]
   meetParticipants MeetParticipant[]
 
-  createdPages       Page[]             @relation("CreatedPages")
-  lockedPages        Page[]             @relation("PageLockHolder")
-  pageCollaborations PageCollaborator[] @relation("PageCollaborations")
+  createdPages       Page[]              @relation("CreatedPages")
+  lockedPages        Page[]              @relation("PageLockHolder")
+  pageCollaborations PageCollaborator[]  @relation("PageCollaborations")
   uploadedFiles      VaultFile[]
+  pinnedFolders      VaultPinnedFolder[]
 
   createdWhiteboards       Whiteboard[]             @relation("CreatedWhiteboards")
   whiteboardCollaborations WhiteboardCollaborator[] @relation("BoardCollaborators")
@@ -115,11 +116,12 @@ model Workspace {
   customRoles CustomRole[]
   projects    Project[]
 
-  pages       Page[]
-  vaultFiles  VaultFile[]
-  whiteboards Whiteboard[]
-  chats       ChatConversation[]
-  tasks       Task[]
+  pages             Page[]
+  vaultFiles        VaultFile[]
+  vaultUsageRecords VaultUsageRecord[]
+  whiteboards       Whiteboard[]
+  chats             ChatConversation[]
+  tasks             Task[]
 
   usageRecords            UsageRecord[]
   notificationPreferences NotificationPreference[]
@@ -243,14 +245,16 @@ model Project {
   workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   members   ProjectMember[]
 
-  pages        Page[]
-  vaultFolders VaultFolder[]
-  vaultFiles   VaultFile[]
-  whiteboards  Whiteboard[]
-  chats        ChatConversation[]
-  boards       Board[]
-  meets        Meet[]
-  aiChats      CollabifyAiConversation[]
+  pages              Page[]
+  vaultFolders       VaultFolder[]
+  vaultFiles         VaultFile[]
+  vaultPinnedFolders VaultPinnedFolder[]
+  vaultUsageRecords  VaultUsageRecord[]
+  whiteboards        Whiteboard[]
+  chats              ChatConversation[]
+  boards             Board[]
+  meets              Meet[]
+  aiChats            CollabifyAiConversation[]
 
   counters                ProjectCounter[]
   tasks                   Task[]
@@ -364,20 +368,50 @@ model PageCollaborator {
   @@map("page_collaborators")
 }
 
+// ─── Vault Enums ─────────────────────────────────────────────────────────────
+
+enum VaultFileStatus {
+  PENDING // Upload slot reserved — S3 PUT not yet confirmed
+  ACTIVE // Confirmed and visible in Vault
+  DELETED // Soft-deleted (S3 lifecycle handles object expiry)
+}
+
+enum VaultFileSource {
+  VAULT // Uploaded directly from the Vault UI
+  PAGE // Embedded in a Page
+  CHAT // Attached to a chat message
+  WHITEBOARD // Used on a Whiteboard canvas
+  TASK // Attached to a Task
+}
+
+enum VaultUsageRecordScope {
+  PROJECT
+  WORKSPACE
+}
+
+// ─── Vault Models ─────────────────────────────────────────────────────────────
+
 model VaultFolder {
   id             String  @id @default(cuid())
   projectId      String  @map("project_id")
   parentFolderId String? @map("parent_folder_id")
   name           String
 
+  // System folders (From Chat, From Pages, etc.) — cannot be renamed/moved/deleted by users
+  isSystem Boolean @default(false) @map("is_system")
+
   createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  parentFolder VaultFolder?  @relation("FolderHierarchy", fields: [parentFolderId], references: [id])
-  childFolders VaultFolder[] @relation("FolderHierarchy")
+  project      Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parentFolder VaultFolder?        @relation("FolderHierarchy", fields: [parentFolderId], references: [id])
+  childFolders VaultFolder[]       @relation("FolderHierarchy")
   files        VaultFile[]
+  pinnedBy     VaultPinnedFolder[]
 
+  @@index([projectId, parentFolderId]) // getVaultChildren: primary navigation query
+  @@index([projectId, isSystem]) // getVaultSidebar: system folder lookup
   @@map("vault_folders")
 }
 
@@ -385,15 +419,25 @@ model VaultFile {
   id             String  @id @default(cuid())
   workspaceId    String  @map("workspace_id")
   projectId      String  @map("project_id")
-  folderId       String? @map("folder_id")
+  folderId       String? @map("folder_id") // null = file lives at root / Home
   uploaderUserId String? @map("uploader_user_id")
 
   name      String
   mimeType  String @map("mime_type")
-  sizeBytes Int    @map("size_bytes")
+  // BigInt for safety — files can exceed Int range (~2 GB)
+  sizeBytes BigInt @map("size_bytes")
   s3Key     String @map("s3_key")
 
+  // Upload lifecycle
+  status      VaultFileStatus @default(PENDING) @map("status")
+  confirmedAt DateTime?       @map("confirmed_at")
+
+  // Source tracking — which module originally uploaded this file
+  source   VaultFileSource @default(VAULT) @map("source")
+  sourceId String?         @map("source_id") // pageId | conversationId | boardId | taskId
+
   createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
   workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -401,8 +445,53 @@ model VaultFile {
   folder    VaultFolder? @relation(fields: [folderId], references: [id])
   uploader  User?        @relation(fields: [uploaderUserId], references: [id], onDelete: SetNull)
 
-  @@index([projectId, folderId])
+  @@index([projectId, folderId, status]) // getVaultChildren: primary file listing (covers status filter)
+  @@index([projectId, source]) // filter files by source (e.g. From Chat)
+  @@index([status, createdAt]) // cleanup job: find orphaned PENDING files
+  @@index([workspaceId, status]) // workspace-wide ACTIVE file count
   @@map("vault_files")
+}
+
+// Tracks storage bytes used per project and per workspace.
+// Separate from the billing UsageRecord — this is vault-specific storage accounting.
+model VaultUsageRecord {
+  id          String                @id @default(cuid())
+  workspaceId String                @map("workspace_id")
+  projectId   String?               @map("project_id") // null for WORKSPACE scope
+  scope       VaultUsageRecordScope
+
+  // Confirmed ACTIVE bytes
+  usedBytes     BigInt @default(0) @map("used_bytes")
+  // In-flight PENDING bytes (reserved slots — prevents TOCTOU race on concurrent uploads)
+  reservedBytes BigInt @default(0) @map("reserved_bytes")
+  fileCount     Int    @default(0) @map("file_count")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // One record per scope per project/workspace
+  @@unique([workspaceId, projectId, scope])
+  @@index([workspaceId, scope])
+  @@map("vault_usage_records")
+}
+
+// User-scoped sidebar pinned folders. Each user pins their own set of folders per project.
+model VaultPinnedFolder {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  projectId String   @map("project_id")
+  folderId  String   @map("folder_id")
+  pinnedAt  DateTime @default(now()) @map("pinned_at")
+
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  folder  VaultFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, folderId]) // one pin per user per folder
+  @@index([userId, projectId]) // getVaultSidebar: fast pinned-folder lookup
+  @@map("vault_pinned_folders")
 }
 
 model Whiteboard {

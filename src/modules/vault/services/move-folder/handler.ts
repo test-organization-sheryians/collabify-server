@@ -1,0 +1,59 @@
+/**
+ * moveVaultFolder — Service Handler
+ *
+ * Moves a folder to a new parent (or to root when targetParentFolderId = null).
+ * System folders cannot be moved. Circular moves are rejected.
+ *
+ * Steps:
+ *   1. fetchFolder          — verify folder exists + is not a system folder
+ *   2. validateMoveTarget   — guard against moving into self or own descendant
+ *   3. updateFolderParent   — set parentFolderId on VaultFolder row
+ */
+
+import { AppError } from "@/shared/errors";
+import { createLogger } from "@/shared/lib/logger";
+import type { ServiceContext } from "@/graphql/types";
+import type { MoveVaultFolderInput } from "./schema";
+import { fetchFolder } from "./steps/fetch-folder";
+import { validateMoveTarget } from "./steps/validate-target";
+import { updateFolderParent } from "./steps/update-parent";
+
+const logger = createLogger("vault:services:move-folder");
+
+export const moveVaultFolderHandler = async (
+  input: MoveVaultFolderInput,
+  ctx: ServiceContext
+) => {
+  const { userId } = ctx.auth;
+  if (!userId) throw AppError.unauthorized("User not authenticated");
+
+  try {
+    await fetchFolder(input.folderId, ctx.db);
+    await validateMoveTarget(
+      input.folderId,
+      input.targetParentFolderId,
+      ctx.db
+    );
+    const folder = await updateFolderParent(
+      input.folderId,
+      input.targetParentFolderId,
+      ctx.db
+    );
+
+    logger.info("Vault folder moved", {
+      folderId: input.folderId,
+      targetParentFolderId: input.targetParentFolderId,
+      userId,
+    });
+
+    return { folder };
+  } catch (error: unknown) {
+    if (error instanceof AppError) throw error;
+    logger.error("Failed to move vault folder", {
+      err: error,
+      userId,
+      folderId: input.folderId,
+    });
+    throw new AppError("Failed to move folder");
+  }
+};

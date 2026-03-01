@@ -1,6 +1,7 @@
 import { GraphQLResolveInfo, GraphQLScalarType, GraphQLScalarTypeConfig } from 'graphql';
 import { Project as PrismaProject, ProjectMember as PrismaProjectMember, User as PrismaUser, Workspace as PrismaWorkspace, WorkspaceMember as PrismaWorkspaceMember, Notification as PrismaNotification, ChatMember as PrismaChatMember, ChatMessage as PrismaChatMessage } from '@prisma/client';
 import { GraphQLPagePartial } from '../modules/pages/graphql/mappers';
+import { GraphQLVaultFolder, GraphQLVaultFile } from '../modules/vault/graphql/mappers';
 import { ServiceContext } from './types';
 export type Maybe<T> = T | null;
 export type InputMaybe<T> = Maybe<T>;
@@ -177,6 +178,15 @@ export type CloseThreadResult = {
   threadId: Scalars['ID']['output'];
 };
 
+export type ConfirmUploadResult = {
+  __typename?: 'ConfirmUploadResult';
+  file: VaultFile;
+};
+
+export type ConfirmVaultUploadInput = {
+  fileId: Scalars['ID']['input'];
+};
+
 export type Conversation = {
   __typename?: 'Conversation';
   createdAt: Scalars['DateTime']['output'];
@@ -251,6 +261,11 @@ export type CreateDmInput = {
   workspaceId: Scalars['ID']['input'];
 };
 
+export type CreateFolderResult = {
+  __typename?: 'CreateFolderResult';
+  folder: VaultFolder;
+};
+
 export type CreateGroupInput = {
   memberUserIds: Array<Scalars['ID']['input']>;
   name: Scalars['String']['input'];
@@ -287,6 +302,13 @@ export type CreateThreadInput = {
   messageId: Scalars['ID']['input'];
   projectId: Scalars['ID']['input'];
   workspaceId: Scalars['ID']['input'];
+};
+
+export type CreateVaultFolderInput = {
+  name: Scalars['String']['input'];
+  /** null = create at root level (Home) */
+  parentFolderId?: InputMaybe<Scalars['ID']['input']>;
+  projectId: Scalars['ID']['input'];
 };
 
 export type CursorPosition = {
@@ -330,10 +352,26 @@ export type DeletePageResult = {
   success: Scalars['Boolean']['output'];
 };
 
+/** Generic success/id response for delete operations */
+export type DeleteResult = {
+  __typename?: 'DeleteResult';
+  id: Scalars['ID']['output'];
+  success: Scalars['Boolean']['output'];
+};
+
 export type DeleteThreadResult = {
   __typename?: 'DeleteThreadResult';
   success: Scalars['Boolean']['output'];
   threadId: Scalars['ID']['output'];
+};
+
+export type DeleteVaultFileInput = {
+  fileId: Scalars['ID']['input'];
+};
+
+export type DeleteVaultFolderInput = {
+  cascade?: InputMaybe<Scalars['Boolean']['input']>;
+  folderId: Scalars['ID']['input'];
 };
 
 export type DmConversation = {
@@ -436,6 +474,28 @@ export type MessagesDelta = {
   messages: Array<ChatMessage>;
 };
 
+export type MoveFileResult = {
+  __typename?: 'MoveFileResult';
+  file: VaultFile;
+};
+
+export type MoveFolderResult = {
+  __typename?: 'MoveFolderResult';
+  folder: VaultFolder;
+};
+
+export type MoveVaultFileInput = {
+  fileId: Scalars['ID']['input'];
+  /** null = move to root (Home) */
+  targetFolderId?: InputMaybe<Scalars['ID']['input']>;
+};
+
+export type MoveVaultFolderInput = {
+  folderId: Scalars['ID']['input'];
+  /** null = move to root (Home) */
+  targetParentFolderId?: InputMaybe<Scalars['ID']['input']>;
+};
+
 export type Mutation = {
   __typename?: 'Mutation';
   _health?: Maybe<Scalars['String']['output']>;
@@ -453,6 +513,11 @@ export type Mutation = {
   checkProjectSlugAvailability: AvailabilityResponse;
   checkSlugAvailability: AvailabilityResponse;
   closeThread: CloseThreadResult;
+  /**
+   * Step 2 of 2 for uploading a file to Vault.
+   * Verifies the S3 object (size + MIME), sets the file to ACTIVE, and updates storage usage.
+   */
+  confirmVaultUpload: ConfirmUploadResult;
   createBoard: BoardPayload;
   createChannel: Conversation;
   createDm: Conversation;
@@ -465,6 +530,7 @@ export type Mutation = {
   createPage: CreatePageResult;
   createProject: Project;
   createThread: Conversation;
+  createVaultFolder: CreateFolderResult;
   createWorkspace: Workspace;
   deleteBoard: DeleteBoardResult;
   deleteChannel: DeleteChannelResult;
@@ -476,6 +542,14 @@ export type Mutation = {
    */
   deletePage: DeletePageResult;
   deleteThread: DeleteThreadResult;
+  /** Soft-deletes a vault file and releases its storage quota. */
+  deleteVaultFile: DeleteResult;
+  /**
+   * Soft-deletes a folder.
+   * cascade=false (default): returns error if folder is non-empty.
+   * cascade=true: recursively soft-deletes all child folders and files.
+   */
+  deleteVaultFolder: DeleteResult;
   inviteToWorkspace: InviteResponse;
   leaveGroup: LeaveGroupResult;
   lockBoard: Whiteboard;
@@ -489,7 +563,10 @@ export type Mutation = {
   markAllNotificationsRead: Scalars['Boolean']['output'];
   /** Mark specific notifications as read. */
   markNotificationRead: Scalars['Boolean']['output'];
+  moveVaultFile: MoveFileResult;
+  moveVaultFolder: MoveFolderResult;
   muteConversation: MuteConversationResult;
+  pinVaultFolder: PinFolderResult;
   removeBoardCollaborator: RemoveBoardCollaboratorResult;
   removeChannelMember: RemoveChannelMemberResult;
   removeGroupMember: RemoveGroupMemberResult;
@@ -500,12 +577,21 @@ export type Mutation = {
   renameChannel: Conversation;
   renameGroup: RenameGroupResult;
   renamePage: RenamePageResult;
+  /** Renames a file. S3 key is unchanged — only the display name is updated. */
+  renameVaultFile: RenameFileResult;
+  renameVaultFolder: RenameFolderResult;
   reopenThread: ReopenThreadResult;
   /**
    * Moves a page to a new position (and optionally a new parent).
    * Validate no circular nesting before calling (circular guard runs server-side too).
    */
   reorderPage: ReorderPageResult;
+  /**
+   * Step 1 of 2 for uploading a file to Vault.
+   * Checks quota, creates a PENDING VaultFile row, returns a presigned PUT URL.
+   * The client must PUT the file directly to S3 using this URL, then call confirmVaultUpload.
+   */
+  requestVaultUpload: RequestUploadResult;
   subscribeThread: SubscribeThreadResult;
   syncUser: User;
   unarchiveBoard: Whiteboard;
@@ -518,6 +604,7 @@ export type Mutation = {
   unlockBoard: Whiteboard;
   /** Lock owner or workspace ADMIN can unlock. */
   unlockPage: UnlockPageResult;
+  unpinVaultFolder: DeleteResult;
   unsubscribeThread: UnsubscribeThreadResult;
   updateBoardDescription: Whiteboard;
   updateChannelDescription: UpdateChannelDescriptionResult;
@@ -593,6 +680,11 @@ export type MutationCloseThreadArgs = {
 };
 
 
+export type MutationConfirmVaultUploadArgs = {
+  input: ConfirmVaultUploadInput;
+};
+
+
 export type MutationCreateBoardArgs = {
   input: CreateBoardInput;
 };
@@ -626,6 +718,11 @@ export type MutationCreateProjectArgs = {
 
 export type MutationCreateThreadArgs = {
   input: CreateThreadInput;
+};
+
+
+export type MutationCreateVaultFolderArgs = {
+  input: CreateVaultFolderInput;
 };
 
 
@@ -669,6 +766,16 @@ export type MutationDeleteThreadArgs = {
 };
 
 
+export type MutationDeleteVaultFileArgs = {
+  input: DeleteVaultFileInput;
+};
+
+
+export type MutationDeleteVaultFolderArgs = {
+  input: DeleteVaultFolderInput;
+};
+
+
 export type MutationInviteToWorkspaceArgs = {
   input: InviteToWorkspaceInput;
 };
@@ -695,9 +802,24 @@ export type MutationMarkNotificationReadArgs = {
 };
 
 
+export type MutationMoveVaultFileArgs = {
+  input: MoveVaultFileInput;
+};
+
+
+export type MutationMoveVaultFolderArgs = {
+  input: MoveVaultFolderInput;
+};
+
+
 export type MutationMuteConversationArgs = {
   conversationId: Scalars['ID']['input'];
   isMuted: Scalars['Boolean']['input'];
+};
+
+
+export type MutationPinVaultFolderArgs = {
+  input: PinVaultFolderInput;
 };
 
 
@@ -755,6 +877,16 @@ export type MutationRenamePageArgs = {
 };
 
 
+export type MutationRenameVaultFileArgs = {
+  input: RenameVaultFileInput;
+};
+
+
+export type MutationRenameVaultFolderArgs = {
+  input: RenameVaultFolderInput;
+};
+
+
 export type MutationReopenThreadArgs = {
   threadId: Scalars['ID']['input'];
   workspaceId: Scalars['ID']['input'];
@@ -763,6 +895,11 @@ export type MutationReopenThreadArgs = {
 
 export type MutationReorderPageArgs = {
   input: ReorderPageInput;
+};
+
+
+export type MutationRequestVaultUploadArgs = {
+  input: RequestVaultUploadInput;
 };
 
 
@@ -803,6 +940,11 @@ export type MutationUnlockBoardArgs = {
 
 export type MutationUnlockPageArgs = {
   input: UnlockPageInput;
+};
+
+
+export type MutationUnpinVaultFolderArgs = {
+  input: UnpinVaultFolderInput;
 };
 
 
@@ -953,6 +1095,16 @@ export type PageSnapshot = {
   snapshotTimestamp?: Maybe<Scalars['DateTime']['output']>;
 };
 
+export type PinFolderResult = {
+  __typename?: 'PinFolderResult';
+  folder: VaultFolder;
+};
+
+export type PinVaultFolderInput = {
+  folderId: Scalars['ID']['input'];
+  projectId: Scalars['ID']['input'];
+};
+
 export enum PresenceStatus {
   Away = 'AWAY',
   Offline = 'OFFLINE',
@@ -1023,6 +1175,31 @@ export type Query = {
   getUnreadCounts: UnreadCountsResponse;
   getUserConversations: ConversationConnection;
   getUsersByIds: Array<UserBasic>;
+  /**
+   * Returns the immediate children (subfolders + files) of a folder.
+   * parentFolderId = null → Home view (root-level items with no parent).
+   */
+  getVaultChildren: VaultChildrenResult;
+  /**
+   * Returns a short-lived presigned GET URL for downloading or previewing a vault file.
+   * URL is valid for 5 minutes. Never cache — always request fresh.
+   */
+  getVaultDownloadUrl: VaultDownloadUrl;
+  /**
+   * Returns full metadata for a single vault folder or file.
+   * Used for the detail/info side panel. Not used for listing.
+   */
+  getVaultNode: VaultNode;
+  /**
+   * Returns sidebar data: user-pinned folders + system folders (From Chat, From Pages, etc.).
+   * Fetched once on Vault mount. Never re-called during folder navigation.
+   */
+  getVaultSidebar: VaultSidebar;
+  /**
+   * Returns current storage usage for the project and its workspace.
+   * Poll every 60 seconds + invalidate after uploads/deletions.
+   */
+  getVaultUsage: VaultUsage;
   getWorkspaceInviteInfo: WorkspaceInviteInfo;
   health: Scalars['String']['output'];
   history: HistoryPayload;
@@ -1168,6 +1345,37 @@ export type QueryGetUsersByIdsArgs = {
 };
 
 
+export type QueryGetVaultChildrenArgs = {
+  cursor?: InputMaybe<Scalars['ID']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  parentFolderId?: InputMaybe<Scalars['ID']['input']>;
+  projectId: Scalars['ID']['input'];
+  sortBy?: InputMaybe<VaultSortField>;
+  sortDir?: InputMaybe<SortDirection>;
+};
+
+
+export type QueryGetVaultDownloadUrlArgs = {
+  fileId: Scalars['ID']['input'];
+};
+
+
+export type QueryGetVaultNodeArgs = {
+  id: Scalars['ID']['input'];
+  type: VaultNodeType;
+};
+
+
+export type QueryGetVaultSidebarArgs = {
+  projectId: Scalars['ID']['input'];
+};
+
+
+export type QueryGetVaultUsageArgs = {
+  projectId: Scalars['ID']['input'];
+};
+
+
 export type QueryGetWorkspaceInviteInfoArgs = {
   token: Scalars['String']['input'];
 };
@@ -1301,6 +1509,16 @@ export type RenameChannelInput = {
   name: Scalars['String']['input'];
 };
 
+export type RenameFileResult = {
+  __typename?: 'RenameFileResult';
+  file: VaultFile;
+};
+
+export type RenameFolderResult = {
+  __typename?: 'RenameFolderResult';
+  folder: VaultFolder;
+};
+
 export type RenameGroupResult = {
   __typename?: 'RenameGroupResult';
   groupId: Scalars['ID']['output'];
@@ -1316,6 +1534,16 @@ export type RenamePageInput = {
 export type RenamePageResult = {
   __typename?: 'RenamePageResult';
   page: Page;
+};
+
+export type RenameVaultFileInput = {
+  fileId: Scalars['ID']['input'];
+  name: Scalars['String']['input'];
+};
+
+export type RenameVaultFolderInput = {
+  folderId: Scalars['ID']['input'];
+  name: Scalars['String']['input'];
 };
 
 export type ReopenThreadResult = {
@@ -1335,6 +1563,28 @@ export type ReorderPageResult = {
   __typename?: 'ReorderPageResult';
   page: Page;
 };
+
+export type RequestUploadResult = {
+  __typename?: 'RequestUploadResult';
+  expiresAt: Scalars['DateTime']['output'];
+  fileId: Scalars['ID']['output'];
+  presignedUrl: Scalars['String']['output'];
+};
+
+export type RequestVaultUploadInput = {
+  /** null = upload to Home (root level) */
+  folderId?: InputMaybe<Scalars['ID']['input']>;
+  mimeType: Scalars['String']['input'];
+  name: Scalars['String']['input'];
+  projectId: Scalars['ID']['input'];
+  sizeBytes: Scalars['Int']['input'];
+  workspaceId: Scalars['ID']['input'];
+};
+
+export enum SortDirection {
+  Asc = 'ASC',
+  Desc = 'DESC'
+}
 
 export type SubscribeThreadResult = {
   __typename?: 'SubscribeThreadResult';
@@ -1373,6 +1623,10 @@ export type UnlockPageInput = {
 export type UnlockPageResult = {
   __typename?: 'UnlockPageResult';
   page: Page;
+};
+
+export type UnpinVaultFolderInput = {
+  folderId: Scalars['ID']['input'];
 };
 
 export type UnreadCountsResponse = {
@@ -1425,6 +1679,105 @@ export type UserPresence = {
   lastActiveAt?: Maybe<Scalars['DateTime']['output']>;
   status: PresenceStatus;
   userId: Scalars['ID']['output'];
+};
+
+export type VaultChildrenResult = {
+  __typename?: 'VaultChildrenResult';
+  files: Array<VaultFile>;
+  folders: Array<VaultFolder>;
+  hasNextPage: Scalars['Boolean']['output'];
+  nextCursor?: Maybe<Scalars['ID']['output']>;
+  totalFileCount: Scalars['Int']['output'];
+};
+
+export type VaultDownloadUrl = {
+  __typename?: 'VaultDownloadUrl';
+  expiresAt: Scalars['DateTime']['output'];
+  url: Scalars['String']['output'];
+};
+
+export type VaultFile = {
+  __typename?: 'VaultFile';
+  confirmedAt?: Maybe<Scalars['DateTime']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  deletedAt?: Maybe<Scalars['DateTime']['output']>;
+  folderId?: Maybe<Scalars['ID']['output']>;
+  id: Scalars['ID']['output'];
+  mimeType: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  projectId: Scalars['ID']['output'];
+  s3Key: Scalars['String']['output'];
+  /** File size in bytes (Float to safely represent large files >2GB) */
+  sizeBytes: Scalars['Float']['output'];
+  source: VaultFileSource;
+  sourceId?: Maybe<Scalars['ID']['output']>;
+  status: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  uploader?: Maybe<VaultUploader>;
+  uploaderUserId?: Maybe<Scalars['ID']['output']>;
+  workspaceId: Scalars['ID']['output'];
+};
+
+export enum VaultFileSource {
+  Chat = 'CHAT',
+  Page = 'PAGE',
+  Task = 'TASK',
+  Vault = 'VAULT',
+  Whiteboard = 'WHITEBOARD'
+}
+
+export type VaultFolder = {
+  __typename?: 'VaultFolder';
+  createdAt: Scalars['DateTime']['output'];
+  deletedAt?: Maybe<Scalars['DateTime']['output']>;
+  id: Scalars['ID']['output'];
+  isSystem: Scalars['Boolean']['output'];
+  name: Scalars['String']['output'];
+  parentFolderId?: Maybe<Scalars['ID']['output']>;
+  projectId: Scalars['ID']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+};
+
+export type VaultNode = VaultFile | VaultFolder;
+
+export enum VaultNodeType {
+  File = 'FILE',
+  Folder = 'FOLDER'
+}
+
+export type VaultSidebar = {
+  __typename?: 'VaultSidebar';
+  pinnedFolders: Array<VaultFolder>;
+  systemFolders: Array<VaultFolder>;
+};
+
+export enum VaultSortField {
+  CreatedAt = 'CREATED_AT',
+  Name = 'NAME',
+  Size = 'SIZE',
+  Type = 'TYPE'
+}
+
+export type VaultUploader = {
+  __typename?: 'VaultUploader';
+  avatarUrl?: Maybe<Scalars['String']['output']>;
+  fullName?: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+};
+
+export type VaultUsage = {
+  __typename?: 'VaultUsage';
+  percentUsed: Scalars['Float']['output'];
+  projectFileCount: Scalars['Int']['output'];
+  projectFileCountLimit: Scalars['Int']['output'];
+  projectLimitBytes: Scalars['Float']['output'];
+  projectReservedBytes: Scalars['Float']['output'];
+  projectUsedBytes: Scalars['Float']['output'];
+  workspaceFileCount: Scalars['Int']['output'];
+  workspaceFileCountLimit: Scalars['Int']['output'];
+  workspaceLimitBytes: Scalars['Float']['output'];
+  workspaceReservedBytes: Scalars['Float']['output'];
+  workspaceUsedBytes: Scalars['Float']['output'];
 };
 
 export type Whiteboard = {
@@ -1542,6 +1895,13 @@ export type DirectiveResolverFn<TResult = Record<PropertyKey, never>, TParent = 
 
 
 
+/** Mapping of union types */
+export type ResolversUnionTypes<_RefType extends Record<string, unknown>> = ResolversObject<{
+  VaultNode:
+    | ( GraphQLVaultFile )
+    | ( GraphQLVaultFolder )
+  ;
+}>;
 
 
 /** Mapping between all available schema types and the resolvers types */
@@ -1568,6 +1928,8 @@ export type ResolversTypes = ResolversObject<{
   ChatMessage: ResolverTypeWrapper<PrismaChatMessage>;
   CheckChannelAvailabilityInput: CheckChannelAvailabilityInput;
   CloseThreadResult: ResolverTypeWrapper<CloseThreadResult>;
+  ConfirmUploadResult: ResolverTypeWrapper<Omit<ConfirmUploadResult, 'file'> & { file: ResolversTypes['VaultFile'] }>;
+  ConfirmVaultUploadInput: ConfirmVaultUploadInput;
   Conversation: ResolverTypeWrapper<Omit<Conversation, 'members'> & { members?: Maybe<Array<ResolversTypes['ConversationMember']>> }>;
   ConversationConnection: ResolverTypeWrapper<Omit<ConversationConnection, 'edges'> & { edges: Array<ResolversTypes['Conversation']> }>;
   ConversationMember: ResolverTypeWrapper<PrismaChatMember>;
@@ -1576,11 +1938,13 @@ export type ResolversTypes = ResolversObject<{
   CreateBoardInput: CreateBoardInput;
   CreateChannelInput: CreateChannelInput;
   CreateDmInput: CreateDmInput;
+  CreateFolderResult: ResolverTypeWrapper<Omit<CreateFolderResult, 'folder'> & { folder: ResolversTypes['VaultFolder'] }>;
   CreateGroupInput: CreateGroupInput;
   CreatePageInput: CreatePageInput;
   CreatePageResult: ResolverTypeWrapper<Omit<CreatePageResult, 'page'> & { page: ResolversTypes['Page'] }>;
   CreateProjectInput: CreateProjectInput;
   CreateThreadInput: CreateThreadInput;
+  CreateVaultFolderInput: CreateVaultFolderInput;
   CursorPosition: ResolverTypeWrapper<CursorPosition>;
   DateTime: ResolverTypeWrapper<Scalars['DateTime']['output']>;
   DeleteBoardResult: ResolverTypeWrapper<DeleteBoardResult>;
@@ -1589,7 +1953,10 @@ export type ResolversTypes = ResolversObject<{
   DeleteGroupResult: ResolverTypeWrapper<DeleteGroupResult>;
   DeletePageInput: DeletePageInput;
   DeletePageResult: ResolverTypeWrapper<DeletePageResult>;
+  DeleteResult: ResolverTypeWrapper<DeleteResult>;
   DeleteThreadResult: ResolverTypeWrapper<DeleteThreadResult>;
+  DeleteVaultFileInput: DeleteVaultFileInput;
+  DeleteVaultFolderInput: DeleteVaultFolderInput;
   DmConversation: ResolverTypeWrapper<DmConversation>;
   DmMember: ResolverTypeWrapper<DmMember>;
   Float: ResolverTypeWrapper<Scalars['Float']['output']>;
@@ -1608,6 +1975,10 @@ export type ResolversTypes = ResolversObject<{
   LockPageResult: ResolverTypeWrapper<Omit<LockPageResult, 'page'> & { page: ResolversTypes['Page'] }>;
   MessageReaction: ResolverTypeWrapper<Omit<MessageReaction, 'recentUsers'> & { recentUsers: Array<ResolversTypes['User']> }>;
   MessagesDelta: ResolverTypeWrapper<Omit<MessagesDelta, 'messages'> & { messages: Array<ResolversTypes['ChatMessage']> }>;
+  MoveFileResult: ResolverTypeWrapper<Omit<MoveFileResult, 'file'> & { file: ResolversTypes['VaultFile'] }>;
+  MoveFolderResult: ResolverTypeWrapper<Omit<MoveFolderResult, 'folder'> & { folder: ResolversTypes['VaultFolder'] }>;
+  MoveVaultFileInput: MoveVaultFileInput;
+  MoveVaultFolderInput: MoveVaultFolderInput;
   Mutation: ResolverTypeWrapper<Record<PropertyKey, never>>;
   MuteConversationResult: ResolverTypeWrapper<MuteConversationResult>;
   Notification: ResolverTypeWrapper<PrismaNotification>;
@@ -1620,6 +1991,8 @@ export type ResolversTypes = ResolversObject<{
   PageInfo: ResolverTypeWrapper<PageInfo>;
   PageRole: PageRole;
   PageSnapshot: ResolverTypeWrapper<PageSnapshot>;
+  PinFolderResult: ResolverTypeWrapper<Omit<PinFolderResult, 'folder'> & { folder: ResolversTypes['VaultFolder'] }>;
+  PinVaultFolderInput: PinVaultFolderInput;
   PresenceStatus: PresenceStatus;
   Project: ResolverTypeWrapper<PrismaProject>;
   ProjectMember: ResolverTypeWrapper<PrismaProjectMember>;
@@ -1633,12 +2006,19 @@ export type ResolversTypes = ResolversObject<{
   RemovePageCollaboratorInput: RemovePageCollaboratorInput;
   RemovePageCollaboratorResult: ResolverTypeWrapper<RemovePageCollaboratorResult>;
   RenameChannelInput: RenameChannelInput;
+  RenameFileResult: ResolverTypeWrapper<Omit<RenameFileResult, 'file'> & { file: ResolversTypes['VaultFile'] }>;
+  RenameFolderResult: ResolverTypeWrapper<Omit<RenameFolderResult, 'folder'> & { folder: ResolversTypes['VaultFolder'] }>;
   RenameGroupResult: ResolverTypeWrapper<RenameGroupResult>;
   RenamePageInput: RenamePageInput;
   RenamePageResult: ResolverTypeWrapper<Omit<RenamePageResult, 'page'> & { page: ResolversTypes['Page'] }>;
+  RenameVaultFileInput: RenameVaultFileInput;
+  RenameVaultFolderInput: RenameVaultFolderInput;
   ReopenThreadResult: ResolverTypeWrapper<ReopenThreadResult>;
   ReorderPageInput: ReorderPageInput;
   ReorderPageResult: ResolverTypeWrapper<Omit<ReorderPageResult, 'page'> & { page: ResolversTypes['Page'] }>;
+  RequestUploadResult: ResolverTypeWrapper<RequestUploadResult>;
+  RequestVaultUploadInput: RequestVaultUploadInput;
+  SortDirection: SortDirection;
   String: ResolverTypeWrapper<Scalars['String']['output']>;
   SubscribeThreadResult: ResolverTypeWrapper<SubscribeThreadResult>;
   Task: ResolverTypeWrapper<Task>;
@@ -1647,6 +2027,7 @@ export type ResolversTypes = ResolversObject<{
   UnarchivePageResult: ResolverTypeWrapper<Omit<UnarchivePageResult, 'page'> & { page: ResolversTypes['Page'] }>;
   UnlockPageInput: UnlockPageInput;
   UnlockPageResult: ResolverTypeWrapper<Omit<UnlockPageResult, 'page'> & { page: ResolversTypes['Page'] }>;
+  UnpinVaultFolderInput: UnpinVaultFolderInput;
   UnreadCountsResponse: ResolverTypeWrapper<UnreadCountsResponse>;
   UnsubscribeThreadResult: ResolverTypeWrapper<UnsubscribeThreadResult>;
   UpdateChannelDescriptionResult: ResolverTypeWrapper<UpdateChannelDescriptionResult>;
@@ -1654,6 +2035,17 @@ export type ResolversTypes = ResolversObject<{
   User: ResolverTypeWrapper<PrismaUser>;
   UserBasic: ResolverTypeWrapper<UserBasic>;
   UserPresence: ResolverTypeWrapper<UserPresence>;
+  VaultChildrenResult: ResolverTypeWrapper<Omit<VaultChildrenResult, 'files' | 'folders'> & { files: Array<ResolversTypes['VaultFile']>, folders: Array<ResolversTypes['VaultFolder']> }>;
+  VaultDownloadUrl: ResolverTypeWrapper<VaultDownloadUrl>;
+  VaultFile: ResolverTypeWrapper<GraphQLVaultFile>;
+  VaultFileSource: VaultFileSource;
+  VaultFolder: ResolverTypeWrapper<GraphQLVaultFolder>;
+  VaultNode: ResolverTypeWrapper<ResolversUnionTypes<ResolversTypes>['VaultNode']>;
+  VaultNodeType: VaultNodeType;
+  VaultSidebar: ResolverTypeWrapper<Omit<VaultSidebar, 'pinnedFolders' | 'systemFolders'> & { pinnedFolders: Array<ResolversTypes['VaultFolder']>, systemFolders: Array<ResolversTypes['VaultFolder']> }>;
+  VaultSortField: VaultSortField;
+  VaultUploader: ResolverTypeWrapper<VaultUploader>;
+  VaultUsage: ResolverTypeWrapper<VaultUsage>;
   Whiteboard: ResolverTypeWrapper<Whiteboard>;
   Workspace: ResolverTypeWrapper<PrismaWorkspace>;
   WorkspaceInviteInfo: ResolverTypeWrapper<WorkspaceInviteInfo>;
@@ -1684,6 +2076,8 @@ export type ResolversParentTypes = ResolversObject<{
   ChatMessage: PrismaChatMessage;
   CheckChannelAvailabilityInput: CheckChannelAvailabilityInput;
   CloseThreadResult: CloseThreadResult;
+  ConfirmUploadResult: Omit<ConfirmUploadResult, 'file'> & { file: ResolversParentTypes['VaultFile'] };
+  ConfirmVaultUploadInput: ConfirmVaultUploadInput;
   Conversation: Omit<Conversation, 'members'> & { members?: Maybe<Array<ResolversParentTypes['ConversationMember']>> };
   ConversationConnection: Omit<ConversationConnection, 'edges'> & { edges: Array<ResolversParentTypes['Conversation']> };
   ConversationMember: PrismaChatMember;
@@ -1691,11 +2085,13 @@ export type ResolversParentTypes = ResolversObject<{
   CreateBoardInput: CreateBoardInput;
   CreateChannelInput: CreateChannelInput;
   CreateDmInput: CreateDmInput;
+  CreateFolderResult: Omit<CreateFolderResult, 'folder'> & { folder: ResolversParentTypes['VaultFolder'] };
   CreateGroupInput: CreateGroupInput;
   CreatePageInput: CreatePageInput;
   CreatePageResult: Omit<CreatePageResult, 'page'> & { page: ResolversParentTypes['Page'] };
   CreateProjectInput: CreateProjectInput;
   CreateThreadInput: CreateThreadInput;
+  CreateVaultFolderInput: CreateVaultFolderInput;
   CursorPosition: CursorPosition;
   DateTime: Scalars['DateTime']['output'];
   DeleteBoardResult: DeleteBoardResult;
@@ -1704,7 +2100,10 @@ export type ResolversParentTypes = ResolversObject<{
   DeleteGroupResult: DeleteGroupResult;
   DeletePageInput: DeletePageInput;
   DeletePageResult: DeletePageResult;
+  DeleteResult: DeleteResult;
   DeleteThreadResult: DeleteThreadResult;
+  DeleteVaultFileInput: DeleteVaultFileInput;
+  DeleteVaultFolderInput: DeleteVaultFolderInput;
   DmConversation: DmConversation;
   DmMember: DmMember;
   Float: Scalars['Float']['output'];
@@ -1723,6 +2122,10 @@ export type ResolversParentTypes = ResolversObject<{
   LockPageResult: Omit<LockPageResult, 'page'> & { page: ResolversParentTypes['Page'] };
   MessageReaction: Omit<MessageReaction, 'recentUsers'> & { recentUsers: Array<ResolversParentTypes['User']> };
   MessagesDelta: Omit<MessagesDelta, 'messages'> & { messages: Array<ResolversParentTypes['ChatMessage']> };
+  MoveFileResult: Omit<MoveFileResult, 'file'> & { file: ResolversParentTypes['VaultFile'] };
+  MoveFolderResult: Omit<MoveFolderResult, 'folder'> & { folder: ResolversParentTypes['VaultFolder'] };
+  MoveVaultFileInput: MoveVaultFileInput;
+  MoveVaultFolderInput: MoveVaultFolderInput;
   Mutation: Record<PropertyKey, never>;
   MuteConversationResult: MuteConversationResult;
   Notification: PrismaNotification;
@@ -1734,6 +2137,8 @@ export type ResolversParentTypes = ResolversObject<{
   PageCollaboratorInput: PageCollaboratorInput;
   PageInfo: PageInfo;
   PageSnapshot: PageSnapshot;
+  PinFolderResult: Omit<PinFolderResult, 'folder'> & { folder: ResolversParentTypes['VaultFolder'] };
+  PinVaultFolderInput: PinVaultFolderInput;
   Project: PrismaProject;
   ProjectMember: PrismaProjectMember;
   Query: Record<PropertyKey, never>;
@@ -1746,12 +2151,18 @@ export type ResolversParentTypes = ResolversObject<{
   RemovePageCollaboratorInput: RemovePageCollaboratorInput;
   RemovePageCollaboratorResult: RemovePageCollaboratorResult;
   RenameChannelInput: RenameChannelInput;
+  RenameFileResult: Omit<RenameFileResult, 'file'> & { file: ResolversParentTypes['VaultFile'] };
+  RenameFolderResult: Omit<RenameFolderResult, 'folder'> & { folder: ResolversParentTypes['VaultFolder'] };
   RenameGroupResult: RenameGroupResult;
   RenamePageInput: RenamePageInput;
   RenamePageResult: Omit<RenamePageResult, 'page'> & { page: ResolversParentTypes['Page'] };
+  RenameVaultFileInput: RenameVaultFileInput;
+  RenameVaultFolderInput: RenameVaultFolderInput;
   ReopenThreadResult: ReopenThreadResult;
   ReorderPageInput: ReorderPageInput;
   ReorderPageResult: Omit<ReorderPageResult, 'page'> & { page: ResolversParentTypes['Page'] };
+  RequestUploadResult: RequestUploadResult;
+  RequestVaultUploadInput: RequestVaultUploadInput;
   String: Scalars['String']['output'];
   SubscribeThreadResult: SubscribeThreadResult;
   Task: Task;
@@ -1760,6 +2171,7 @@ export type ResolversParentTypes = ResolversObject<{
   UnarchivePageResult: Omit<UnarchivePageResult, 'page'> & { page: ResolversParentTypes['Page'] };
   UnlockPageInput: UnlockPageInput;
   UnlockPageResult: Omit<UnlockPageResult, 'page'> & { page: ResolversParentTypes['Page'] };
+  UnpinVaultFolderInput: UnpinVaultFolderInput;
   UnreadCountsResponse: UnreadCountsResponse;
   UnsubscribeThreadResult: UnsubscribeThreadResult;
   UpdateChannelDescriptionResult: UpdateChannelDescriptionResult;
@@ -1767,6 +2179,14 @@ export type ResolversParentTypes = ResolversObject<{
   User: PrismaUser;
   UserBasic: UserBasic;
   UserPresence: UserPresence;
+  VaultChildrenResult: Omit<VaultChildrenResult, 'files' | 'folders'> & { files: Array<ResolversParentTypes['VaultFile']>, folders: Array<ResolversParentTypes['VaultFolder']> };
+  VaultDownloadUrl: VaultDownloadUrl;
+  VaultFile: GraphQLVaultFile;
+  VaultFolder: GraphQLVaultFolder;
+  VaultNode: ResolversUnionTypes<ResolversParentTypes>['VaultNode'];
+  VaultSidebar: Omit<VaultSidebar, 'pinnedFolders' | 'systemFolders'> & { pinnedFolders: Array<ResolversParentTypes['VaultFolder']>, systemFolders: Array<ResolversParentTypes['VaultFolder']> };
+  VaultUploader: VaultUploader;
+  VaultUsage: VaultUsage;
   Whiteboard: Whiteboard;
   Workspace: PrismaWorkspace;
   WorkspaceInviteInfo: WorkspaceInviteInfo;
@@ -1885,6 +2305,10 @@ export type CloseThreadResultResolvers<ContextType = ServiceContext, ParentType 
   threadId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
 }>;
 
+export type ConfirmUploadResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ConfirmUploadResult'] = ResolversParentTypes['ConfirmUploadResult']> = ResolversObject<{
+  file?: Resolver<ResolversTypes['VaultFile'], ParentType, ContextType>;
+}>;
+
 export type ConversationResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Conversation'] = ResolversParentTypes['Conversation']> = ResolversObject<{
   createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
   createdBy?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
@@ -1924,6 +2348,10 @@ export type ConversationUnreadCountResolvers<ContextType = ServiceContext, Paren
   unreadCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
 }>;
 
+export type CreateFolderResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['CreateFolderResult'] = ResolversParentTypes['CreateFolderResult']> = ResolversObject<{
+  folder?: Resolver<ResolversTypes['VaultFolder'], ParentType, ContextType>;
+}>;
+
 export type CreatePageResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['CreatePageResult'] = ResolversParentTypes['CreatePageResult']> = ResolversObject<{
   page?: Resolver<ResolversTypes['Page'], ParentType, ContextType>;
 }>;
@@ -1959,6 +2387,11 @@ export type DeleteGroupResultResolvers<ContextType = ServiceContext, ParentType 
 
 export type DeletePageResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['DeletePageResult'] = ResolversParentTypes['DeletePageResult']> = ResolversObject<{
   pageId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  success?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+}>;
+
+export type DeleteResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['DeleteResult'] = ResolversParentTypes['DeleteResult']> = ResolversObject<{
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   success?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
 }>;
 
@@ -2046,6 +2479,14 @@ export type MessagesDeltaResolvers<ContextType = ServiceContext, ParentType exte
   messages?: Resolver<Array<ResolversTypes['ChatMessage']>, ParentType, ContextType>;
 }>;
 
+export type MoveFileResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['MoveFileResult'] = ResolversParentTypes['MoveFileResult']> = ResolversObject<{
+  file?: Resolver<ResolversTypes['VaultFile'], ParentType, ContextType>;
+}>;
+
+export type MoveFolderResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['MoveFolderResult'] = ResolversParentTypes['MoveFolderResult']> = ResolversObject<{
+  folder?: Resolver<ResolversTypes['VaultFolder'], ParentType, ContextType>;
+}>;
+
 export type MutationResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Mutation'] = ResolversParentTypes['Mutation']> = ResolversObject<{
   _health?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   acceptWorkspaceInvite?: Resolver<ResolversTypes['JoinResponse'], ParentType, ContextType, RequireFields<MutationAcceptWorkspaceInviteArgs, 'input'>>;
@@ -2060,6 +2501,7 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   checkProjectSlugAvailability?: Resolver<ResolversTypes['AvailabilityResponse'], ParentType, ContextType, RequireFields<MutationCheckProjectSlugAvailabilityArgs, 'slug' | 'workspaceId'>>;
   checkSlugAvailability?: Resolver<ResolversTypes['AvailabilityResponse'], ParentType, ContextType, RequireFields<MutationCheckSlugAvailabilityArgs, 'slug'>>;
   closeThread?: Resolver<ResolversTypes['CloseThreadResult'], ParentType, ContextType, RequireFields<MutationCloseThreadArgs, 'threadId' | 'workspaceId'>>;
+  confirmVaultUpload?: Resolver<ResolversTypes['ConfirmUploadResult'], ParentType, ContextType, RequireFields<MutationConfirmVaultUploadArgs, 'input'>>;
   createBoard?: Resolver<ResolversTypes['BoardPayload'], ParentType, ContextType, RequireFields<MutationCreateBoardArgs, 'input'>>;
   createChannel?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<MutationCreateChannelArgs, 'input'>>;
   createDm?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<MutationCreateDmArgs, 'input'>>;
@@ -2068,6 +2510,7 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   createPage?: Resolver<ResolversTypes['CreatePageResult'], ParentType, ContextType, RequireFields<MutationCreatePageArgs, 'input'>>;
   createProject?: Resolver<ResolversTypes['Project'], ParentType, ContextType, RequireFields<MutationCreateProjectArgs, 'input' | 'workspaceId'>>;
   createThread?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<MutationCreateThreadArgs, 'input'>>;
+  createVaultFolder?: Resolver<ResolversTypes['CreateFolderResult'], ParentType, ContextType, RequireFields<MutationCreateVaultFolderArgs, 'input'>>;
   createWorkspace?: Resolver<ResolversTypes['Workspace'], ParentType, ContextType, RequireFields<MutationCreateWorkspaceArgs, 'name' | 'slug'>>;
   deleteBoard?: Resolver<ResolversTypes['DeleteBoardResult'], ParentType, ContextType, RequireFields<MutationDeleteBoardArgs, 'boardId'>>;
   deleteChannel?: Resolver<ResolversTypes['DeleteChannelResult'], ParentType, ContextType, RequireFields<MutationDeleteChannelArgs, 'channelId' | 'workspaceId'>>;
@@ -2075,13 +2518,18 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   deleteGroup?: Resolver<ResolversTypes['DeleteGroupResult'], ParentType, ContextType, RequireFields<MutationDeleteGroupArgs, 'groupId' | 'workspaceId'>>;
   deletePage?: Resolver<ResolversTypes['DeletePageResult'], ParentType, ContextType, RequireFields<MutationDeletePageArgs, 'input'>>;
   deleteThread?: Resolver<ResolversTypes['DeleteThreadResult'], ParentType, ContextType, RequireFields<MutationDeleteThreadArgs, 'threadId' | 'workspaceId'>>;
+  deleteVaultFile?: Resolver<ResolversTypes['DeleteResult'], ParentType, ContextType, RequireFields<MutationDeleteVaultFileArgs, 'input'>>;
+  deleteVaultFolder?: Resolver<ResolversTypes['DeleteResult'], ParentType, ContextType, RequireFields<MutationDeleteVaultFolderArgs, 'input'>>;
   inviteToWorkspace?: Resolver<ResolversTypes['InviteResponse'], ParentType, ContextType, RequireFields<MutationInviteToWorkspaceArgs, 'input'>>;
   leaveGroup?: Resolver<ResolversTypes['LeaveGroupResult'], ParentType, ContextType, RequireFields<MutationLeaveGroupArgs, 'groupId' | 'workspaceId'>>;
   lockBoard?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType, RequireFields<MutationLockBoardArgs, 'boardId'>>;
   lockPage?: Resolver<ResolversTypes['LockPageResult'], ParentType, ContextType, RequireFields<MutationLockPageArgs, 'input'>>;
   markAllNotificationsRead?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   markNotificationRead?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationMarkNotificationReadArgs, 'ids'>>;
+  moveVaultFile?: Resolver<ResolversTypes['MoveFileResult'], ParentType, ContextType, RequireFields<MutationMoveVaultFileArgs, 'input'>>;
+  moveVaultFolder?: Resolver<ResolversTypes['MoveFolderResult'], ParentType, ContextType, RequireFields<MutationMoveVaultFolderArgs, 'input'>>;
   muteConversation?: Resolver<ResolversTypes['MuteConversationResult'], ParentType, ContextType, RequireFields<MutationMuteConversationArgs, 'conversationId' | 'isMuted'>>;
+  pinVaultFolder?: Resolver<ResolversTypes['PinFolderResult'], ParentType, ContextType, RequireFields<MutationPinVaultFolderArgs, 'input'>>;
   removeBoardCollaborator?: Resolver<ResolversTypes['RemoveBoardCollaboratorResult'], ParentType, ContextType, RequireFields<MutationRemoveBoardCollaboratorArgs, 'boardId' | 'userId'>>;
   removeChannelMember?: Resolver<ResolversTypes['RemoveChannelMemberResult'], ParentType, ContextType, RequireFields<MutationRemoveChannelMemberArgs, 'channelId' | 'userId' | 'workspaceId'>>;
   removeGroupMember?: Resolver<ResolversTypes['RemoveGroupMemberResult'], ParentType, ContextType, RequireFields<MutationRemoveGroupMemberArgs, 'groupId' | 'userId' | 'workspaceId'>>;
@@ -2091,8 +2539,11 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   renameChannel?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<MutationRenameChannelArgs, 'input'>>;
   renameGroup?: Resolver<ResolversTypes['RenameGroupResult'], ParentType, ContextType, RequireFields<MutationRenameGroupArgs, 'groupId' | 'name' | 'workspaceId'>>;
   renamePage?: Resolver<ResolversTypes['RenamePageResult'], ParentType, ContextType, RequireFields<MutationRenamePageArgs, 'input'>>;
+  renameVaultFile?: Resolver<ResolversTypes['RenameFileResult'], ParentType, ContextType, RequireFields<MutationRenameVaultFileArgs, 'input'>>;
+  renameVaultFolder?: Resolver<ResolversTypes['RenameFolderResult'], ParentType, ContextType, RequireFields<MutationRenameVaultFolderArgs, 'input'>>;
   reopenThread?: Resolver<ResolversTypes['ReopenThreadResult'], ParentType, ContextType, RequireFields<MutationReopenThreadArgs, 'threadId' | 'workspaceId'>>;
   reorderPage?: Resolver<ResolversTypes['ReorderPageResult'], ParentType, ContextType, RequireFields<MutationReorderPageArgs, 'input'>>;
+  requestVaultUpload?: Resolver<ResolversTypes['RequestUploadResult'], ParentType, ContextType, RequireFields<MutationRequestVaultUploadArgs, 'input'>>;
   subscribeThread?: Resolver<ResolversTypes['SubscribeThreadResult'], ParentType, ContextType, RequireFields<MutationSubscribeThreadArgs, 'threadId'>>;
   syncUser?: Resolver<ResolversTypes['User'], ParentType, ContextType, RequireFields<MutationSyncUserArgs, 'clerkId' | 'email'>>;
   unarchiveBoard?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType, RequireFields<MutationUnarchiveBoardArgs, 'boardId'>>;
@@ -2100,6 +2551,7 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   unarchivePage?: Resolver<ResolversTypes['UnarchivePageResult'], ParentType, ContextType, RequireFields<MutationUnarchivePageArgs, 'input'>>;
   unlockBoard?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType, RequireFields<MutationUnlockBoardArgs, 'boardId'>>;
   unlockPage?: Resolver<ResolversTypes['UnlockPageResult'], ParentType, ContextType, RequireFields<MutationUnlockPageArgs, 'input'>>;
+  unpinVaultFolder?: Resolver<ResolversTypes['DeleteResult'], ParentType, ContextType, RequireFields<MutationUnpinVaultFolderArgs, 'input'>>;
   unsubscribeThread?: Resolver<ResolversTypes['UnsubscribeThreadResult'], ParentType, ContextType, RequireFields<MutationUnsubscribeThreadArgs, 'threadId'>>;
   updateBoardDescription?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType, RequireFields<MutationUpdateBoardDescriptionArgs, 'boardId'>>;
   updateChannelDescription?: Resolver<ResolversTypes['UpdateChannelDescriptionResult'], ParentType, ContextType, RequireFields<MutationUpdateChannelDescriptionArgs, 'channelId' | 'workspaceId'>>;
@@ -2187,6 +2639,10 @@ export type PageSnapshotResolvers<ContextType = ServiceContext, ParentType exten
   snapshotTimestamp?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
 }>;
 
+export type PinFolderResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['PinFolderResult'] = ResolversParentTypes['PinFolderResult']> = ResolversObject<{
+  folder?: Resolver<ResolversTypes['VaultFolder'], ParentType, ContextType>;
+}>;
+
 export type ProjectResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Project'] = ResolversParentTypes['Project']> = ResolversObject<{
   createdAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
@@ -2230,6 +2686,11 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   getUnreadCounts?: Resolver<ResolversTypes['UnreadCountsResponse'], ParentType, ContextType, RequireFields<QueryGetUnreadCountsArgs, 'projectId' | 'workspaceId'>>;
   getUserConversations?: Resolver<ResolversTypes['ConversationConnection'], ParentType, ContextType, RequireFields<QueryGetUserConversationsArgs, 'projectId' | 'workspaceId'>>;
   getUsersByIds?: Resolver<Array<ResolversTypes['UserBasic']>, ParentType, ContextType, RequireFields<QueryGetUsersByIdsArgs, 'userIds'>>;
+  getVaultChildren?: Resolver<ResolversTypes['VaultChildrenResult'], ParentType, ContextType, RequireFields<QueryGetVaultChildrenArgs, 'projectId'>>;
+  getVaultDownloadUrl?: Resolver<ResolversTypes['VaultDownloadUrl'], ParentType, ContextType, RequireFields<QueryGetVaultDownloadUrlArgs, 'fileId'>>;
+  getVaultNode?: Resolver<ResolversTypes['VaultNode'], ParentType, ContextType, RequireFields<QueryGetVaultNodeArgs, 'id' | 'type'>>;
+  getVaultSidebar?: Resolver<ResolversTypes['VaultSidebar'], ParentType, ContextType, RequireFields<QueryGetVaultSidebarArgs, 'projectId'>>;
+  getVaultUsage?: Resolver<ResolversTypes['VaultUsage'], ParentType, ContextType, RequireFields<QueryGetVaultUsageArgs, 'projectId'>>;
   getWorkspaceInviteInfo?: Resolver<ResolversTypes['WorkspaceInviteInfo'], ParentType, ContextType, RequireFields<QueryGetWorkspaceInviteInfoArgs, 'token'>>;
   health?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   history?: Resolver<ResolversTypes['HistoryPayload'], ParentType, ContextType, RequireFields<QueryHistoryArgs, 'beforeSequence' | 'conversationId'>>;
@@ -2287,6 +2748,14 @@ export type RemovePageCollaboratorResultResolvers<ContextType = ServiceContext, 
   success?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
 }>;
 
+export type RenameFileResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['RenameFileResult'] = ResolversParentTypes['RenameFileResult']> = ResolversObject<{
+  file?: Resolver<ResolversTypes['VaultFile'], ParentType, ContextType>;
+}>;
+
+export type RenameFolderResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['RenameFolderResult'] = ResolversParentTypes['RenameFolderResult']> = ResolversObject<{
+  folder?: Resolver<ResolversTypes['VaultFolder'], ParentType, ContextType>;
+}>;
+
 export type RenameGroupResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['RenameGroupResult'] = ResolversParentTypes['RenameGroupResult']> = ResolversObject<{
   groupId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
@@ -2304,6 +2773,12 @@ export type ReopenThreadResultResolvers<ContextType = ServiceContext, ParentType
 
 export type ReorderPageResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ReorderPageResult'] = ResolversParentTypes['ReorderPageResult']> = ResolversObject<{
   page?: Resolver<ResolversTypes['Page'], ParentType, ContextType>;
+}>;
+
+export type RequestUploadResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['RequestUploadResult'] = ResolversParentTypes['RequestUploadResult']> = ResolversObject<{
+  expiresAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  fileId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  presignedUrl?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 }>;
 
 export type SubscribeThreadResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['SubscribeThreadResult'] = ResolversParentTypes['SubscribeThreadResult']> = ResolversObject<{
@@ -2377,6 +2852,81 @@ export type UserPresenceResolvers<ContextType = ServiceContext, ParentType exten
   userId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
 }>;
 
+export type VaultChildrenResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['VaultChildrenResult'] = ResolversParentTypes['VaultChildrenResult']> = ResolversObject<{
+  files?: Resolver<Array<ResolversTypes['VaultFile']>, ParentType, ContextType>;
+  folders?: Resolver<Array<ResolversTypes['VaultFolder']>, ParentType, ContextType>;
+  hasNextPage?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  nextCursor?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
+  totalFileCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+}>;
+
+export type VaultDownloadUrlResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['VaultDownloadUrl'] = ResolversParentTypes['VaultDownloadUrl']> = ResolversObject<{
+  expiresAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  url?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+}>;
+
+export type VaultFileResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['VaultFile'] = ResolversParentTypes['VaultFile']> = ResolversObject<{
+  confirmedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  deletedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  folderId?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  mimeType?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  projectId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  s3Key?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  sizeBytes?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+  source?: Resolver<ResolversTypes['VaultFileSource'], ParentType, ContextType>;
+  sourceId?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
+  status?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  uploader?: Resolver<Maybe<ResolversTypes['VaultUploader']>, ParentType, ContextType>;
+  uploaderUserId?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
+  workspaceId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type VaultFolderResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['VaultFolder'] = ResolversParentTypes['VaultFolder']> = ResolversObject<{
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  deletedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  isSystem?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  parentFolderId?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
+  projectId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type VaultNodeResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['VaultNode'] = ResolversParentTypes['VaultNode']> = ResolversObject<{
+  __resolveType: TypeResolveFn<'VaultFile' | 'VaultFolder', ParentType, ContextType>;
+}>;
+
+export type VaultSidebarResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['VaultSidebar'] = ResolversParentTypes['VaultSidebar']> = ResolversObject<{
+  pinnedFolders?: Resolver<Array<ResolversTypes['VaultFolder']>, ParentType, ContextType>;
+  systemFolders?: Resolver<Array<ResolversTypes['VaultFolder']>, ParentType, ContextType>;
+}>;
+
+export type VaultUploaderResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['VaultUploader'] = ResolversParentTypes['VaultUploader']> = ResolversObject<{
+  avatarUrl?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  fullName?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+}>;
+
+export type VaultUsageResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['VaultUsage'] = ResolversParentTypes['VaultUsage']> = ResolversObject<{
+  percentUsed?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+  projectFileCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  projectFileCountLimit?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  projectLimitBytes?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+  projectReservedBytes?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+  projectUsedBytes?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+  workspaceFileCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  workspaceFileCountLimit?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  workspaceLimitBytes?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+  workspaceReservedBytes?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+  workspaceUsedBytes?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+}>;
+
 export type WhiteboardResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Whiteboard'] = ResolversParentTypes['Whiteboard']> = ResolversObject<{
   collaborators?: Resolver<Maybe<Array<ResolversTypes['BoardCollaborator']>>, ParentType, ContextType>;
   createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
@@ -2435,10 +2985,12 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   ChatMemberRecord?: ChatMemberRecordResolvers<ContextType>;
   ChatMessage?: ChatMessageResolvers<ContextType>;
   CloseThreadResult?: CloseThreadResultResolvers<ContextType>;
+  ConfirmUploadResult?: ConfirmUploadResultResolvers<ContextType>;
   Conversation?: ConversationResolvers<ContextType>;
   ConversationConnection?: ConversationConnectionResolvers<ContextType>;
   ConversationMember?: ConversationMemberResolvers<ContextType>;
   ConversationUnreadCount?: ConversationUnreadCountResolvers<ContextType>;
+  CreateFolderResult?: CreateFolderResultResolvers<ContextType>;
   CreatePageResult?: CreatePageResultResolvers<ContextType>;
   CursorPosition?: CursorPositionResolvers<ContextType>;
   DateTime?: GraphQLScalarType;
@@ -2447,6 +2999,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   DeleteDmResult?: DeleteDmResultResolvers<ContextType>;
   DeleteGroupResult?: DeleteGroupResultResolvers<ContextType>;
   DeletePageResult?: DeletePageResultResolvers<ContextType>;
+  DeleteResult?: DeleteResultResolvers<ContextType>;
   DeleteThreadResult?: DeleteThreadResultResolvers<ContextType>;
   DmConversation?: DmConversationResolvers<ContextType>;
   DmMember?: DmMemberResolvers<ContextType>;
@@ -2461,6 +3014,8 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   LockPageResult?: LockPageResultResolvers<ContextType>;
   MessageReaction?: MessageReactionResolvers<ContextType>;
   MessagesDelta?: MessagesDeltaResolvers<ContextType>;
+  MoveFileResult?: MoveFileResultResolvers<ContextType>;
+  MoveFolderResult?: MoveFolderResultResolvers<ContextType>;
   Mutation?: MutationResolvers<ContextType>;
   MuteConversationResult?: MuteConversationResultResolvers<ContextType>;
   Notification?: NotificationResolvers<ContextType>;
@@ -2471,6 +3026,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   PageCollaborator?: PageCollaboratorResolvers<ContextType>;
   PageInfo?: PageInfoResolvers<ContextType>;
   PageSnapshot?: PageSnapshotResolvers<ContextType>;
+  PinFolderResult?: PinFolderResultResolvers<ContextType>;
   Project?: ProjectResolvers<ContextType>;
   ProjectMember?: ProjectMemberResolvers<ContextType>;
   Query?: QueryResolvers<ContextType>;
@@ -2481,10 +3037,13 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   RemoveChannelMemberResult?: RemoveChannelMemberResultResolvers<ContextType>;
   RemoveGroupMemberResult?: RemoveGroupMemberResultResolvers<ContextType>;
   RemovePageCollaboratorResult?: RemovePageCollaboratorResultResolvers<ContextType>;
+  RenameFileResult?: RenameFileResultResolvers<ContextType>;
+  RenameFolderResult?: RenameFolderResultResolvers<ContextType>;
   RenameGroupResult?: RenameGroupResultResolvers<ContextType>;
   RenamePageResult?: RenamePageResultResolvers<ContextType>;
   ReopenThreadResult?: ReopenThreadResultResolvers<ContextType>;
   ReorderPageResult?: ReorderPageResultResolvers<ContextType>;
+  RequestUploadResult?: RequestUploadResultResolvers<ContextType>;
   SubscribeThreadResult?: SubscribeThreadResultResolvers<ContextType>;
   Task?: TaskResolvers<ContextType>;
   UnarchiveChannelResult?: UnarchiveChannelResultResolvers<ContextType>;
@@ -2497,6 +3056,14 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   User?: UserResolvers<ContextType>;
   UserBasic?: UserBasicResolvers<ContextType>;
   UserPresence?: UserPresenceResolvers<ContextType>;
+  VaultChildrenResult?: VaultChildrenResultResolvers<ContextType>;
+  VaultDownloadUrl?: VaultDownloadUrlResolvers<ContextType>;
+  VaultFile?: VaultFileResolvers<ContextType>;
+  VaultFolder?: VaultFolderResolvers<ContextType>;
+  VaultNode?: VaultNodeResolvers<ContextType>;
+  VaultSidebar?: VaultSidebarResolvers<ContextType>;
+  VaultUploader?: VaultUploaderResolvers<ContextType>;
+  VaultUsage?: VaultUsageResolvers<ContextType>;
   Whiteboard?: WhiteboardResolvers<ContextType>;
   Workspace?: WorkspaceResolvers<ContextType>;
   WorkspaceInviteInfo?: WorkspaceInviteInfoResolvers<ContextType>;

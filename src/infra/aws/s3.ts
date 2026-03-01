@@ -40,9 +40,12 @@ export const s3Client = new S3Client(getS3Config());
  */
 export const checkS3Connection = async () => {
   try {
-    await s3Client.send(
-      new HeadBucketCommand({ Bucket: env.S3_WHITEBOARD_BUCKET })
-    );
+    await Promise.all([
+      s3Client.send(
+        new HeadBucketCommand({ Bucket: env.S3_WHITEBOARD_BUCKET })
+      ),
+      s3Client.send(new HeadBucketCommand({ Bucket: env.S3_VAULT_BUCKET })),
+    ]);
     logger.info("✅ AWS S3 Connected");
   } catch (error) {
     logger.error("❌ AWS S3 Connection Failed", { error });

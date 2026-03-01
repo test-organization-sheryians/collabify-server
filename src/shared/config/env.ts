@@ -34,6 +34,7 @@ const envSchema = z.object({
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
   AWS_REGION: z.string().default("us-east-1"),
   S3_WHITEBOARD_BUCKET: z.string().min(1).default("collabify-dev-whiteboards"),
+  S3_VAULT_BUCKET: z.string().min(1).default("collabify-dev-vault"),
 
   // Chat Debug / Chaos
   DEBUG_CHAT: z.enum(["true", "false"]).default("false"),

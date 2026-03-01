@@ -20,6 +20,10 @@ import {
   pageTypeDefs,
   pageResolvers,
 } from "../modules/pages";
+import {
+  vaultTypeDefs,
+  vaultResolvers,
+} from "../modules/vault";
 
 import { ServiceContext } from "./types";
 export const schema = createSchema<ServiceContext>({
@@ -47,6 +51,7 @@ export const schema = createSchema<ServiceContext>({
     chatTypeDefs,
     ...whiteboardTypeDefs,
     ...pageTypeDefs,
+    ...vaultTypeDefs,
   ],
   resolvers: [
     {
@@ -63,5 +68,6 @@ export const schema = createSchema<ServiceContext>({
     chatResolvers,
     whiteboardResolvers,
     pageResolvers,
+    vaultResolvers,
   ],
 });
