@@ -24,6 +24,7 @@ export const GROUPS = {
   user: false,
   workspace: false,
   project: false,
+  vault: false, // ❌ All vault module logs (queries, services, lib)
   pages: true, // ✅ All pages module logs
 
   // ═══════════════════════════════════════════════════════════════
@@ -91,6 +92,13 @@ export const GROUPS = {
    * Use when: Debugging reactions system
    */
   "chat-reactions": false, // ❌
+
+  /**
+   * Vault Upload E2E Flow
+   * Enables all request-upload + confirm-upload step logs + quota-guard
+   * Use when: debugging the full upload pipeline end-to-end
+   */
+  "vault-upload-flow": true, // ❌ Vault upload pipeline (request → S3 → confirm)
 
   // ═══════════════════════════════════════════════════════════════
   // Development & Testing
@@ -236,6 +244,23 @@ export const FILES: Record<string, boolean | undefined> = {
   // Quota Module
   // ─────────────────────────────────────
   "quota:enforce": false,
+
+  // ─────────────────────────────────────
+  // Vault Module
+  // ─────────────────────────────────────
+  // request-upload
+  "vault:services:request-upload": true, // handler.ts — top-level entry/exit
+  "vault:services:request-upload:validate": true, // steps/validate-input.ts
+  "vault:services:request-upload:quota": true, // steps/check-quota.ts
+  "vault:services:request-upload:create": true, // steps/create-pending-file.ts
+  "vault:services:request-upload:presign": true, // steps/generate-presigned-url.ts
+  // confirm-upload
+  "vault:services:confirm-upload": true, // handler.ts — top-level entry/exit
+  "vault:services:confirm-upload:validate": true, // steps/validate-pending-file.ts
+  "vault:services:confirm-upload:verify-s3": true, // steps/verify-s3-object.ts
+  "vault:services:confirm-upload:activate": true, // steps/activate-file.ts
+  // shared lib
+  "vault:lib:quota-guard": true, // lib/quota-guard.ts (all 3 functions)
 
   // ─────────────────────────────────────
   // Infrastructure & Services (Core)

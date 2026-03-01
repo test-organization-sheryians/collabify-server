@@ -2,9 +2,6 @@ import type { PrismaClient } from "@prisma/client";
 import { VAULT_LIMITS } from "../../../lib/constants";
 import type { VaultUsageResult } from "../types";
 
-const PROJECT = "PROJECT" as const;
-const WORKSPACE = "WORKSPACE" as const;
-
 export async function fetchUsage(
   projectId: string,
   db: PrismaClient
@@ -16,21 +13,16 @@ export async function fetchUsage(
   });
 
   const [projectRecord, workspaceRecord] = await Promise.all([
-    db.vaultUsageRecord.findUnique({
+    db.vaultProjectUsage.findUnique({
       where: {
-        workspaceId_projectId_scope: {
+        workspaceId_projectId: {
           workspaceId: project.workspaceId,
           projectId,
-          scope: PROJECT,
         },
       },
     }),
-    db.vaultUsageRecord.findFirst({
-      where: {
-        workspaceId: project.workspaceId,
-        projectId: null,
-        scope: WORKSPACE,
-      },
+    db.vaultWorkspaceUsage.findUnique({
+      where: { workspaceId: project.workspaceId },
     }),
   ]);
 

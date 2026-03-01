@@ -5,9 +5,18 @@ import {
   VAULT_LIMITS,
 } from "../../../lib/constants";
 import type { RequestVaultUploadInput } from "../schema";
+import { createLogger } from "@/shared/lib/logger";
 import path from "path";
 
+const logger = createLogger("vault:services:request-upload:validate");
+
 export function validateUploadInput(input: RequestVaultUploadInput): void {
+  logger.info("validate-input: start", {
+    name: input.name,
+    mimeType: input.mimeType,
+    sizeBytes: input.sizeBytes,
+  });
+
   if (input.sizeBytes > VAULT_LIMITS.MAX_FILE_SIZE_BYTES) {
     throw AppError.badRequest(
       `File exceeds the ${VAULT_LIMITS.MAX_FILE_SIZE_BYTES / 1024 / 1024} MB limit`
@@ -22,4 +31,6 @@ export function validateUploadInput(input: RequestVaultUploadInput): void {
   if (VAULT_BLOCKED_EXTENSIONS.has(ext)) {
     throw AppError.badRequest(`File extension '${ext}' is not allowed`);
   }
+
+  logger.info("validate-input: passed", { name: input.name });
 }

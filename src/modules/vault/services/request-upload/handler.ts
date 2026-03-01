@@ -29,6 +29,15 @@ export const requestVaultUploadHandler = async (
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
 
+  logger.info("requestVaultUpload started", {
+    userId,
+    projectId: input.projectId,
+    name: input.name,
+    mimeType: input.mimeType,
+    sizeBytes: input.sizeBytes,
+    folderId: input.folderId ?? null,
+  });
+
   validateUploadInput(input);
 
   await checkQuota(input.projectId, input.workspaceId, input.sizeBytes, ctx.db);
@@ -45,6 +54,11 @@ export const requestVaultUploadHandler = async (
   );
 
   logger.info("Upload slot created", { fileId: file.id, userId });
+  logger.info("requestVaultUpload done", {
+    fileId: file.id,
+    s3Key: file.s3Key,
+    expiresAt,
+  });
 
   return { fileId: file.id, presignedUrl: url, expiresAt };
 };

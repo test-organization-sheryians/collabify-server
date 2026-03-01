@@ -68,9 +68,10 @@ export async function generatePresignedPut(
   const command = new PutObjectCommand({
     Bucket: BUCKET,
     Key: input.s3Key,
-    ContentLength: input.sizeBytes,
-    ContentType: input.mimeType,
-    Tagging: "upload-status=pending",
+    // NOTE: ContentType and ContentLength intentionally omitted.
+    // Including them adds headers to X-Amz-SignedHeaders, which the browser must
+    // replicate exactly in the CORS preflight — causing intermittent CORS failures.
+    // MIME type is validated server-side in verifyS3Object via S3 HeadObject.
   });
 
   return getSignedUrl(s3Client, command, {

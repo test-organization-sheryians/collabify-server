@@ -116,12 +116,13 @@ model Workspace {
   customRoles CustomRole[]
   projects    Project[]
 
-  pages             Page[]
-  vaultFiles        VaultFile[]
-  vaultUsageRecords VaultUsageRecord[]
-  whiteboards       Whiteboard[]
-  chats             ChatConversation[]
-  tasks             Task[]
+  pages               Page[]
+  vaultFiles          VaultFile[]
+  vaultProjectUsage   VaultProjectUsage[]
+  vaultWorkspaceUsage VaultWorkspaceUsage?
+  whiteboards         Whiteboard[]
+  chats               ChatConversation[]
+  tasks               Task[]
 
   usageRecords            UsageRecord[]
   notificationPreferences NotificationPreference[]
@@ -249,7 +250,7 @@ model Project {
   vaultFolders       VaultFolder[]
   vaultFiles         VaultFile[]
   vaultPinnedFolders VaultPinnedFolder[]
-  vaultUsageRecords  VaultUsageRecord[]
+  vaultProjectUsage  VaultProjectUsage[]
   whiteboards        Whiteboard[]
   chats              ChatConversation[]
   boards             Board[]
@@ -384,11 +385,6 @@ enum VaultFileSource {
   TASK // Attached to a Task
 }
 
-enum VaultUsageRecordScope {
-  PROJECT
-  WORKSPACE
-}
-
 // ─── Vault Models ─────────────────────────────────────────────────────────────
 
 model VaultFolder {
@@ -452,13 +448,11 @@ model VaultFile {
   @@map("vault_files")
 }
 
-// Tracks storage bytes used per project and per workspace.
-// Separate from the billing UsageRecord — this is vault-specific storage accounting.
-model VaultUsageRecord {
-  id          String                @id @default(cuid())
-  workspaceId String                @map("workspace_id")
-  projectId   String?               @map("project_id") // null for WORKSPACE scope
-  scope       VaultUsageRecordScope
+// Per-project vault storage tracking.
+// One row per project — all uploads within the project accumulate here.
+model VaultProjectUsage {
+  workspaceId String @map("workspace_id")
+  projectId   String @map("project_id")
 
   // Confirmed ACTIVE bytes
   usedBytes     BigInt @default(0) @map("used_bytes")
@@ -469,12 +463,26 @@ model VaultUsageRecord {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  project   Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  // One record per scope per project/workspace
-  @@unique([workspaceId, projectId, scope])
-  @@index([workspaceId, scope])
-  @@map("vault_usage_records")
+  @@id([workspaceId, projectId])
+  @@map("vault_project_usage")
+}
+
+// Per-workspace vault storage tracking (workspace-wide rollup across all projects).
+// One row per workspace — no projectId needed.
+model VaultWorkspaceUsage {
+  workspaceId String @unique @map("workspace_id")
+
+  usedBytes     BigInt @default(0) @map("used_bytes")
+  reservedBytes BigInt @default(0) @map("reserved_bytes")
+  fileCount     Int    @default(0) @map("file_count")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("vault_workspace_usage")
 }
 
 // User-scoped sidebar pinned folders. Each user pins their own set of folders per project.

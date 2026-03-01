@@ -12,3 +12,4 @@ export * as getVaultNode from "./get-node";
 export * as getVaultSidebar from "./get-sidebar";
 export * as getVaultDownloadUrl from "./get-download-url";
 export * as getVaultUsage from "./get-vault-usage";
+export * as getVaultAncestors from "./get-ancestors";

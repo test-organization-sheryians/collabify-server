@@ -1176,6 +1176,13 @@ export type Query = {
   getUserConversations: ConversationConnection;
   getUsersByIds: Array<UserBasic>;
   /**
+   * Returns the ancestor folder chain for a given folder, ordered root → current.
+   * The last element is the folder itself, the first is the top-level ancestor.
+   * Returns [] when the folder has no parent (it is already at root level).
+   * Used exclusively by the vault breadcrumb (server fallback path for direct URL visits).
+   */
+  getVaultAncestors: Array<VaultFolder>;
+  /**
    * Returns the immediate children (subfolders + files) of a folder.
    * parentFolderId = null → Home view (root-level items with no parent).
    */
@@ -1342,6 +1349,11 @@ export type QueryGetUserConversationsArgs = {
 
 export type QueryGetUsersByIdsArgs = {
   userIds: Array<Scalars['ID']['input']>;
+};
+
+
+export type QueryGetVaultAncestorsArgs = {
+  folderId: Scalars['ID']['input'];
 };
 
 
@@ -2686,6 +2698,7 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   getUnreadCounts?: Resolver<ResolversTypes['UnreadCountsResponse'], ParentType, ContextType, RequireFields<QueryGetUnreadCountsArgs, 'projectId' | 'workspaceId'>>;
   getUserConversations?: Resolver<ResolversTypes['ConversationConnection'], ParentType, ContextType, RequireFields<QueryGetUserConversationsArgs, 'projectId' | 'workspaceId'>>;
   getUsersByIds?: Resolver<Array<ResolversTypes['UserBasic']>, ParentType, ContextType, RequireFields<QueryGetUsersByIdsArgs, 'userIds'>>;
+  getVaultAncestors?: Resolver<Array<ResolversTypes['VaultFolder']>, ParentType, ContextType, RequireFields<QueryGetVaultAncestorsArgs, 'folderId'>>;
   getVaultChildren?: Resolver<ResolversTypes['VaultChildrenResult'], ParentType, ContextType, RequireFields<QueryGetVaultChildrenArgs, 'projectId'>>;
   getVaultDownloadUrl?: Resolver<ResolversTypes['VaultDownloadUrl'], ParentType, ContextType, RequireFields<QueryGetVaultDownloadUrlArgs, 'fileId'>>;
   getVaultNode?: Resolver<ResolversTypes['VaultNode'], ParentType, ContextType, RequireFields<QueryGetVaultNodeArgs, 'id' | 'type'>>;

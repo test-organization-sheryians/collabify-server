@@ -27,11 +27,18 @@ export const confirmVaultUploadHandler = async (
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
 
+  logger.debug("confirmVaultUpload started", { userId, fileId: input.fileId });
+
   const file = await validatePendingFile(input.fileId, userId, ctx.db);
   await verifyS3Object(file);
   const activeFile = await activateFile(file, ctx.db);
 
   logger.info("Upload confirmed", { fileId: file.id, userId });
+  logger.debug("confirmVaultUpload done", {
+    fileId: activeFile.id,
+    status: activeFile.status,
+    sizeBytes: activeFile.sizeBytes.toString(),
+  });
 
   return { file: activeFile };
 };

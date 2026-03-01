@@ -70,6 +70,13 @@ export const resolvers: Resolvers = {
       const result = await queries.getVaultUsage.handler(input, ctx);
       return toGraphQLUsage(result);
     },
+
+    getVaultAncestors: async (_, args, ctx) => {
+      await requireUser(ctx);
+      const input = queries.getVaultAncestors.schema.parse(args);
+      const result = await queries.getVaultAncestors.handler(input, ctx);
+      return result.map(toGraphQLFolder);
+    },
   },
 
   // ── Mutations ──────────────────────────────────────────────────────────────

@@ -1,5 +1,8 @@
 import type { PrismaClient, VaultFile } from "@prisma/client";
 import { buildS3Key } from "../../../lib/s3-keys";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("vault:services:request-upload:create");
 
 interface CreatePendingFileInput {
   workspaceId: string;
@@ -15,6 +18,13 @@ export async function createPendingFile(
   input: CreatePendingFileInput,
   db: PrismaClient
 ): Promise<VaultFile> {
+  logger.info("create-pending-file: inserting PENDING row", {
+    name: input.name,
+    folderId: input.folderId ?? null,
+    mimeType: input.mimeType,
+    sizeBytes: input.sizeBytes,
+  });
+
   // Create with empty s3Key first to get the generated fileId
   const file = await db.vaultFile.create({
     data: {
@@ -41,8 +51,13 @@ export async function createPendingFile(
     filename: input.name,
   });
 
-  return db.vaultFile.update({
+  logger.info("create-pending-file: s3Key built", { fileId: file.id, s3Key });
+
+  const updated = await db.vaultFile.update({
     where: { id: file.id },
     data: { s3Key },
   });
+
+  logger.info("create-pending-file: done", { fileId: file.id });
+  return updated;
 }

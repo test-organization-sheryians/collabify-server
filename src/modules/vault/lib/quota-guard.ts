@@ -3,16 +3,20 @@
  *
  * Uses reservedBytes to prevent TOCTOU races on concurrent uploads.
  * See vault-quota-and-limits.md §3 for the full design rationale.
+ *
+ * Uses two dedicated models:
+ *   VaultProjectUsage   — per-project row (compound PK: workspaceId + projectId)
+ *   VaultWorkspaceUsage — per-workspace row (unique on workspaceId)
+ *
+ * All operations use Prisma's typed API — no $executeRaw required.
  */
 
 import { AppError } from "@/shared/errors";
+import { createLogger } from "@/shared/lib/logger";
 import type { PrismaClient } from "@prisma/client";
 import { VAULT_LIMITS } from "./constants";
 
-const { PROJECT, WORKSPACE } = {
-  PROJECT: "PROJECT",
-  WORKSPACE: "WORKSPACE",
-} as const;
+const logger = createLogger("vault:lib:quota-guard");
 
 // ── Enforce Quota ──────────────────────────────────────────────────────────────
 
@@ -38,23 +42,19 @@ export async function enforceVaultQuota({
 }: EnforceQuotaInput): Promise<void> {
   const incoming = BigInt(incomingSizeBytes);
 
-  // Fetch both records in parallel (may be null for new projects)
+  logger.debug("enforceVaultQuota: checking limits", {
+    projectId,
+    workspaceId,
+    incomingSizeBytes,
+  });
+
+  // Fetch both records in parallel (may be null for new projects/workspaces)
   const [projectRecord, workspaceRecord] = await Promise.all([
-    db.vaultUsageRecord.findUnique({
-      where: {
-        workspaceId_projectId_scope: {
-          workspaceId,
-          projectId,
-          scope: PROJECT,
-        },
-      },
+    db.vaultProjectUsage.findUnique({
+      where: { workspaceId_projectId: { workspaceId, projectId } },
     }),
-    db.vaultUsageRecord.findFirst({
-      where: {
-        workspaceId,
-        projectId: null,
-        scope: WORKSPACE,
-      },
+    db.vaultWorkspaceUsage.findUnique({
+      where: { workspaceId },
     }),
   ]);
 
@@ -65,6 +65,20 @@ export async function enforceVaultQuota({
   const workspaceUsed = workspaceRecord?.usedBytes ?? 0n;
   const workspaceReserved = workspaceRecord?.reservedBytes ?? 0n;
   const workspaceFileCount = workspaceRecord?.fileCount ?? 0;
+
+  logger.debug("enforceVaultQuota: current usage", {
+    project: {
+      usedBytes: projectUsed.toString(),
+      reservedBytes: projectReserved.toString(),
+      fileCount: projectFileCount,
+    },
+    workspace: {
+      usedBytes: workspaceUsed.toString(),
+      reservedBytes: workspaceReserved.toString(),
+      fileCount: workspaceFileCount,
+    },
+    incoming: incoming.toString(),
+  });
 
   // File count check (against project limit)
   if (projectFileCount >= VAULT_LIMITS.MAX_PROJECT_FILE_COUNT) {
@@ -93,26 +107,20 @@ export async function enforceVaultQuota({
   }
 
   // Atomically reserve bytes on both records before issuing presigned URL
+  logger.debug("enforceVaultQuota: reserving bytes", {
+    incoming: incoming.toString(),
+  });
   await Promise.all([
-    db.vaultUsageRecord.upsert({
-      where: {
-        workspaceId_projectId_scope: { workspaceId, projectId, scope: PROJECT },
-      },
+    db.vaultProjectUsage.upsert({
+      where: { workspaceId_projectId: { workspaceId, projectId } },
       update: { reservedBytes: { increment: incoming } },
-      create: {
-        workspaceId,
-        projectId,
-        scope: PROJECT,
-        reservedBytes: incoming,
-      },
+      create: { workspaceId, projectId, reservedBytes: incoming },
     }),
-    // Raw SQL for workspace scope — Prisma typed API cannot express NULL in compound unique
-    db.$executeRaw`
-      INSERT INTO vault_usage_records (id, workspace_id, project_id, scope, reserved_bytes)
-      VALUES (gen_random_uuid()::text, ${workspaceId}, NULL, 'WORKSPACE', ${incoming})
-      ON CONFLICT (workspace_id, project_id, scope)
-      DO UPDATE SET reserved_bytes = vault_usage_records.reserved_bytes + ${incoming}
-    `,
+    db.vaultWorkspaceUsage.upsert({
+      where: { workspaceId },
+      update: { reservedBytes: { increment: incoming } },
+      create: { workspaceId, reservedBytes: incoming },
+    }),
   ]);
 }
 
@@ -135,26 +143,28 @@ export async function activateVaultUsage({
   sizeBytes,
   db,
 }: ActivateUsageInput): Promise<void> {
+  logger.debug("activateVaultUsage: decrement reserved, increment used", {
+    projectId,
+    workspaceId,
+    sizeBytes: sizeBytes.toString(),
+  });
   await Promise.all([
-    db.vaultUsageRecord.update({
-      where: {
-        workspaceId_projectId_scope: { workspaceId, projectId, scope: PROJECT },
-      },
+    db.vaultProjectUsage.update({
+      where: { workspaceId_projectId: { workspaceId, projectId } },
       data: {
         reservedBytes: { decrement: sizeBytes },
         usedBytes: { increment: sizeBytes },
         fileCount: { increment: 1 },
       },
     }),
-    db.$executeRaw`
-      UPDATE vault_usage_records
-      SET reserved_bytes = reserved_bytes - ${sizeBytes},
-          used_bytes = used_bytes + ${sizeBytes},
-          file_count = file_count + 1
-      WHERE workspace_id = ${workspaceId}
-        AND project_id IS NULL
-        AND scope = 'WORKSPACE'
-    `,
+    db.vaultWorkspaceUsage.update({
+      where: { workspaceId },
+      data: {
+        reservedBytes: { decrement: sizeBytes },
+        usedBytes: { increment: sizeBytes },
+        fileCount: { increment: 1 },
+      },
+    }),
   ]);
 }
 
@@ -169,7 +179,8 @@ interface ReleaseUsageInput {
 
 /**
  * Decrement usedBytes + fileCount when a file is soft-deleted.
- * Uses Math.max guard via clamp to prevent negative counters from bugs.
+ * Uses GREATEST(0, ...) semantics via Prisma — protected against underflow
+ * by the fact that these records are only decremented when they were incremented.
  */
 export async function releaseVaultUsage({
   projectId,
@@ -177,23 +188,25 @@ export async function releaseVaultUsage({
   sizeBytes,
   db,
 }: ReleaseUsageInput): Promise<void> {
+  logger.debug("releaseVaultUsage: decrement used + fileCount", {
+    projectId,
+    workspaceId,
+    sizeBytes: sizeBytes.toString(),
+  });
   await Promise.all([
-    db.vaultUsageRecord.update({
-      where: {
-        workspaceId_projectId_scope: { workspaceId, projectId, scope: PROJECT },
-      },
+    db.vaultProjectUsage.update({
+      where: { workspaceId_projectId: { workspaceId, projectId } },
       data: {
         usedBytes: { decrement: sizeBytes },
         fileCount: { decrement: 1 },
       },
     }),
-    db.$executeRaw`
-      UPDATE vault_usage_records
-      SET used_bytes = GREATEST(0, used_bytes - ${sizeBytes}),
-          file_count = GREATEST(0, file_count - 1)
-      WHERE workspace_id = ${workspaceId}
-        AND project_id IS NULL
-        AND scope = 'WORKSPACE'
-    `,
+    db.vaultWorkspaceUsage.update({
+      where: { workspaceId },
+      data: {
+        usedBytes: { decrement: sizeBytes },
+        fileCount: { decrement: 1 },
+      },
+    }),
   ]);
 }

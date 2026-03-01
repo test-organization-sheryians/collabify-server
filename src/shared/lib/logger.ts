@@ -105,6 +105,18 @@ const FLOW_GROUPS: Record<string, GroupFlag[]> = {
   "chat:domain:reactions:batch": ["chat-reactions"],
   "chat:domain:reactions:helpers": ["chat-reactions"],
   "chat:domain:reactions:metrics": ["chat-reactions"],
+
+  // Vault Upload E2E Flow
+  "vault:services:request-upload": ["vault-upload-flow"],
+  "vault:services:request-upload:validate": ["vault-upload-flow"],
+  "vault:services:request-upload:quota": ["vault-upload-flow"],
+  "vault:services:request-upload:create": ["vault-upload-flow"],
+  "vault:services:request-upload:presign": ["vault-upload-flow"],
+  "vault:services:confirm-upload": ["vault-upload-flow"],
+  "vault:services:confirm-upload:validate": ["vault-upload-flow"],
+  "vault:services:confirm-upload:verify-s3": ["vault-upload-flow"],
+  "vault:services:confirm-upload:activate": ["vault-upload-flow"],
+  "vault:lib:quota-guard": ["vault-upload-flow"],
 };
 
 /**

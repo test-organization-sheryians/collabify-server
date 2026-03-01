@@ -10,6 +10,7 @@ import * as getVaultNode from "../queries/get-node";
 import * as getVaultSidebar from "../queries/get-sidebar";
 import * as getVaultDownloadUrl from "../queries/get-download-url";
 import * as getVaultUsage from "../queries/get-vault-usage";
+import * as getVaultAncestors from "../queries/get-ancestors";
 
 import * as requestVaultUpload from "../services/request-upload";
 import * as confirmVaultUpload from "../services/confirm-upload";
@@ -135,6 +136,7 @@ export const vaultTypeDefs = [
   getVaultSidebar.typeDefs,
   getVaultDownloadUrl.typeDefs,
   getVaultUsage.typeDefs,
+  getVaultAncestors.typeDefs,
   requestVaultUpload.typeDefs,
   confirmVaultUpload.typeDefs,
   createVaultFolder.typeDefs,

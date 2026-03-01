@@ -53,22 +53,19 @@ export async function runPendingCleanup(db: PrismaClient): Promise<void> {
           where: { id: file.id },
           data: { deletedAt: new Date() },
         }),
-        // Release reservedBytes from project record
-        db.vaultUsageRecord.updateMany({
+        // Release reservedBytes from project usage record
+        db.vaultProjectUsage.update({
           where: {
-            workspaceId: file.workspaceId,
-            projectId: file.projectId,
-            scope: "PROJECT",
+            workspaceId_projectId: {
+              workspaceId: file.workspaceId,
+              projectId: file.projectId,
+            },
           },
           data: { reservedBytes: { decrement: file.sizeBytes } },
         }),
-        // Release reservedBytes from workspace record
-        db.vaultUsageRecord.updateMany({
-          where: {
-            workspaceId: file.workspaceId,
-            projectId: null,
-            scope: "WORKSPACE",
-          },
+        // Release reservedBytes from workspace usage record
+        db.vaultWorkspaceUsage.update({
+          where: { workspaceId: file.workspaceId },
           data: { reservedBytes: { decrement: file.sizeBytes } },
         }),
       ]);
