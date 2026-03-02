@@ -1,7 +1,7 @@
 /**
  * Vault — GraphQL Resolvers
  *
- * PATTERN (identical to whiteboard and pages):
+ * PATTERN (identical to pages and issues):
  *   1. await requireUser(ctx)           — authentication gate
  *   2. schema.parse(args / args.input)  — Zod validation + type narrowing
  *   3. handler(input, ctx)              — delegate all logic to handler
@@ -44,7 +44,7 @@ export const resolvers: Resolvers = {
       }
       return {
         __typename: "VaultFile" as const,
-        ...toGraphQLFile(result as any),
+        ...toGraphQLFile(result),
       };
     },
 

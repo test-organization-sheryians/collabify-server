@@ -34,6 +34,12 @@ const config: CodegenConfig = {
           // so the generated Resolvers type matches what toGraphQLFolder/toGraphQLFile return.
           VaultFolder: "../modules/vault/graphql/mappers#GraphQLVaultFolder",
           VaultFile: "../modules/vault/graphql/mappers#GraphQLVaultFile",
+
+          // Issues: use the mapped types so the generated Resolvers type matches what
+          // toGraphQLIssue / toGraphQLStatus / toGraphQLLabel return.
+          Issue: "../modules/issues/graphql/mappers#GraphQLIssue",
+          IssueStatus: "../modules/issues/graphql/mappers#GraphQLIssueStatus",
+          IssueLabel: "../modules/issues/graphql/mappers#GraphQLIssueLabel",
         },
       },
     },

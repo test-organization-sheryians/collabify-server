@@ -2,6 +2,7 @@ import { GraphQLResolveInfo, GraphQLScalarType, GraphQLScalarTypeConfig } from '
 import { Project as PrismaProject, ProjectMember as PrismaProjectMember, User as PrismaUser, Workspace as PrismaWorkspace, WorkspaceMember as PrismaWorkspaceMember, Notification as PrismaNotification, ChatMember as PrismaChatMember, ChatMessage as PrismaChatMessage } from '@prisma/client';
 import { GraphQLPagePartial } from '../modules/pages/graphql/mappers';
 import { GraphQLVaultFolder, GraphQLVaultFile } from '../modules/vault/graphql/mappers';
+import { GraphQLIssue, GraphQLIssueStatus, GraphQLIssueLabel } from '../modules/issues/graphql/mappers';
 import { ServiceContext } from './types';
 export type Maybe<T> = T | null;
 export type InputMaybe<T> = Maybe<T>;
@@ -178,6 +179,15 @@ export type CloseThreadResult = {
   threadId: Scalars['ID']['output'];
 };
 
+export type ConfirmIssueDescriptionUploadInput = {
+  descriptionFileId: Scalars['ID']['input'];
+};
+
+export type ConfirmIssueDescriptionUploadResult = {
+  __typename?: 'ConfirmIssueDescriptionUploadResult';
+  issue: Issue;
+};
+
 export type ConfirmUploadResult = {
   __typename?: 'ConfirmUploadResult';
   file: VaultFile;
@@ -273,6 +283,44 @@ export type CreateGroupInput = {
   workspaceId: Scalars['ID']['input'];
 };
 
+export type CreateIssueInput = {
+  assigneeId?: InputMaybe<Scalars['ID']['input']>;
+  dueDate?: InputMaybe<Scalars['DateTime']['input']>;
+  labelIds?: InputMaybe<Array<Scalars['ID']['input']>>;
+  priority?: InputMaybe<IssuePriority>;
+  projectId: Scalars['ID']['input'];
+  statusId: Scalars['ID']['input'];
+  title: Scalars['String']['input'];
+};
+
+export type CreateIssueLabelInput = {
+  color?: InputMaybe<Scalars['String']['input']>;
+  name: Scalars['String']['input'];
+  projectId: Scalars['ID']['input'];
+};
+
+export type CreateIssueLabelResult = {
+  __typename?: 'CreateIssueLabelResult';
+  label: IssueLabel;
+};
+
+export type CreateIssueResult = {
+  __typename?: 'CreateIssueResult';
+  issue: Issue;
+};
+
+export type CreateIssueStatusInput = {
+  color?: InputMaybe<Scalars['String']['input']>;
+  icon?: InputMaybe<Scalars['String']['input']>;
+  name: Scalars['String']['input'];
+  projectId: Scalars['ID']['input'];
+};
+
+export type CreateIssueStatusResult = {
+  __typename?: 'CreateIssueStatusResult';
+  status: IssueStatus;
+};
+
 export type CreatePageInput = {
   collaboratorIds?: InputMaybe<Array<Scalars['ID']['input']>>;
   coverUrl?: InputMaybe<Scalars['String']['input']>;
@@ -339,6 +387,18 @@ export type DeleteGroupResult = {
   __typename?: 'DeleteGroupResult';
   groupId: Scalars['ID']['output'];
   success: Scalars['Boolean']['output'];
+};
+
+export type DeleteIssueInput = {
+  issueId: Scalars['ID']['input'];
+};
+
+export type DeleteIssueLabelInput = {
+  labelId: Scalars['ID']['input'];
+};
+
+export type DeleteIssueStatusInput = {
+  statusId: Scalars['ID']['input'];
 };
 
 export type DeletePageInput = {
@@ -429,6 +489,69 @@ export type InviteToWorkspaceInput = {
   workspaceId: Scalars['ID']['input'];
 };
 
+export type Issue = {
+  __typename?: 'Issue';
+  assignee?: Maybe<IssueUser>;
+  createdAt: Scalars['DateTime']['output'];
+  createdBy: IssueUser;
+  descriptionS3Key?: Maybe<Scalars['String']['output']>;
+  dueDate?: Maybe<Scalars['DateTime']['output']>;
+  id: Scalars['ID']['output'];
+  labels: Array<IssueLabel>;
+  number: Scalars['Int']['output'];
+  position: Scalars['Float']['output'];
+  priority: IssuePriority;
+  projectId: Scalars['ID']['output'];
+  status: IssueStatus;
+  title: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  workspaceId: Scalars['ID']['output'];
+};
+
+export type IssueDescriptionUrl = {
+  __typename?: 'IssueDescriptionUrl';
+  expiresAt: Scalars['DateTime']['output'];
+  url: Scalars['String']['output'];
+};
+
+export type IssueLabel = {
+  __typename?: 'IssueLabel';
+  color: Scalars['String']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  projectId: Scalars['ID']['output'];
+};
+
+export enum IssuePriority {
+  High = 'HIGH',
+  Low = 'LOW',
+  Medium = 'MEDIUM',
+  NoPriority = 'NO_PRIORITY',
+  Urgent = 'URGENT'
+}
+
+export type IssueStatus = {
+  __typename?: 'IssueStatus';
+  color: Scalars['String']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  icon?: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  isSystem: Scalars['Boolean']['output'];
+  issueCount: Scalars['Int']['output'];
+  name: Scalars['String']['output'];
+  position: Scalars['Float']['output'];
+  projectId: Scalars['ID']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+};
+
+export type IssueUser = {
+  __typename?: 'IssueUser';
+  avatarUrl?: Maybe<Scalars['String']['output']>;
+  fullName?: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+};
+
 export type JoinResponse = {
   __typename?: 'JoinResponse';
   message: Scalars['String']['output'];
@@ -484,6 +607,17 @@ export type MoveFolderResult = {
   folder: VaultFolder;
 };
 
+export type MoveIssueStatusInput = {
+  issueId: Scalars['ID']['input'];
+  newPosition?: InputMaybe<Scalars['Float']['input']>;
+  statusId: Scalars['ID']['input'];
+};
+
+export type MoveIssueStatusResult = {
+  __typename?: 'MoveIssueStatusResult';
+  issue: Issue;
+};
+
 export type MoveVaultFileInput = {
   fileId: Scalars['ID']['input'];
   /** null = move to root (Home) */
@@ -513,6 +647,8 @@ export type Mutation = {
   checkProjectSlugAvailability: AvailabilityResponse;
   checkSlugAvailability: AvailabilityResponse;
   closeThread: CloseThreadResult;
+  /** Step 2 of 2: verifies S3 upload and activates the description. */
+  confirmIssueDescriptionUpload: ConfirmIssueDescriptionUploadResult;
   /**
    * Step 2 of 2 for uploading a file to Vault.
    * Verifies the S3 object (size + MIME), sets the file to ACTIVE, and updates storage usage.
@@ -522,6 +658,9 @@ export type Mutation = {
   createChannel: Conversation;
   createDm: Conversation;
   createGroup: Conversation;
+  createIssue: CreateIssueResult;
+  createIssueLabel: CreateIssueLabelResult;
+  createIssueStatus: CreateIssueStatusResult;
   createOnboardingWorkspace: Workspace;
   /**
    * Creates a new page in a project. Initialises Y.Doc and uploads initial snapshot to S3.
@@ -536,6 +675,9 @@ export type Mutation = {
   deleteChannel: DeleteChannelResult;
   deleteDm: DeleteDmResult;
   deleteGroup: DeleteGroupResult;
+  deleteIssue: DeleteResult;
+  deleteIssueLabel: DeleteResult;
+  deleteIssueStatus: DeleteResult;
   /**
    * Soft-deletes a page. Fails with 409 if the page has active subscribers.
    * Does not cascade to child pages — handle descendants explicitly first.
@@ -563,6 +705,7 @@ export type Mutation = {
   markAllNotificationsRead: Scalars['Boolean']['output'];
   /** Mark specific notifications as read. */
   markNotificationRead: Scalars['Boolean']['output'];
+  moveIssueStatus: MoveIssueStatusResult;
   moveVaultFile: MoveFileResult;
   moveVaultFolder: MoveFolderResult;
   muteConversation: MuteConversationResult;
@@ -581,11 +724,15 @@ export type Mutation = {
   renameVaultFile: RenameFileResult;
   renameVaultFolder: RenameFolderResult;
   reopenThread: ReopenThreadResult;
+  reorderIssue: ReorderIssueResult;
+  reorderIssueStatus: ReorderIssueStatusResult;
   /**
    * Moves a page to a new position (and optionally a new parent).
    * Validate no circular nesting before calling (circular guard runs server-side too).
    */
   reorderPage: ReorderPageResult;
+  /** Step 1 of 2: reserves an S3 slot and returns a presigned PUT URL. */
+  requestIssueDescriptionUpload: RequestIssueDescriptionUploadResult;
   /**
    * Step 1 of 2 for uploading a file to Vault.
    * Checks quota, creates a PENDING VaultFile row, returns a presigned PUT URL.
@@ -609,6 +756,9 @@ export type Mutation = {
   updateBoardDescription: Whiteboard;
   updateChannelDescription: UpdateChannelDescriptionResult;
   updateChannelVisibility: UpdateChannelVisibilityResult;
+  updateIssue: UpdateIssueResult;
+  updateIssueLabel: UpdateIssueLabelResult;
+  updateIssueStatus: UpdateIssueStatusResult;
   updateWorkspaceMemberRole: WorkspaceMember;
 };
 
@@ -680,6 +830,11 @@ export type MutationCloseThreadArgs = {
 };
 
 
+export type MutationConfirmIssueDescriptionUploadArgs = {
+  input: ConfirmIssueDescriptionUploadInput;
+};
+
+
 export type MutationConfirmVaultUploadArgs = {
   input: ConfirmVaultUploadInput;
 };
@@ -702,6 +857,21 @@ export type MutationCreateDmArgs = {
 
 export type MutationCreateGroupArgs = {
   input: CreateGroupInput;
+};
+
+
+export type MutationCreateIssueArgs = {
+  input: CreateIssueInput;
+};
+
+
+export type MutationCreateIssueLabelArgs = {
+  input: CreateIssueLabelInput;
+};
+
+
+export type MutationCreateIssueStatusArgs = {
+  input: CreateIssueStatusInput;
 };
 
 
@@ -755,6 +925,21 @@ export type MutationDeleteGroupArgs = {
 };
 
 
+export type MutationDeleteIssueArgs = {
+  input: DeleteIssueInput;
+};
+
+
+export type MutationDeleteIssueLabelArgs = {
+  input: DeleteIssueLabelInput;
+};
+
+
+export type MutationDeleteIssueStatusArgs = {
+  input: DeleteIssueStatusInput;
+};
+
+
 export type MutationDeletePageArgs = {
   input: DeletePageInput;
 };
@@ -799,6 +984,11 @@ export type MutationLockPageArgs = {
 
 export type MutationMarkNotificationReadArgs = {
   ids: Array<Scalars['ID']['input']>;
+};
+
+
+export type MutationMoveIssueStatusArgs = {
+  input: MoveIssueStatusInput;
 };
 
 
@@ -893,8 +1083,23 @@ export type MutationReopenThreadArgs = {
 };
 
 
+export type MutationReorderIssueArgs = {
+  input: ReorderIssueInput;
+};
+
+
+export type MutationReorderIssueStatusArgs = {
+  input: ReorderIssueStatusInput;
+};
+
+
 export type MutationReorderPageArgs = {
   input: ReorderPageInput;
+};
+
+
+export type MutationRequestIssueDescriptionUploadArgs = {
+  input: RequestIssueDescriptionUploadInput;
 };
 
 
@@ -970,6 +1175,21 @@ export type MutationUpdateChannelVisibilityArgs = {
   channelId: Scalars['ID']['input'];
   isPublic: Scalars['Boolean']['input'];
   workspaceId: Scalars['ID']['input'];
+};
+
+
+export type MutationUpdateIssueArgs = {
+  input: UpdateIssueInput;
+};
+
+
+export type MutationUpdateIssueLabelArgs = {
+  input: UpdateIssueLabelInput;
+};
+
+
+export type MutationUpdateIssueStatusArgs = {
+  input: UpdateIssueStatusInput;
 };
 
 
@@ -1145,6 +1365,17 @@ export type Query = {
   getChannelMembers: Array<ChatMemberRecord>;
   getConversation: Conversation;
   getDmByUsers?: Maybe<DmConversation>;
+  /** Returns full detail for a single issue. Used when opening the issue modal. */
+  getIssue: Issue;
+  /**
+   * Returns a short-lived presigned GET URL for reading an issue description from S3.
+   * TTL: 5 minutes. Always request fresh — never cache.
+   */
+  getIssueDescriptionUrl: IssueDescriptionUrl;
+  /** Returns all labels defined in a project. */
+  getIssueLabels: Array<IssueLabel>;
+  /** Returns all Kanban columns for a project, ordered by position. */
+  getIssueStatuses: Array<IssueStatus>;
   getLastReadMessage?: Maybe<Scalars['ID']['output']>;
   getMessageById?: Maybe<ChatMessage>;
   getMessagesAfterCursor: Array<ChatMessage>;
@@ -1168,6 +1399,12 @@ export type Query = {
    *   3. Open WS: page:subscribe-page { pageId, lastStreamId }  ← gap-fill
    */
   getPageSnapshot: PageSnapshot;
+  /**
+   * Returns all issues for a project, sorted by priority (URGENT first)
+   * then by position within each column.
+   * Optional filters: assigneeId, labelIds, priority.
+   */
+  getProjectIssues: Array<Issue>;
   /** Returns the full nested page tree for a project (non-archived, non-deleted). */
   getProjectPages: Array<Page>;
   getReadReceipts: ReadReceiptsResponse;
@@ -1275,6 +1512,26 @@ export type QueryGetDmByUsersArgs = {
 };
 
 
+export type QueryGetIssueArgs = {
+  issueId: Scalars['ID']['input'];
+};
+
+
+export type QueryGetIssueDescriptionUrlArgs = {
+  issueId: Scalars['ID']['input'];
+};
+
+
+export type QueryGetIssueLabelsArgs = {
+  projectId: Scalars['ID']['input'];
+};
+
+
+export type QueryGetIssueStatusesArgs = {
+  projectId: Scalars['ID']['input'];
+};
+
+
 export type QueryGetLastReadMessageArgs = {
   channelId: Scalars['ID']['input'];
 };
@@ -1311,6 +1568,14 @@ export type QueryGetPageCollaboratorsArgs = {
 
 export type QueryGetPageSnapshotArgs = {
   pageId: Scalars['ID']['input'];
+};
+
+
+export type QueryGetProjectIssuesArgs = {
+  assigneeId?: InputMaybe<Scalars['ID']['input']>;
+  labelIds?: InputMaybe<Array<Scalars['ID']['input']>>;
+  priority?: InputMaybe<IssuePriority>;
+  projectId: Scalars['ID']['input'];
 };
 
 
@@ -1564,6 +1829,26 @@ export type ReopenThreadResult = {
   threadId: Scalars['ID']['output'];
 };
 
+export type ReorderIssueInput = {
+  issueId: Scalars['ID']['input'];
+  newPosition: Scalars['Float']['input'];
+};
+
+export type ReorderIssueResult = {
+  __typename?: 'ReorderIssueResult';
+  issue: Issue;
+};
+
+export type ReorderIssueStatusInput = {
+  newPosition: Scalars['Float']['input'];
+  statusId: Scalars['ID']['input'];
+};
+
+export type ReorderIssueStatusResult = {
+  __typename?: 'ReorderIssueStatusResult';
+  status: IssueStatus;
+};
+
 export type ReorderPageInput = {
   /** null = move to root (remove from parent) */
   newParentId?: InputMaybe<Scalars['ID']['input']>;
@@ -1574,6 +1859,18 @@ export type ReorderPageInput = {
 export type ReorderPageResult = {
   __typename?: 'ReorderPageResult';
   page: Page;
+};
+
+export type RequestIssueDescriptionUploadInput = {
+  issueId: Scalars['ID']['input'];
+  sizeBytes: Scalars['Int']['input'];
+};
+
+export type RequestIssueDescriptionUploadResult = {
+  __typename?: 'RequestIssueDescriptionUploadResult';
+  descriptionFileId: Scalars['ID']['output'];
+  expiresAt: Scalars['DateTime']['output'];
+  presignedUrl: Scalars['String']['output'];
 };
 
 export type RequestUploadResult = {
@@ -1665,6 +1962,43 @@ export type UpdateChannelVisibilityResult = {
   channelId: Scalars['ID']['output'];
   isPublic: Scalars['Boolean']['output'];
   success: Scalars['Boolean']['output'];
+};
+
+export type UpdateIssueInput = {
+  assigneeId?: InputMaybe<Scalars['ID']['input']>;
+  dueDate?: InputMaybe<Scalars['DateTime']['input']>;
+  issueId: Scalars['ID']['input'];
+  labelIds?: InputMaybe<Array<Scalars['ID']['input']>>;
+  priority?: InputMaybe<IssuePriority>;
+  title?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type UpdateIssueLabelInput = {
+  color?: InputMaybe<Scalars['String']['input']>;
+  labelId: Scalars['ID']['input'];
+  name?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type UpdateIssueLabelResult = {
+  __typename?: 'UpdateIssueLabelResult';
+  label: IssueLabel;
+};
+
+export type UpdateIssueResult = {
+  __typename?: 'UpdateIssueResult';
+  issue: Issue;
+};
+
+export type UpdateIssueStatusInput = {
+  color?: InputMaybe<Scalars['String']['input']>;
+  icon?: InputMaybe<Scalars['String']['input']>;
+  name?: InputMaybe<Scalars['String']['input']>;
+  statusId: Scalars['ID']['input'];
+};
+
+export type UpdateIssueStatusResult = {
+  __typename?: 'UpdateIssueStatusResult';
+  status: IssueStatus;
 };
 
 export type User = {
@@ -1940,6 +2274,8 @@ export type ResolversTypes = ResolversObject<{
   ChatMessage: ResolverTypeWrapper<PrismaChatMessage>;
   CheckChannelAvailabilityInput: CheckChannelAvailabilityInput;
   CloseThreadResult: ResolverTypeWrapper<CloseThreadResult>;
+  ConfirmIssueDescriptionUploadInput: ConfirmIssueDescriptionUploadInput;
+  ConfirmIssueDescriptionUploadResult: ResolverTypeWrapper<Omit<ConfirmIssueDescriptionUploadResult, 'issue'> & { issue: ResolversTypes['Issue'] }>;
   ConfirmUploadResult: ResolverTypeWrapper<Omit<ConfirmUploadResult, 'file'> & { file: ResolversTypes['VaultFile'] }>;
   ConfirmVaultUploadInput: ConfirmVaultUploadInput;
   Conversation: ResolverTypeWrapper<Omit<Conversation, 'members'> & { members?: Maybe<Array<ResolversTypes['ConversationMember']>> }>;
@@ -1952,6 +2288,12 @@ export type ResolversTypes = ResolversObject<{
   CreateDmInput: CreateDmInput;
   CreateFolderResult: ResolverTypeWrapper<Omit<CreateFolderResult, 'folder'> & { folder: ResolversTypes['VaultFolder'] }>;
   CreateGroupInput: CreateGroupInput;
+  CreateIssueInput: CreateIssueInput;
+  CreateIssueLabelInput: CreateIssueLabelInput;
+  CreateIssueLabelResult: ResolverTypeWrapper<Omit<CreateIssueLabelResult, 'label'> & { label: ResolversTypes['IssueLabel'] }>;
+  CreateIssueResult: ResolverTypeWrapper<Omit<CreateIssueResult, 'issue'> & { issue: ResolversTypes['Issue'] }>;
+  CreateIssueStatusInput: CreateIssueStatusInput;
+  CreateIssueStatusResult: ResolverTypeWrapper<Omit<CreateIssueStatusResult, 'status'> & { status: ResolversTypes['IssueStatus'] }>;
   CreatePageInput: CreatePageInput;
   CreatePageResult: ResolverTypeWrapper<Omit<CreatePageResult, 'page'> & { page: ResolversTypes['Page'] }>;
   CreateProjectInput: CreateProjectInput;
@@ -1963,6 +2305,9 @@ export type ResolversTypes = ResolversObject<{
   DeleteChannelResult: ResolverTypeWrapper<DeleteChannelResult>;
   DeleteDmResult: ResolverTypeWrapper<DeleteDmResult>;
   DeleteGroupResult: ResolverTypeWrapper<DeleteGroupResult>;
+  DeleteIssueInput: DeleteIssueInput;
+  DeleteIssueLabelInput: DeleteIssueLabelInput;
+  DeleteIssueStatusInput: DeleteIssueStatusInput;
   DeletePageInput: DeletePageInput;
   DeletePageResult: ResolverTypeWrapper<DeletePageResult>;
   DeleteResult: ResolverTypeWrapper<DeleteResult>;
@@ -1979,6 +2324,12 @@ export type ResolversTypes = ResolversObject<{
   Int: ResolverTypeWrapper<Scalars['Int']['output']>;
   InviteResponse: ResolverTypeWrapper<InviteResponse>;
   InviteToWorkspaceInput: InviteToWorkspaceInput;
+  Issue: ResolverTypeWrapper<GraphQLIssue>;
+  IssueDescriptionUrl: ResolverTypeWrapper<IssueDescriptionUrl>;
+  IssueLabel: ResolverTypeWrapper<GraphQLIssueLabel>;
+  IssuePriority: IssuePriority;
+  IssueStatus: ResolverTypeWrapper<GraphQLIssueStatus>;
+  IssueUser: ResolverTypeWrapper<IssueUser>;
   JSON: ResolverTypeWrapper<Scalars['JSON']['output']>;
   JoinResponse: ResolverTypeWrapper<JoinResponse>;
   LastMessagePreview: ResolverTypeWrapper<LastMessagePreview>;
@@ -1989,6 +2340,8 @@ export type ResolversTypes = ResolversObject<{
   MessagesDelta: ResolverTypeWrapper<Omit<MessagesDelta, 'messages'> & { messages: Array<ResolversTypes['ChatMessage']> }>;
   MoveFileResult: ResolverTypeWrapper<Omit<MoveFileResult, 'file'> & { file: ResolversTypes['VaultFile'] }>;
   MoveFolderResult: ResolverTypeWrapper<Omit<MoveFolderResult, 'folder'> & { folder: ResolversTypes['VaultFolder'] }>;
+  MoveIssueStatusInput: MoveIssueStatusInput;
+  MoveIssueStatusResult: ResolverTypeWrapper<Omit<MoveIssueStatusResult, 'issue'> & { issue: ResolversTypes['Issue'] }>;
   MoveVaultFileInput: MoveVaultFileInput;
   MoveVaultFolderInput: MoveVaultFolderInput;
   Mutation: ResolverTypeWrapper<Record<PropertyKey, never>>;
@@ -2026,8 +2379,14 @@ export type ResolversTypes = ResolversObject<{
   RenameVaultFileInput: RenameVaultFileInput;
   RenameVaultFolderInput: RenameVaultFolderInput;
   ReopenThreadResult: ResolverTypeWrapper<ReopenThreadResult>;
+  ReorderIssueInput: ReorderIssueInput;
+  ReorderIssueResult: ResolverTypeWrapper<Omit<ReorderIssueResult, 'issue'> & { issue: ResolversTypes['Issue'] }>;
+  ReorderIssueStatusInput: ReorderIssueStatusInput;
+  ReorderIssueStatusResult: ResolverTypeWrapper<Omit<ReorderIssueStatusResult, 'status'> & { status: ResolversTypes['IssueStatus'] }>;
   ReorderPageInput: ReorderPageInput;
   ReorderPageResult: ResolverTypeWrapper<Omit<ReorderPageResult, 'page'> & { page: ResolversTypes['Page'] }>;
+  RequestIssueDescriptionUploadInput: RequestIssueDescriptionUploadInput;
+  RequestIssueDescriptionUploadResult: ResolverTypeWrapper<RequestIssueDescriptionUploadResult>;
   RequestUploadResult: ResolverTypeWrapper<RequestUploadResult>;
   RequestVaultUploadInput: RequestVaultUploadInput;
   SortDirection: SortDirection;
@@ -2044,6 +2403,12 @@ export type ResolversTypes = ResolversObject<{
   UnsubscribeThreadResult: ResolverTypeWrapper<UnsubscribeThreadResult>;
   UpdateChannelDescriptionResult: ResolverTypeWrapper<UpdateChannelDescriptionResult>;
   UpdateChannelVisibilityResult: ResolverTypeWrapper<UpdateChannelVisibilityResult>;
+  UpdateIssueInput: UpdateIssueInput;
+  UpdateIssueLabelInput: UpdateIssueLabelInput;
+  UpdateIssueLabelResult: ResolverTypeWrapper<Omit<UpdateIssueLabelResult, 'label'> & { label: ResolversTypes['IssueLabel'] }>;
+  UpdateIssueResult: ResolverTypeWrapper<Omit<UpdateIssueResult, 'issue'> & { issue: ResolversTypes['Issue'] }>;
+  UpdateIssueStatusInput: UpdateIssueStatusInput;
+  UpdateIssueStatusResult: ResolverTypeWrapper<Omit<UpdateIssueStatusResult, 'status'> & { status: ResolversTypes['IssueStatus'] }>;
   User: ResolverTypeWrapper<PrismaUser>;
   UserBasic: ResolverTypeWrapper<UserBasic>;
   UserPresence: ResolverTypeWrapper<UserPresence>;
@@ -2088,6 +2453,8 @@ export type ResolversParentTypes = ResolversObject<{
   ChatMessage: PrismaChatMessage;
   CheckChannelAvailabilityInput: CheckChannelAvailabilityInput;
   CloseThreadResult: CloseThreadResult;
+  ConfirmIssueDescriptionUploadInput: ConfirmIssueDescriptionUploadInput;
+  ConfirmIssueDescriptionUploadResult: Omit<ConfirmIssueDescriptionUploadResult, 'issue'> & { issue: ResolversParentTypes['Issue'] };
   ConfirmUploadResult: Omit<ConfirmUploadResult, 'file'> & { file: ResolversParentTypes['VaultFile'] };
   ConfirmVaultUploadInput: ConfirmVaultUploadInput;
   Conversation: Omit<Conversation, 'members'> & { members?: Maybe<Array<ResolversParentTypes['ConversationMember']>> };
@@ -2099,6 +2466,12 @@ export type ResolversParentTypes = ResolversObject<{
   CreateDmInput: CreateDmInput;
   CreateFolderResult: Omit<CreateFolderResult, 'folder'> & { folder: ResolversParentTypes['VaultFolder'] };
   CreateGroupInput: CreateGroupInput;
+  CreateIssueInput: CreateIssueInput;
+  CreateIssueLabelInput: CreateIssueLabelInput;
+  CreateIssueLabelResult: Omit<CreateIssueLabelResult, 'label'> & { label: ResolversParentTypes['IssueLabel'] };
+  CreateIssueResult: Omit<CreateIssueResult, 'issue'> & { issue: ResolversParentTypes['Issue'] };
+  CreateIssueStatusInput: CreateIssueStatusInput;
+  CreateIssueStatusResult: Omit<CreateIssueStatusResult, 'status'> & { status: ResolversParentTypes['IssueStatus'] };
   CreatePageInput: CreatePageInput;
   CreatePageResult: Omit<CreatePageResult, 'page'> & { page: ResolversParentTypes['Page'] };
   CreateProjectInput: CreateProjectInput;
@@ -2110,6 +2483,9 @@ export type ResolversParentTypes = ResolversObject<{
   DeleteChannelResult: DeleteChannelResult;
   DeleteDmResult: DeleteDmResult;
   DeleteGroupResult: DeleteGroupResult;
+  DeleteIssueInput: DeleteIssueInput;
+  DeleteIssueLabelInput: DeleteIssueLabelInput;
+  DeleteIssueStatusInput: DeleteIssueStatusInput;
   DeletePageInput: DeletePageInput;
   DeletePageResult: DeletePageResult;
   DeleteResult: DeleteResult;
@@ -2126,6 +2502,11 @@ export type ResolversParentTypes = ResolversObject<{
   Int: Scalars['Int']['output'];
   InviteResponse: InviteResponse;
   InviteToWorkspaceInput: InviteToWorkspaceInput;
+  Issue: GraphQLIssue;
+  IssueDescriptionUrl: IssueDescriptionUrl;
+  IssueLabel: GraphQLIssueLabel;
+  IssueStatus: GraphQLIssueStatus;
+  IssueUser: IssueUser;
   JSON: Scalars['JSON']['output'];
   JoinResponse: JoinResponse;
   LastMessagePreview: LastMessagePreview;
@@ -2136,6 +2517,8 @@ export type ResolversParentTypes = ResolversObject<{
   MessagesDelta: Omit<MessagesDelta, 'messages'> & { messages: Array<ResolversParentTypes['ChatMessage']> };
   MoveFileResult: Omit<MoveFileResult, 'file'> & { file: ResolversParentTypes['VaultFile'] };
   MoveFolderResult: Omit<MoveFolderResult, 'folder'> & { folder: ResolversParentTypes['VaultFolder'] };
+  MoveIssueStatusInput: MoveIssueStatusInput;
+  MoveIssueStatusResult: Omit<MoveIssueStatusResult, 'issue'> & { issue: ResolversParentTypes['Issue'] };
   MoveVaultFileInput: MoveVaultFileInput;
   MoveVaultFolderInput: MoveVaultFolderInput;
   Mutation: Record<PropertyKey, never>;
@@ -2171,8 +2554,14 @@ export type ResolversParentTypes = ResolversObject<{
   RenameVaultFileInput: RenameVaultFileInput;
   RenameVaultFolderInput: RenameVaultFolderInput;
   ReopenThreadResult: ReopenThreadResult;
+  ReorderIssueInput: ReorderIssueInput;
+  ReorderIssueResult: Omit<ReorderIssueResult, 'issue'> & { issue: ResolversParentTypes['Issue'] };
+  ReorderIssueStatusInput: ReorderIssueStatusInput;
+  ReorderIssueStatusResult: Omit<ReorderIssueStatusResult, 'status'> & { status: ResolversParentTypes['IssueStatus'] };
   ReorderPageInput: ReorderPageInput;
   ReorderPageResult: Omit<ReorderPageResult, 'page'> & { page: ResolversParentTypes['Page'] };
+  RequestIssueDescriptionUploadInput: RequestIssueDescriptionUploadInput;
+  RequestIssueDescriptionUploadResult: RequestIssueDescriptionUploadResult;
   RequestUploadResult: RequestUploadResult;
   RequestVaultUploadInput: RequestVaultUploadInput;
   String: Scalars['String']['output'];
@@ -2188,6 +2577,12 @@ export type ResolversParentTypes = ResolversObject<{
   UnsubscribeThreadResult: UnsubscribeThreadResult;
   UpdateChannelDescriptionResult: UpdateChannelDescriptionResult;
   UpdateChannelVisibilityResult: UpdateChannelVisibilityResult;
+  UpdateIssueInput: UpdateIssueInput;
+  UpdateIssueLabelInput: UpdateIssueLabelInput;
+  UpdateIssueLabelResult: Omit<UpdateIssueLabelResult, 'label'> & { label: ResolversParentTypes['IssueLabel'] };
+  UpdateIssueResult: Omit<UpdateIssueResult, 'issue'> & { issue: ResolversParentTypes['Issue'] };
+  UpdateIssueStatusInput: UpdateIssueStatusInput;
+  UpdateIssueStatusResult: Omit<UpdateIssueStatusResult, 'status'> & { status: ResolversParentTypes['IssueStatus'] };
   User: PrismaUser;
   UserBasic: UserBasic;
   UserPresence: UserPresence;
@@ -2317,6 +2712,10 @@ export type CloseThreadResultResolvers<ContextType = ServiceContext, ParentType 
   threadId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
 }>;
 
+export type ConfirmIssueDescriptionUploadResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ConfirmIssueDescriptionUploadResult'] = ResolversParentTypes['ConfirmIssueDescriptionUploadResult']> = ResolversObject<{
+  issue?: Resolver<ResolversTypes['Issue'], ParentType, ContextType>;
+}>;
+
 export type ConfirmUploadResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ConfirmUploadResult'] = ResolversParentTypes['ConfirmUploadResult']> = ResolversObject<{
   file?: Resolver<ResolversTypes['VaultFile'], ParentType, ContextType>;
 }>;
@@ -2362,6 +2761,18 @@ export type ConversationUnreadCountResolvers<ContextType = ServiceContext, Paren
 
 export type CreateFolderResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['CreateFolderResult'] = ResolversParentTypes['CreateFolderResult']> = ResolversObject<{
   folder?: Resolver<ResolversTypes['VaultFolder'], ParentType, ContextType>;
+}>;
+
+export type CreateIssueLabelResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['CreateIssueLabelResult'] = ResolversParentTypes['CreateIssueLabelResult']> = ResolversObject<{
+  label?: Resolver<ResolversTypes['IssueLabel'], ParentType, ContextType>;
+}>;
+
+export type CreateIssueResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['CreateIssueResult'] = ResolversParentTypes['CreateIssueResult']> = ResolversObject<{
+  issue?: Resolver<ResolversTypes['Issue'], ParentType, ContextType>;
+}>;
+
+export type CreateIssueStatusResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['CreateIssueStatusResult'] = ResolversParentTypes['CreateIssueStatusResult']> = ResolversObject<{
+  status?: Resolver<ResolversTypes['IssueStatus'], ParentType, ContextType>;
 }>;
 
 export type CreatePageResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['CreatePageResult'] = ResolversParentTypes['CreatePageResult']> = ResolversObject<{
@@ -2452,6 +2863,56 @@ export type InviteResponseResolvers<ContextType = ServiceContext, ParentType ext
   success?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
 }>;
 
+export type IssueResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Issue'] = ResolversParentTypes['Issue']> = ResolversObject<{
+  assignee?: Resolver<Maybe<ResolversTypes['IssueUser']>, ParentType, ContextType>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  createdBy?: Resolver<ResolversTypes['IssueUser'], ParentType, ContextType>;
+  descriptionS3Key?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  dueDate?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  labels?: Resolver<Array<ResolversTypes['IssueLabel']>, ParentType, ContextType>;
+  number?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  position?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+  priority?: Resolver<ResolversTypes['IssuePriority'], ParentType, ContextType>;
+  projectId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  status?: Resolver<ResolversTypes['IssueStatus'], ParentType, ContextType>;
+  title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  workspaceId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+}>;
+
+export type IssueDescriptionUrlResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['IssueDescriptionUrl'] = ResolversParentTypes['IssueDescriptionUrl']> = ResolversObject<{
+  expiresAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  url?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+}>;
+
+export type IssueLabelResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['IssueLabel'] = ResolversParentTypes['IssueLabel']> = ResolversObject<{
+  color?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  projectId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+}>;
+
+export type IssueStatusResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['IssueStatus'] = ResolversParentTypes['IssueStatus']> = ResolversObject<{
+  color?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  icon?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  isSystem?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  issueCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  position?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+  projectId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+}>;
+
+export type IssueUserResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['IssueUser'] = ResolversParentTypes['IssueUser']> = ResolversObject<{
+  avatarUrl?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  fullName?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+}>;
+
 export interface JsonScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes['JSON'], any> {
   name: 'JSON';
 }
@@ -2499,6 +2960,10 @@ export type MoveFolderResultResolvers<ContextType = ServiceContext, ParentType e
   folder?: Resolver<ResolversTypes['VaultFolder'], ParentType, ContextType>;
 }>;
 
+export type MoveIssueStatusResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['MoveIssueStatusResult'] = ResolversParentTypes['MoveIssueStatusResult']> = ResolversObject<{
+  issue?: Resolver<ResolversTypes['Issue'], ParentType, ContextType>;
+}>;
+
 export type MutationResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Mutation'] = ResolversParentTypes['Mutation']> = ResolversObject<{
   _health?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   acceptWorkspaceInvite?: Resolver<ResolversTypes['JoinResponse'], ParentType, ContextType, RequireFields<MutationAcceptWorkspaceInviteArgs, 'input'>>;
@@ -2513,11 +2978,15 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   checkProjectSlugAvailability?: Resolver<ResolversTypes['AvailabilityResponse'], ParentType, ContextType, RequireFields<MutationCheckProjectSlugAvailabilityArgs, 'slug' | 'workspaceId'>>;
   checkSlugAvailability?: Resolver<ResolversTypes['AvailabilityResponse'], ParentType, ContextType, RequireFields<MutationCheckSlugAvailabilityArgs, 'slug'>>;
   closeThread?: Resolver<ResolversTypes['CloseThreadResult'], ParentType, ContextType, RequireFields<MutationCloseThreadArgs, 'threadId' | 'workspaceId'>>;
+  confirmIssueDescriptionUpload?: Resolver<ResolversTypes['ConfirmIssueDescriptionUploadResult'], ParentType, ContextType, RequireFields<MutationConfirmIssueDescriptionUploadArgs, 'input'>>;
   confirmVaultUpload?: Resolver<ResolversTypes['ConfirmUploadResult'], ParentType, ContextType, RequireFields<MutationConfirmVaultUploadArgs, 'input'>>;
   createBoard?: Resolver<ResolversTypes['BoardPayload'], ParentType, ContextType, RequireFields<MutationCreateBoardArgs, 'input'>>;
   createChannel?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<MutationCreateChannelArgs, 'input'>>;
   createDm?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<MutationCreateDmArgs, 'input'>>;
   createGroup?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<MutationCreateGroupArgs, 'input'>>;
+  createIssue?: Resolver<ResolversTypes['CreateIssueResult'], ParentType, ContextType, RequireFields<MutationCreateIssueArgs, 'input'>>;
+  createIssueLabel?: Resolver<ResolversTypes['CreateIssueLabelResult'], ParentType, ContextType, RequireFields<MutationCreateIssueLabelArgs, 'input'>>;
+  createIssueStatus?: Resolver<ResolversTypes['CreateIssueStatusResult'], ParentType, ContextType, RequireFields<MutationCreateIssueStatusArgs, 'input'>>;
   createOnboardingWorkspace?: Resolver<ResolversTypes['Workspace'], ParentType, ContextType>;
   createPage?: Resolver<ResolversTypes['CreatePageResult'], ParentType, ContextType, RequireFields<MutationCreatePageArgs, 'input'>>;
   createProject?: Resolver<ResolversTypes['Project'], ParentType, ContextType, RequireFields<MutationCreateProjectArgs, 'input' | 'workspaceId'>>;
@@ -2528,6 +2997,9 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   deleteChannel?: Resolver<ResolversTypes['DeleteChannelResult'], ParentType, ContextType, RequireFields<MutationDeleteChannelArgs, 'channelId' | 'workspaceId'>>;
   deleteDm?: Resolver<ResolversTypes['DeleteDmResult'], ParentType, ContextType, RequireFields<MutationDeleteDmArgs, 'dmId' | 'workspaceId'>>;
   deleteGroup?: Resolver<ResolversTypes['DeleteGroupResult'], ParentType, ContextType, RequireFields<MutationDeleteGroupArgs, 'groupId' | 'workspaceId'>>;
+  deleteIssue?: Resolver<ResolversTypes['DeleteResult'], ParentType, ContextType, RequireFields<MutationDeleteIssueArgs, 'input'>>;
+  deleteIssueLabel?: Resolver<ResolversTypes['DeleteResult'], ParentType, ContextType, RequireFields<MutationDeleteIssueLabelArgs, 'input'>>;
+  deleteIssueStatus?: Resolver<ResolversTypes['DeleteResult'], ParentType, ContextType, RequireFields<MutationDeleteIssueStatusArgs, 'input'>>;
   deletePage?: Resolver<ResolversTypes['DeletePageResult'], ParentType, ContextType, RequireFields<MutationDeletePageArgs, 'input'>>;
   deleteThread?: Resolver<ResolversTypes['DeleteThreadResult'], ParentType, ContextType, RequireFields<MutationDeleteThreadArgs, 'threadId' | 'workspaceId'>>;
   deleteVaultFile?: Resolver<ResolversTypes['DeleteResult'], ParentType, ContextType, RequireFields<MutationDeleteVaultFileArgs, 'input'>>;
@@ -2538,6 +3010,7 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   lockPage?: Resolver<ResolversTypes['LockPageResult'], ParentType, ContextType, RequireFields<MutationLockPageArgs, 'input'>>;
   markAllNotificationsRead?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   markNotificationRead?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationMarkNotificationReadArgs, 'ids'>>;
+  moveIssueStatus?: Resolver<ResolversTypes['MoveIssueStatusResult'], ParentType, ContextType, RequireFields<MutationMoveIssueStatusArgs, 'input'>>;
   moveVaultFile?: Resolver<ResolversTypes['MoveFileResult'], ParentType, ContextType, RequireFields<MutationMoveVaultFileArgs, 'input'>>;
   moveVaultFolder?: Resolver<ResolversTypes['MoveFolderResult'], ParentType, ContextType, RequireFields<MutationMoveVaultFolderArgs, 'input'>>;
   muteConversation?: Resolver<ResolversTypes['MuteConversationResult'], ParentType, ContextType, RequireFields<MutationMuteConversationArgs, 'conversationId' | 'isMuted'>>;
@@ -2554,7 +3027,10 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   renameVaultFile?: Resolver<ResolversTypes['RenameFileResult'], ParentType, ContextType, RequireFields<MutationRenameVaultFileArgs, 'input'>>;
   renameVaultFolder?: Resolver<ResolversTypes['RenameFolderResult'], ParentType, ContextType, RequireFields<MutationRenameVaultFolderArgs, 'input'>>;
   reopenThread?: Resolver<ResolversTypes['ReopenThreadResult'], ParentType, ContextType, RequireFields<MutationReopenThreadArgs, 'threadId' | 'workspaceId'>>;
+  reorderIssue?: Resolver<ResolversTypes['ReorderIssueResult'], ParentType, ContextType, RequireFields<MutationReorderIssueArgs, 'input'>>;
+  reorderIssueStatus?: Resolver<ResolversTypes['ReorderIssueStatusResult'], ParentType, ContextType, RequireFields<MutationReorderIssueStatusArgs, 'input'>>;
   reorderPage?: Resolver<ResolversTypes['ReorderPageResult'], ParentType, ContextType, RequireFields<MutationReorderPageArgs, 'input'>>;
+  requestIssueDescriptionUpload?: Resolver<ResolversTypes['RequestIssueDescriptionUploadResult'], ParentType, ContextType, RequireFields<MutationRequestIssueDescriptionUploadArgs, 'input'>>;
   requestVaultUpload?: Resolver<ResolversTypes['RequestUploadResult'], ParentType, ContextType, RequireFields<MutationRequestVaultUploadArgs, 'input'>>;
   subscribeThread?: Resolver<ResolversTypes['SubscribeThreadResult'], ParentType, ContextType, RequireFields<MutationSubscribeThreadArgs, 'threadId'>>;
   syncUser?: Resolver<ResolversTypes['User'], ParentType, ContextType, RequireFields<MutationSyncUserArgs, 'clerkId' | 'email'>>;
@@ -2568,6 +3044,9 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   updateBoardDescription?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType, RequireFields<MutationUpdateBoardDescriptionArgs, 'boardId'>>;
   updateChannelDescription?: Resolver<ResolversTypes['UpdateChannelDescriptionResult'], ParentType, ContextType, RequireFields<MutationUpdateChannelDescriptionArgs, 'channelId' | 'workspaceId'>>;
   updateChannelVisibility?: Resolver<ResolversTypes['UpdateChannelVisibilityResult'], ParentType, ContextType, RequireFields<MutationUpdateChannelVisibilityArgs, 'channelId' | 'isPublic' | 'workspaceId'>>;
+  updateIssue?: Resolver<ResolversTypes['UpdateIssueResult'], ParentType, ContextType, RequireFields<MutationUpdateIssueArgs, 'input'>>;
+  updateIssueLabel?: Resolver<ResolversTypes['UpdateIssueLabelResult'], ParentType, ContextType, RequireFields<MutationUpdateIssueLabelArgs, 'input'>>;
+  updateIssueStatus?: Resolver<ResolversTypes['UpdateIssueStatusResult'], ParentType, ContextType, RequireFields<MutationUpdateIssueStatusArgs, 'input'>>;
   updateWorkspaceMemberRole?: Resolver<ResolversTypes['WorkspaceMember'], ParentType, ContextType, RequireFields<MutationUpdateWorkspaceMemberRoleArgs, 'memberId' | 'role' | 'workspaceId'>>;
 }>;
 
@@ -2685,6 +3164,10 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   getChannelMembers?: Resolver<Array<ResolversTypes['ChatMemberRecord']>, ParentType, ContextType, RequireFields<QueryGetChannelMembersArgs, 'channelId'>>;
   getConversation?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<QueryGetConversationArgs, 'conversationId'>>;
   getDmByUsers?: Resolver<Maybe<ResolversTypes['DmConversation']>, ParentType, ContextType, RequireFields<QueryGetDmByUsersArgs, 'otherUserId' | 'projectId' | 'workspaceId'>>;
+  getIssue?: Resolver<ResolversTypes['Issue'], ParentType, ContextType, RequireFields<QueryGetIssueArgs, 'issueId'>>;
+  getIssueDescriptionUrl?: Resolver<ResolversTypes['IssueDescriptionUrl'], ParentType, ContextType, RequireFields<QueryGetIssueDescriptionUrlArgs, 'issueId'>>;
+  getIssueLabels?: Resolver<Array<ResolversTypes['IssueLabel']>, ParentType, ContextType, RequireFields<QueryGetIssueLabelsArgs, 'projectId'>>;
+  getIssueStatuses?: Resolver<Array<ResolversTypes['IssueStatus']>, ParentType, ContextType, RequireFields<QueryGetIssueStatusesArgs, 'projectId'>>;
   getLastReadMessage?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType, RequireFields<QueryGetLastReadMessageArgs, 'channelId'>>;
   getMessageById?: Resolver<Maybe<ResolversTypes['ChatMessage']>, ParentType, ContextType, RequireFields<QueryGetMessageByIdArgs, 'messageId'>>;
   getMessagesAfterCursor?: Resolver<Array<ResolversTypes['ChatMessage']>, ParentType, ContextType, RequireFields<QueryGetMessagesAfterCursorArgs, 'afterCursor' | 'channelId'>>;
@@ -2692,6 +3175,7 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   getPage?: Resolver<ResolversTypes['Page'], ParentType, ContextType, RequireFields<QueryGetPageArgs, 'pageId'>>;
   getPageCollaborators?: Resolver<Array<ResolversTypes['PageCollaborator']>, ParentType, ContextType, RequireFields<QueryGetPageCollaboratorsArgs, 'pageId'>>;
   getPageSnapshot?: Resolver<ResolversTypes['PageSnapshot'], ParentType, ContextType, RequireFields<QueryGetPageSnapshotArgs, 'pageId'>>;
+  getProjectIssues?: Resolver<Array<ResolversTypes['Issue']>, ParentType, ContextType, RequireFields<QueryGetProjectIssuesArgs, 'projectId'>>;
   getProjectPages?: Resolver<Array<ResolversTypes['Page']>, ParentType, ContextType, RequireFields<QueryGetProjectPagesArgs, 'projectId'>>;
   getReadReceipts?: Resolver<ResolversTypes['ReadReceiptsResponse'], ParentType, ContextType, RequireFields<QueryGetReadReceiptsArgs, 'messageId'>>;
   getThreadMessages?: Resolver<Array<ResolversTypes['ChatMessage']>, ParentType, ContextType, RequireFields<QueryGetThreadMessagesArgs, 'parentMessageId'>>;
@@ -2784,8 +3268,22 @@ export type ReopenThreadResultResolvers<ContextType = ServiceContext, ParentType
   threadId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
 }>;
 
+export type ReorderIssueResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ReorderIssueResult'] = ResolversParentTypes['ReorderIssueResult']> = ResolversObject<{
+  issue?: Resolver<ResolversTypes['Issue'], ParentType, ContextType>;
+}>;
+
+export type ReorderIssueStatusResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ReorderIssueStatusResult'] = ResolversParentTypes['ReorderIssueStatusResult']> = ResolversObject<{
+  status?: Resolver<ResolversTypes['IssueStatus'], ParentType, ContextType>;
+}>;
+
 export type ReorderPageResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ReorderPageResult'] = ResolversParentTypes['ReorderPageResult']> = ResolversObject<{
   page?: Resolver<ResolversTypes['Page'], ParentType, ContextType>;
+}>;
+
+export type RequestIssueDescriptionUploadResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['RequestIssueDescriptionUploadResult'] = ResolversParentTypes['RequestIssueDescriptionUploadResult']> = ResolversObject<{
+  descriptionFileId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  expiresAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  presignedUrl?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 }>;
 
 export type RequestUploadResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['RequestUploadResult'] = ResolversParentTypes['RequestUploadResult']> = ResolversObject<{
@@ -2840,6 +3338,18 @@ export type UpdateChannelVisibilityResultResolvers<ContextType = ServiceContext,
   channelId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   isPublic?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   success?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+}>;
+
+export type UpdateIssueLabelResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['UpdateIssueLabelResult'] = ResolversParentTypes['UpdateIssueLabelResult']> = ResolversObject<{
+  label?: Resolver<ResolversTypes['IssueLabel'], ParentType, ContextType>;
+}>;
+
+export type UpdateIssueResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['UpdateIssueResult'] = ResolversParentTypes['UpdateIssueResult']> = ResolversObject<{
+  issue?: Resolver<ResolversTypes['Issue'], ParentType, ContextType>;
+}>;
+
+export type UpdateIssueStatusResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['UpdateIssueStatusResult'] = ResolversParentTypes['UpdateIssueStatusResult']> = ResolversObject<{
+  status?: Resolver<ResolversTypes['IssueStatus'], ParentType, ContextType>;
 }>;
 
 export type UserResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['User'] = ResolversParentTypes['User']> = ResolversObject<{
@@ -2998,12 +3508,16 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   ChatMemberRecord?: ChatMemberRecordResolvers<ContextType>;
   ChatMessage?: ChatMessageResolvers<ContextType>;
   CloseThreadResult?: CloseThreadResultResolvers<ContextType>;
+  ConfirmIssueDescriptionUploadResult?: ConfirmIssueDescriptionUploadResultResolvers<ContextType>;
   ConfirmUploadResult?: ConfirmUploadResultResolvers<ContextType>;
   Conversation?: ConversationResolvers<ContextType>;
   ConversationConnection?: ConversationConnectionResolvers<ContextType>;
   ConversationMember?: ConversationMemberResolvers<ContextType>;
   ConversationUnreadCount?: ConversationUnreadCountResolvers<ContextType>;
   CreateFolderResult?: CreateFolderResultResolvers<ContextType>;
+  CreateIssueLabelResult?: CreateIssueLabelResultResolvers<ContextType>;
+  CreateIssueResult?: CreateIssueResultResolvers<ContextType>;
+  CreateIssueStatusResult?: CreateIssueStatusResultResolvers<ContextType>;
   CreatePageResult?: CreatePageResultResolvers<ContextType>;
   CursorPosition?: CursorPositionResolvers<ContextType>;
   DateTime?: GraphQLScalarType;
@@ -3020,6 +3534,11 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   GroupMemberInfo?: GroupMemberInfoResolvers<ContextType>;
   HistoryPayload?: HistoryPayloadResolvers<ContextType>;
   InviteResponse?: InviteResponseResolvers<ContextType>;
+  Issue?: IssueResolvers<ContextType>;
+  IssueDescriptionUrl?: IssueDescriptionUrlResolvers<ContextType>;
+  IssueLabel?: IssueLabelResolvers<ContextType>;
+  IssueStatus?: IssueStatusResolvers<ContextType>;
+  IssueUser?: IssueUserResolvers<ContextType>;
   JSON?: GraphQLScalarType;
   JoinResponse?: JoinResponseResolvers<ContextType>;
   LastMessagePreview?: LastMessagePreviewResolvers<ContextType>;
@@ -3029,6 +3548,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   MessagesDelta?: MessagesDeltaResolvers<ContextType>;
   MoveFileResult?: MoveFileResultResolvers<ContextType>;
   MoveFolderResult?: MoveFolderResultResolvers<ContextType>;
+  MoveIssueStatusResult?: MoveIssueStatusResultResolvers<ContextType>;
   Mutation?: MutationResolvers<ContextType>;
   MuteConversationResult?: MuteConversationResultResolvers<ContextType>;
   Notification?: NotificationResolvers<ContextType>;
@@ -3055,7 +3575,10 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   RenameGroupResult?: RenameGroupResultResolvers<ContextType>;
   RenamePageResult?: RenamePageResultResolvers<ContextType>;
   ReopenThreadResult?: ReopenThreadResultResolvers<ContextType>;
+  ReorderIssueResult?: ReorderIssueResultResolvers<ContextType>;
+  ReorderIssueStatusResult?: ReorderIssueStatusResultResolvers<ContextType>;
   ReorderPageResult?: ReorderPageResultResolvers<ContextType>;
+  RequestIssueDescriptionUploadResult?: RequestIssueDescriptionUploadResultResolvers<ContextType>;
   RequestUploadResult?: RequestUploadResultResolvers<ContextType>;
   SubscribeThreadResult?: SubscribeThreadResultResolvers<ContextType>;
   Task?: TaskResolvers<ContextType>;
@@ -3066,6 +3589,9 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   UnsubscribeThreadResult?: UnsubscribeThreadResultResolvers<ContextType>;
   UpdateChannelDescriptionResult?: UpdateChannelDescriptionResultResolvers<ContextType>;
   UpdateChannelVisibilityResult?: UpdateChannelVisibilityResultResolvers<ContextType>;
+  UpdateIssueLabelResult?: UpdateIssueLabelResultResolvers<ContextType>;
+  UpdateIssueResult?: UpdateIssueResultResolvers<ContextType>;
+  UpdateIssueStatusResult?: UpdateIssueStatusResultResolvers<ContextType>;
   User?: UserResolvers<ContextType>;
   UserBasic?: UserBasicResolvers<ContextType>;
   UserPresence?: UserPresenceResolvers<ContextType>;
