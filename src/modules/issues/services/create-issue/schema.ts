@@ -6,9 +6,9 @@ export const createIssueSchema = z.object({
   statusId: z.string().cuid(),
   title: z.string().min(1).max(255),
   priority: z.nativeEnum(IssuePriority).default("NO_PRIORITY"),
-  assigneeId: z.string().cuid().optional(),
+  assigneeId: z.string().nullish(),
   labelIds: z.array(z.string().cuid()).default([]),
-  dueDate: z.coerce.date().optional(),
+  dueDate: z.string().datetime({ offset: true }).nullish(),
 });
 
 export type CreateIssueInput = z.infer<typeof createIssueSchema>;

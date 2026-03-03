@@ -25,12 +25,26 @@ export async function getNextIssueNumber(
   projectId: string,
   db: DbOrTx
 ): Promise<number> {
-  const result = await db.$queryRaw<[{ max: bigint | null }]>`
-    SELECT MAX(number) AS max
+  // Acquire per-project advisory lock AND read MAX(number) in ONE query.
+  //
+  // A single client.query() call avoids the pg@8 deprecation warning
+  // "Calling client.query() when the client is already executing a query"
+  // which fires when $executeRaw + $queryRaw are dispatched sequentially
+  // on the same transaction connection.
+  //
+  // pg_advisory_xact_lock() serializes concurrent createIssue calls for the
+  // same project (released automatically at transaction end). The lock key is
+  // derived from a hash of the projectId string.
+  const result = await db.$queryRaw<
+    [{ _lock: string | null; max: bigint | null }]
+  >`
+    SELECT
+      pg_advisory_xact_lock(('x' || substr(md5(${projectId}), 1, 16))::bit(64)::bigint)::text AS _lock,
+      MAX(number) AS max
     FROM issues
     WHERE project_id = ${projectId}
-    FOR UPDATE
   `;
+
   const current = result[0]?.max ?? null;
   return current !== null ? Number(current) + 1 : 1;
 }
