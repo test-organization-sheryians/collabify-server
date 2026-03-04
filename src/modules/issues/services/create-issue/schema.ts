@@ -8,7 +8,12 @@ export const createIssueSchema = z.object({
   priority: z.nativeEnum(IssuePriority).default("NO_PRIORITY"),
   assigneeId: z.string().nullish(),
   labelIds: z.array(z.string().cuid()).default([]),
-  dueDate: z.string().datetime({ offset: true }).nullish(),
+  dueDate: z
+    .union([
+      z.date().transform((d) => d.toISOString()),
+      z.string().datetime({ offset: true }),
+    ])
+    .nullish(),
 });
 
 export type CreateIssueInput = z.infer<typeof createIssueSchema>;

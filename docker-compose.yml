@@ -55,6 +55,7 @@ services:
       - ./ssl:/etc/nginx/ssl:ro
     depends_on:
       - redis
+      - postgres
     networks:
       - collabify-net
 
