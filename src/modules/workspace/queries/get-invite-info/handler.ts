@@ -1,6 +1,16 @@
-import { AppError } from "@/shared/errors";
-import { GetInviteInfoInput } from "./types";
-import { ServiceContext } from "@/graphql/types";
+/**
+ * getInviteInfo — Query Handler (thin orchestrator)
+ *
+ * Steps:
+ *   1. fetchInvite        — load invite + workspace; throw NOT_FOUND if missing/expired
+ *   2. verifyInviteEmail  — if userEmail provided, assert match; throw FORBIDDEN if not
+ *   3. checkAlreadyMember — if userId provided, throw CONFLICT if already a member
+ */
+import type { GetInviteInfoInput } from "./types";
+import type { ServiceContext } from "@/graphql/types";
+import { fetchInvite } from "./steps/fetch-invite";
+import { verifyInviteEmail } from "./steps/verify-invite-email";
+import { checkAlreadyMember } from "./steps/check-already-member";
 
 export const getInviteInfo = async (
   input: GetInviteInfoInput,
@@ -9,37 +19,9 @@ export const getInviteInfo = async (
   const { token, userId, userEmail } = input;
   const { db } = ctx;
 
-  const invite = await db.workspaceInvite.findUnique({
-    where: { token },
-    include: {
-      workspace: {
-        select: { name: true, logoUrl: true },
-      },
-    },
-  });
-
-  if (!invite || invite.expiresAt < new Date()) {
-    throw AppError.notFound("INVITE_EXPIRED");
-  }
-
-  if (userEmail && invite.email !== userEmail) {
-    throw AppError.forbidden("INVITE_EXPIRED");
-  }
-
-  if (userId) {
-    const member = await db.workspaceMember.findUnique({
-      where: {
-        workspaceId_userId: {
-          workspaceId: invite.workspaceId,
-          userId,
-        },
-      },
-    });
-
-    if (member) {
-      throw AppError.conflict("ALREADY_MEMBER");
-    }
-  }
+  const invite = await fetchInvite(token, db);
+  verifyInviteEmail(invite.email, userEmail);
+  await checkAlreadyMember(invite.workspaceId, userId, db);
 
   return {
     workspaceName: invite.workspace.name,

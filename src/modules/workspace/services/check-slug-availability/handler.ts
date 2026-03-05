@@ -1,14 +1,22 @@
+/**
+ * checkSlugAvailability — Service Handler (thin orchestrator)
+ *
+ * Steps:
+ *   1. enforceRateLimit      — 429 if too many checks
+ *   2. checkSlugExistsCache  — soft Redis exists-cache check
+ *   3. checkSlugLocked       — soft Redis lock check (someone else reserved it)
+ *   4. checkSlugDb           — hard DB check
+ *   5. reserveSlug           — rolling Redis reservation via LockingService.switch
+ */
 import { SlugUtil } from "@/shared/utils/slug.util";
-import { AppError } from "@/shared/errors";
-import { createLogger } from "@/shared/lib/logger";
-
-const logger = createLogger("workspace:services:slug");
-import { WORKSPACE_LIMITS } from "@/shared/config/limits";
-import { checkRateLimit } from "@/shared/utils/rate-limiter";
+import type { ServiceContext } from "@/graphql/types";
 import { CheckAvailabilitySchema } from "./schema";
-import { z } from "zod";
-import { ServiceContext } from "@/graphql/types";
-import { LockingService, createLockKeys } from "@/services/locking";
+import type { z } from "zod";
+import { enforceRateLimit } from "./steps/enforce-rate-limit";
+import { checkSlugExistsCache } from "./steps/check-slug-exists-cache";
+import { checkSlugLocked } from "./steps/check-slug-locked";
+import { checkSlugDb } from "./steps/check-slug-db";
+import { reserveSlug } from "./steps/reserve-slug";
 
 type CheckAvailabilityInput = z.infer<typeof CheckAvailabilitySchema>;
 
@@ -19,53 +27,11 @@ export const checkSlugAvailability = async (
   const { slug, userId } = input;
   const { db, redis } = ctx;
 
-  const keys = createLockKeys("workspace");
-
-  // 0. Rate Limit
-  const allowed = await checkRateLimit(
-    keys.rateLimit(userId),
-    WORKSPACE_LIMITS.CHECK_AVAILABILITY_RATE_LIMIT.MAX_REQUESTS,
-    WORKSPACE_LIMITS.CHECK_AVAILABILITY_RATE_LIMIT.WINDOW_SECONDS
-  );
-
-  if (!allowed) {
-    throw new AppError(
-      "Too many attempts. Please try again later.",
-      "WORKSPACE_SLUG_RATE_LIMITED",
-      429
-    );
-  }
-
   const normalizedSlug = SlugUtil.sanitize(slug);
 
-  // 1. Check Permanent Cache (Soft)
-  try {
-    const existsCache = await redis.get(keys.exists(normalizedSlug));
-    if (existsCache) {
-      // ... existing
-    }
-  } catch (error) {
-    logger.warn("Redis cache check failed", { err: error });
-    // Ignore Redis cache errors, fall through to DB check
-  }
+  await enforceRateLimit(userId, redis);
 
-  // 2. Check Lock (Soft)
-  const lockKey = keys.resource(normalizedSlug);
-  try {
-    const reservedBy = await redis.get(lockKey);
-    if (reservedBy && reservedBy !== userId) {
-      // ... existing
-    }
-  } catch (error) {
-    logger.warn("Redis lock check failed", { err: error });
-    // Ignore Redis lock errors
-  }
-
-  // 3. Check Permanent DB (Hard Source of Truth)
-  const existingDB = await db.workspace.findUnique({
-    where: { slug: normalizedSlug },
-  });
-  if (existingDB) {
+  if (await checkSlugExistsCache(normalizedSlug, redis)) {
     return {
       available: false,
       message: "Workspace already exists",
@@ -73,48 +39,21 @@ export const checkSlugAvailability = async (
     };
   }
 
-  // 3. Attempt Reservation via LockingService (Rolling Reservation)
-  // We need to know our PREVIOUS reservation to release it.
-  const userResKey = keys.userReservation(userId);
-  const previousSlug = await redis.get(userResKey);
-
-  const oldLockKey = previousSlug
-    ? keys.resource(previousSlug)
-    : `dummy:lock:${userId}`; // Non-existent key for first-time alloc
-
-  try {
-    const reserved = await LockingService.switch(
-      oldLockKey,
-      lockKey,
-      userId,
-      180,
-      userResKey,
-      normalizedSlug
-    );
-
-    if (!reserved) {
-      return {
-        available: false,
-        message: "Slug is currently reserved",
-        reason: "WORKSPACE_SLUG_RESERVATION_FAILED",
-      };
-    }
-
-    // Pointer updated atomically in service
-    // await redis.set(userResKey, normalizedSlug, "EX", 180);
-
+  if (await checkSlugLocked(normalizedSlug, userId, redis)) {
     return {
-      available: true,
-      reservationId: lockKey,
-    };
-  } catch (error) {
-    logger.error("Redis reservation failed, falling back to soft check", {
-      err: error,
-    });
-    // Redis Failure Fallback: Return available (checked DB) but no reservation
-    return {
-      available: true,
-      reservationId: null,
+      available: false,
+      message: "Slug is currently reserved",
+      reason: "WORKSPACE_SLUG_LOCKED",
     };
   }
+
+  if (await checkSlugDb(normalizedSlug, db)) {
+    return {
+      available: false,
+      message: "Workspace already exists",
+      reason: "WORKSPACE_SLUG_TAKEN_PERMANENT",
+    };
+  }
+
+  return reserveSlug(normalizedSlug, userId, redis);
 };

@@ -18,7 +18,7 @@ import {
   UpdateMemberRoleSchema,
   removeMember,
   RemoveMemberSchema,
-} from "../../services";
+} from "../services";
 
 // Queries
 import {
@@ -32,7 +32,7 @@ import {
   GetInviteInfoSchema,
   getWorkspaceMembers,
   GetWorkspaceMembersSchema,
-} from "../../queries";
+} from "../queries";
 
 export const resolvers: Resolvers = {
   Query: {

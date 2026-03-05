@@ -1,11 +1,16 @@
-import { ServiceContext } from "@/graphql/types";
-import { Project } from "@prisma/client";
-import { GetProjectByIdInput } from "./types";
+/**
+ * getProjectById — Query Handler
+ *
+ * Single DataLoader call — no steps/ needed.
+ * Signature fixed to (input, ctx) to match module-wide convention.
+ */
+import type { ServiceContext } from "@/graphql/types";
+import type { GetProjectByIdInput } from "./types";
 
 export const getProjectById = async (
-  ctx: ServiceContext,
-  input: GetProjectByIdInput
-): Promise<Project | null> => {
+  input: GetProjectByIdInput,
+  ctx: ServiceContext
+) => {
   const { id } = input;
 
   if (!ctx.dataloaders.project?.projectById) {

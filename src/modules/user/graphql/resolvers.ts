@@ -1,6 +1,6 @@
 import { Resolvers } from "@/graphql/generated";
-import { syncUser, SyncUserSchema } from "../../services";
-import { getMe, GetMeSchema } from "../../queries";
+import { syncUser, SyncUserSchema } from "../services";
+import { getMe, GetMeSchema } from "../queries";
 
 export const resolvers: Resolvers = {
   Query: {

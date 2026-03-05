@@ -1,13 +1,14 @@
-import { AppError } from "@/shared/errors";
-import { createLogger } from "@/shared/lib/logger";
-
-const logger = createLogger("workspace:services:invite");
-import { randomBytes } from "node:crypto";
-import { env } from "@/shared/config/env";
-import { InviteToWorkspaceInput } from "./types";
-import { ServiceContext } from "@/graphql/types";
-
-const INVITE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
+/**
+ * inviteToWorkspace — Service Handler (thin orchestrator)
+ *
+ * Steps:
+ *   1. verifyActorMembership — assert actor is a workspace member
+ *   2. sendInvites           — upsert invite rows, log links; return invited list
+ */
+import type { InviteToWorkspaceInput } from "./types";
+import type { ServiceContext } from "@/graphql/types";
+import { verifyActorMembership } from "./steps/verify-actor-membership";
+import { sendInvites } from "./steps/send-invites";
 
 export const inviteToWorkspace = async (
   input: InviteToWorkspaceInput,
@@ -16,63 +17,12 @@ export const inviteToWorkspace = async (
   const { workspaceId, emails, actorUserId } = input;
   const { db } = ctx;
 
-  const actorMember = await db.workspaceMember.findUnique({
-    where: {
-      workspaceId_userId: {
-        workspaceId,
-        userId: actorUserId,
-      },
-    },
-  });
-
-  if (!actorMember) {
-    throw AppError.forbidden("NOT_AUTHORIZED");
-  }
-
-  const expiresAt = new Date(Date.now() + INVITE_EXPIRY_MS);
-
-  const results = (
-    await Promise.all(
-      emails.map(async (email) => {
-        const existingMember = await db.workspaceMember.findFirst({
-          where: {
-            workspaceId,
-            user: { email },
-          },
-        });
-
-        if (existingMember) {
-          return null;
-        }
-
-        const token = randomBytes(16).toString("hex");
-
-        await db.$transaction([
-          db.workspaceInvite.deleteMany({
-            where: { workspaceId, email },
-          }),
-          db.workspaceInvite.create({
-            data: {
-              workspaceId,
-              email,
-              token,
-              inviterId: actorUserId,
-              expiresAt,
-              role: "MEMBER",
-            },
-          }),
-        ]);
-
-        const link = `${env.FRONTEND_URL}/workspace/join?token=${token}`;
-        logger.info(`[INVITE] To: ${email} | Link: ${link}`, { email, token });
-        return email;
-      })
-    )
-  ).filter((email): email is string => email !== null);
+  await verifyActorMembership(workspaceId, actorUserId, db);
+  const invitedEmails = await sendInvites(workspaceId, actorUserId, emails, db);
 
   return {
     success: true,
-    message: `Invites sent to ${results.length} users.`,
-    invitedCount: results.length,
+    message: `Invites sent to ${invitedEmails.length} users.`,
+    invitedCount: invitedEmails.length,
   };
 };

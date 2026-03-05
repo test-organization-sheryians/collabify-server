@@ -1,7 +1,14 @@
-import { AppError } from "@/shared/errors";
-import { RoleType } from "@prisma/client";
-import { UpdateMemberRoleInput } from "./types";
-import { ServiceContext } from "@/graphql/types";
+/**
+ * updateMemberRole — Service Handler (thin orchestrator)
+ *
+ * Steps:
+ *   1. verifyActorIsOwner — assert actor is OWNER; throw FORBIDDEN if not
+ *   2. updateRole         — update role; return updated member with user
+ */
+import type { UpdateMemberRoleInput } from "./types";
+import type { ServiceContext } from "@/graphql/types";
+import { verifyActorIsOwner } from "./steps/verify-actor-is-owner";
+import { updateRole } from "./steps/update-role";
 
 export const updateMemberRole = async (
   input: UpdateMemberRoleInput,
@@ -10,31 +17,6 @@ export const updateMemberRole = async (
   const { workspaceId, memberId, role, actorUserId } = input;
   const { db } = ctx;
 
-  const actorMember = await db.workspaceMember.findUnique({
-    where: {
-      workspaceId_userId: {
-        workspaceId,
-        userId: actorUserId,
-      },
-    },
-  });
-
-  if (!actorMember || actorMember.role !== RoleType.OWNER) {
-    throw AppError.forbidden("Only owners can update roles");
-  }
-
-  const updatedMember = await db.workspaceMember.update({
-    where: {
-      id: memberId,
-      workspaceId: workspaceId,
-    },
-    data: {
-      role,
-    },
-    include: {
-      user: true,
-    },
-  });
-
-  return updatedMember;
+  await verifyActorIsOwner(workspaceId, actorUserId, db);
+  return updateRole(memberId, workspaceId, role, db);
 };

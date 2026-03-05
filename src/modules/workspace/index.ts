@@ -1,8 +1,8 @@
 // Public API for Workspace Module
 
 // 1. GraphQL Interface (for Root Schema Merge)
-export { typeDefs as workspaceTypeDefs } from "./api/graphql/type-defs";
-export { resolvers as workspaceResolvers } from "./api/graphql/resolvers";
+export { typeDefs as workspaceTypeDefs } from "./graphql/type-defs";
+export { resolvers as workspaceResolvers } from "./graphql/resolvers";
 
 // 2. Loaders (for Context)
 export { createWorkspaceLoaders, type WorkspaceLoaders } from "./loaders";

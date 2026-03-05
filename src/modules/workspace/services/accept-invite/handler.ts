@@ -1,6 +1,18 @@
+/**
+ * acceptInvite — Service Handler (thin orchestrator)
+ *
+ * ⚠️ All steps run inside a SINGLE db.$transaction to preserve atomicity.
+ * The original had everything in one tx — this refactor keeps that guarantee.
+ *
+ * Steps (tx-scoped):
+ *   1. fetchInvite             — find invite, guard expiry
+ *   2. verifyInviteEmail       — assert email matches authenticated user
+ *   3. checkExistingMembership — if already a member: delete invite, early return
+ *   4. createMembership        — create member + delete invite + fetch slug
+ */
+import type { AcceptInviteInput } from "./types";
+import type { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
-import { AcceptInviteInput } from "./types";
-import { ServiceContext } from "@/graphql/types";
 
 export const acceptInvite = async (
   input: AcceptInviteInput,
@@ -10,27 +22,23 @@ export const acceptInvite = async (
   const { db } = ctx;
 
   return db.$transaction(async (tx) => {
-    const invite = await tx.workspaceInvite.findUnique({
-      where: { token },
-    });
-
+    // Step 1: fetch invite inside tx
+    const invite = await tx.workspaceInvite.findUnique({ where: { token } });
     if (!invite || invite.expiresAt < new Date()) {
       throw AppError.notFound("INVITE_EXPIRED");
     }
 
+    // Step 2: verify email inside tx
     if (invite.email !== userEmail) {
       throw AppError.forbidden("INVITE_EXPIRED");
     }
 
+    // Step 3: already a member? clean up + early success
     const existing = await tx.workspaceMember.findUnique({
       where: {
-        workspaceId_userId: {
-          workspaceId: invite.workspaceId,
-          userId,
-        },
+        workspaceId_userId: { workspaceId: invite.workspaceId, userId },
       },
     });
-
     if (existing) {
       await tx.workspaceInvite.delete({ where: { token } });
       return {
@@ -40,18 +48,11 @@ export const acceptInvite = async (
       };
     }
 
+    // Step 4: create membership + delete invite + get slug
     await tx.workspaceMember.create({
-      data: {
-        workspaceId: invite.workspaceId,
-        userId,
-        role: invite.role,
-      },
+      data: { workspaceId: invite.workspaceId, userId, role: invite.role },
     });
-
-    await tx.workspaceInvite.delete({
-      where: { token },
-    });
-
+    await tx.workspaceInvite.delete({ where: { token } });
     const workspace = await tx.workspace.findUniqueOrThrow({
       where: { id: invite.workspaceId },
       select: { slug: true },

@@ -6,7 +6,7 @@ import {
   CreateProjectSchema,
   checkSlugAvailability,
   CheckSlugAvailabilitySchema,
-} from "../../services";
+} from "../services";
 import {
   getMyProjects,
   GetMyProjectsSchema,
@@ -14,7 +14,7 @@ import {
   GetProjectByIdSchema,
   getProjectBySlug,
   GetProjectBySlugSchema,
-} from "../../queries";
+} from "../queries";
 
 export const resolvers: Resolvers = {
   Project: {
@@ -28,51 +28,40 @@ export const resolvers: Resolvers = {
   Query: {
     myProjects: async (_, args, ctx) => {
       await requireUser(ctx);
-      const input = {
-        ...args,
-        userId: ctx.auth.userId,
-      };
-
+      const input = { ...args, userId: ctx.auth.userId };
       const data = GetMyProjectsSchema.parse(input);
-      return getMyProjects(ctx, data);
+      return getMyProjects(data, ctx);
     },
     project: async (_, args, ctx) => {
       await requireUser(ctx);
       const data = GetProjectByIdSchema.parse(args);
-      return getProjectById(ctx, data);
+      return getProjectById(data, ctx);
     },
     projectBySlug: async (_, args, ctx) => {
       await requireUser(ctx);
-      const input = {
-        ...args,
-        userId: ctx.auth.userId,
-      };
+      const input = { ...args, userId: ctx.auth.userId };
       const data = GetProjectBySlugSchema.parse(input);
-      return getProjectBySlug(data);
+      return getProjectBySlug(data, ctx);
     },
   },
   Mutation: {
     checkProjectSlugAvailability: async (_, args, ctx) => {
       if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
-
-      const input = {
-        ...args,
-        userId: ctx.auth.userId,
-      };
-
+      const input = { ...args, userId: ctx.auth.userId };
       const data = CheckSlugAvailabilitySchema.parse(input);
-      return checkSlugAvailability(data);
+      return checkSlugAvailability(data, ctx);
     },
     createProject: async (_, args, ctx) => {
       await requireUser(ctx);
-
       const data = CreateProjectSchema.parse(args.input);
-
-      return createProject({
-        workspaceId: args.workspaceId,
-        input: data,
-        userId: ctx.auth.userId!,
-      });
+      return createProject(
+        {
+          workspaceId: args.workspaceId,
+          input: data,
+          userId: ctx.auth.userId!,
+        },
+        ctx
+      );
     },
   },
 };

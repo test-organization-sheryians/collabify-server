@@ -6,7 +6,7 @@ import {
   inviteToWorkspaceTypeDefs,
   removeMemberTypeDefs,
   updateMemberRoleTypeDefs,
-} from "../../services";
+} from "../services";
 
 import {
   getInviteInfoTypeDefs,
@@ -14,7 +14,7 @@ import {
   getOnboardingStatusTypeDefs,
   getWorkspaceBySlugTypeDefs,
   getWorkspaceMembersTypeDefs,
-} from "../../queries";
+} from "../queries";
 
 const baseTypeDefs = `
   type Workspace {

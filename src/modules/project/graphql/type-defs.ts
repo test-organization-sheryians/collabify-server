@@ -1,5 +1,5 @@
-import { typeDefs as serviceTypeDefs } from "../../services";
-import { typeDefs as queryTypeDefs } from "../../queries";
+import { typeDefs as serviceTypeDefs } from "../services";
+import { typeDefs as queryTypeDefs } from "../queries";
 
 export const typeDefs = `
   type ProjectMember {

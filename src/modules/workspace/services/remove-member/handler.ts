@@ -1,7 +1,18 @@
-import { AppError } from "@/shared/errors";
-import { RoleType } from "@prisma/client";
-import { RemoveMemberInput } from "./types";
-import { ServiceContext } from "@/graphql/types";
+/**
+ * removeMember — Service Handler (thin orchestrator)
+ *
+ * Steps:
+ *   1. fetchMembers           — load actor + target; throw NOT_FOUND if target missing
+ *   2. verifyRemovePermission — assert isSelf || isOwner; throw FORBIDDEN if not
+ *   3. guardLastOwner         — if target is OWNER, assert not the last one
+ *   4. deleteMember           — delete workspaceMember record
+ */
+import type { RemoveMemberInput } from "./types";
+import type { ServiceContext } from "@/graphql/types";
+import { fetchMembers } from "./steps/fetch-members";
+import { verifyRemovePermission } from "./steps/verify-remove-permission";
+import { guardLastOwner } from "./steps/guard-last-owner";
+import { deleteMember } from "./steps/delete-member";
 
 export const removeMember = async (
   input: RemoveMemberInput,
@@ -10,44 +21,16 @@ export const removeMember = async (
   const { workspaceId, memberId, actorUserId } = input;
   const { db } = ctx;
 
-  const actorMember = await db.workspaceMember.findUnique({
-    where: {
-      workspaceId_userId: {
-        workspaceId,
-        userId: actorUserId,
-      },
-    },
-  });
+  const { actorMember, targetMember } = await fetchMembers(
+    workspaceId,
+    memberId,
+    actorUserId,
+    db
+  );
 
-  const targetMember = await db.workspaceMember.findUnique({
-    where: { id: memberId, workspaceId },
-  });
-
-  if (!targetMember) {
-    throw AppError.notFound("Member not found");
-  }
-
-  const isSelf = targetMember.userId === actorUserId;
-  const isOwner = actorMember?.role === RoleType.OWNER;
-
-  if (!isSelf && !isOwner) {
-    throw AppError.forbidden("Insufficient permissions");
-  }
-
-  if (targetMember.role === RoleType.OWNER) {
-    const ownerCount = await db.workspaceMember.count({
-      where: { workspaceId, role: RoleType.OWNER },
-    });
-    if (ownerCount <= 1) {
-      throw AppError.badRequest("Cannot remove the last owner");
-    }
-  }
-
-  await db.workspaceMember.delete({
-    where: {
-      id: memberId,
-    },
-  });
+  verifyRemovePermission(actorMember, targetMember, actorUserId);
+  await guardLastOwner(workspaceId, targetMember, db);
+  await deleteMember(memberId, db);
 
   return { success: true, message: "Member removed", invitedCount: 0 };
 };

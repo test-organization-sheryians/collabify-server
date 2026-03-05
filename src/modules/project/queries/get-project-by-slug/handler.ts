@@ -1,26 +1,22 @@
-import { db } from "@/infra/db";
+/**
+ * getProjectBySlug — Query Handler
+ *
+ * Single DB call — no steps/ needed.
+ * Signature fixed to (input, ctx) to match module-wide convention.
+ * Infra import removed; uses ctx.db.
+ */
 import { SlugUtil } from "@/shared/utils/slug.util";
-import { Project } from "@prisma/client";
-import { GetProjectBySlugInput } from "./types";
+import type { ServiceContext } from "@/graphql/types";
+import type { GetProjectBySlugInput } from "./types";
 
 export const getProjectBySlug = async (
-  input: GetProjectBySlugInput
-): Promise<Project | null> => {
-  const { workspaceId, slug, userId } = input;
-
+  input: GetProjectBySlugInput,
+  ctx: ServiceContext
+) => {
+  const { workspaceId, slug } = input;
   const normalizedSlug = SlugUtil.sanitize(slug).toLowerCase();
 
-  const project = await db.project.findFirst({
-    where: {
-      workspaceId,
-      key: normalizedSlug,
-      // members: {
-      //   some: {
-      //     userId,
-      //   },
-      // },
-    },
+  return ctx.db.project.findFirst({
+    where: { workspaceId, key: normalizedSlug },
   });
-
-  return project;
 };

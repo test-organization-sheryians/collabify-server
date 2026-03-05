@@ -1,86 +1,33 @@
-import { ServiceContext } from "@/graphql/types";
-import { AppError } from "@/shared/errors";
+/**
+ * syncUser — Service Handler (thin orchestrator)
+ *
+ * Steps:
+ *   1. upsertUser       — $transaction: find by clerkId → update/revive
+ *                                       find by email → guard conflict
+ *                                       else → create new user
+ *   2. updateUserCache  — Redis SET user:{id} (TTL: 5 min)
+ *   3. emitWelcomeEvent — OutboxWriter at-most-once (swallows P2002)
+ */
 import { createLogger } from "@/shared/lib/logger";
+import type { ServiceContext } from "@/graphql/types";
+import type { SyncUserInput } from "./types";
+import { upsertUser } from "./steps/upsert-user";
+import { updateUserCache } from "./steps/update-user-cache";
+import { emitWelcomeEvent } from "./steps/emit-welcome-event";
 
-const logger = createLogger("user:services:sync");
-import { OutboxWriter } from "@/modules/notification/lib/outbox.writer";
-import { SyncUserInput } from "./types";
+const logger = createLogger("user:services:sync-user");
 
 export const syncUser = async (
   input: SyncUserInput,
   ctx: Pick<ServiceContext, "db" | "redis">
 ) => {
-  const data = input;
   const { db, redis } = ctx;
 
-  const user = await db.$transaction(async (tx) => {
-    // 1. Try to find by Clerk ID (which is now the PK: id)
-    const existingUser = await tx.user.findUnique({
-      where: { id: data.clerkId },
-    });
+  const user = await upsertUser(input, db);
+  await updateUserCache(user, redis);
+  await emitWelcomeEvent(user, db);
 
-    if (existingUser) {
-      // Update existing user & REVIVE if soft-deleted
-      return tx.user.update({
-        where: { id: existingUser.id },
-        data: {
-          email: data.email,
-          fullName: data.fullName ?? existingUser.fullName,
-          avatarUrl: data.avatarUrl ?? existingUser.avatarUrl,
-          status: "ACTIVE",
-          deletedAt: null, // FIX: Zombie Resurrection
-        },
-      });
-    }
-
-    // 2. Try to find by Email (Account Linking)
-    const existingByEmail = await tx.user.findUnique({
-      where: { email: data.email },
-    });
-
-    if (existingByEmail) {
-      // SECURITY: Prevent Account Takeover via Unverified Email
-      if (!data.emailVerified) {
-        throw AppError.forbidden("Cannot link account: Email is not verified.");
-      }
-
-      throw AppError.conflict(
-        "User with this email exists but has a different ID. Manual migration required."
-      );
-    }
-
-    // 3. Create new user with Clerk ID as the PK
-    return tx.user.create({
-      data: {
-        id: data.clerkId, // Explicitly set ID to Clerk ID
-        email: data.email,
-        fullName: data.fullName,
-        avatarUrl: data.avatarUrl,
-        status: "ACTIVE",
-      },
-    });
-  });
-
-  // Cache Invalidation / Update
-  await redis.set(`user:${user.id}`, JSON.stringify(user), "EX", 300);
-
-  // 13. Welcome Event (At-Most-Once)
-  try {
-    await OutboxWriter.emit(db, {
-      type: "welcome.user",
-      payload: {
-        userId: user.id,
-        userName: user.fullName || "Collabify User",
-        userEmail: user.email,
-      },
-      deduplicationId: `welcome-v1:${user.id}`,
-    });
-  } catch (rawError: unknown) {
-    const err = rawError as { code?: string; message?: string };
-    if (err.code !== "P2002" && !err.message?.includes("Unique constraint")) {
-      logger.error("Failed to queue welcome email", { err });
-    }
-  }
+  logger.info("syncUser complete", { userId: user.id });
 
   return user;
 };

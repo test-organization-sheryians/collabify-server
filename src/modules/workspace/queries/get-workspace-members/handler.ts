@@ -1,6 +1,14 @@
-import { AppError } from "@/shared/errors";
-import { GetWorkspaceMembersInput } from "./types";
-import { ServiceContext } from "@/graphql/types";
+/**
+ * getWorkspaceMembers — Query Handler (thin orchestrator)
+ *
+ * Steps:
+ *   1. verifyWorkspaceMembership — assert actor is a member; throw FORBIDDEN if not
+ *   2. fetchMembers              — load all members with user profiles, ordered by joinedAt
+ */
+import type { GetWorkspaceMembersInput } from "./types";
+import type { ServiceContext } from "@/graphql/types";
+import { verifyWorkspaceMembership } from "./steps/verify-workspace-membership";
+import { fetchMembers } from "./steps/fetch-members";
 
 export const getWorkspaceMembers = async (
   input: GetWorkspaceMembersInput,
@@ -9,30 +17,6 @@ export const getWorkspaceMembers = async (
   const { workspaceId, actorUserId } = input;
   const { db } = ctx;
 
-  const membership = await db.workspaceMember.findUnique({
-    where: {
-      workspaceId_userId: {
-        workspaceId,
-        userId: actorUserId,
-      },
-    },
-  });
-
-  if (!membership) {
-    throw AppError.forbidden("You are not a member of this workspace");
-  }
-
-  const members = await db.workspaceMember.findMany({
-    where: {
-      workspaceId: workspaceId,
-    },
-    include: {
-      user: true,
-    },
-    orderBy: {
-      joinedAt: "desc",
-    },
-  });
-
-  return members;
+  await verifyWorkspaceMembership(workspaceId, actorUserId, db);
+  return fetchMembers(workspaceId, db);
 };
