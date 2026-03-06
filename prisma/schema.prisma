@@ -14,6 +14,7 @@ enum UserStatus {
 
 enum RoleType {
   OWNER
+  ADMIN
   MEMBER
   GUEST
 }
@@ -21,6 +22,17 @@ enum RoleType {
 enum PolicyEffect {
   ALLOW
   DENY
+}
+
+enum RoleScopeType {
+  WORKSPACE
+  PROJECT
+}
+
+enum PrincipalType {
+  USER
+  ROLE
+  ALL
 }
 
 model User {
@@ -110,11 +122,11 @@ model Workspace {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  members     WorkspaceMember[]
-  invites     WorkspaceInvite[]
-  auditLogs   AuditLog[]
-  customRoles CustomRole[]
-  projects    Project[]
+  members   WorkspaceMember[]
+  invites   WorkspaceInvite[]
+  auditLogs AuditLog[]
+  roles     Role[]
+  projects  Project[]
 
   pages               Page[]
   vaultFiles          VaultFile[]
@@ -124,7 +136,7 @@ model Workspace {
   chats               ChatConversation[]
 
   usageRecords            UsageRecord[]
-  notificationPreferences NotificationPreference[]
+  notificationPreferences NotificationPreference[]  
   notifications           Notification[]
   issues                  Issue[]
 
@@ -137,19 +149,18 @@ model WorkspaceMember {
   workspaceId String @map("workspace_id")
   userId      String @map("user_id")
 
-  role RoleType @default(MEMBER)
-
-  customRoleId String? @map("custom_role_id")
+  // Unified role FK — points to Role table (seeded via seed-auth-roles.ts)
+  roleId String @map("role_id")
 
   joinedAt DateTime @default(now()) @map("joined_at")
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  customRole CustomRole? @relation(fields: [customRoleId], references: [id])
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedRole Role      @relation("WorkspaceMemberRole", fields: [roleId], references: [id])
 
   @@unique([workspaceId, userId])
   @@index([userId])
+  @@index([roleId])
   @@map("workspace_members")
 }
 
@@ -169,43 +180,62 @@ model WorkspaceInvite {
   @@map("workspace_invites")
 }
 
-model SystemPermission {
-  id          String @id
-  description String
-  module      String
+// ─── Authorization: Permission Registry ─────────────────────────────────────
+// Replaces SystemPermission. Seeded from module PermissionDefinition manifests.
+// hasConditions drives the two-tier Redis cache split (see auth-redis-cache.md).
+model Permission {
+  id            String  @id @default(cuid())
+  resource      String // e.g. "issue", "vault.file", "page"
+  action        String // e.g. "create", "delete", "share"
+  description   String?
+  module        String  @default("")
+  hasConditions Boolean @default(false) @map("has_conditions")
+  isDeprecated  Boolean @default(false) @map("is_deprecated")
 
-  inRoles RolePermission[]
+  inRoles          RolePermission[]
+  resourcePolicies ResourcePolicy[]
 
-  @@map("system_permissions")
+  @@unique([resource, action])
+  @@index([resource])
+  @@map("permissions")
 }
 
-model CustomRole {
-  id          String  @id @default(cuid())
-  workspaceId String  @map("workspace_id")
+// ─── Authorization: Role ─────────────────────────────────────────────────────
+// Replaces CustomRole. System roles (OWNER/ADMIN/MEMBER/GUEST) are seeded with
+// isSystem=true and cannot be deleted. Custom roles are workspace-scoped.
+model Role {
+  id          String        @id @default(cuid())
+  workspaceId String?       @map("workspace_id") // null = system-level template
   name        String
   description String?
+  scopeType   RoleScopeType @default(WORKSPACE) @map("scope_type")
+  isSystem    Boolean       @default(false) @map("is_system")
+  // Rank controls privilege escalation guard: users cannot grant/restrict roles >= their own rank
+  rank        Int           @default(50)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
-  permissions RolePermission[]
-
-  workspaceMembers WorkspaceMember[]
-  projectMembers   ProjectMember[]
+  permissions      RolePermission[]
+  workspaceMembers WorkspaceMember[] @relation("WorkspaceMemberRole")
+  projectMembers   ProjectMember[]   @relation("ProjectMemberRole")
 
   @@unique([workspaceId, name])
   @@unique([id, workspaceId])
-  @@map("custom_roles")
+  @@index([workspaceId])
+  @@map("roles")
 }
 
 model RolePermission {
-  roleId       String @map("role_id")
-  permissionId String @map("permission_id")
+  roleId       String       @map("role_id")
+  permissionId String       @map("permission_id")
+  effect       PolicyEffect @default(ALLOW)
+  conditions   Json? // e.g. {"StringEquals": {"resource.createdBy": "${userId}"}}
 
-  role       CustomRole       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission SystemPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@id([roleId, permissionId])
   @@map("role_permissions")
@@ -218,12 +248,15 @@ model ResourcePolicy {
   resourceId   String @map("resource_id")
   resourceType String @map("resource_type")
 
-  permissionId String       @map("permission_id")
-  effect       PolicyEffect
+  permissionId  String        @map("permission_id")
+  effect        PolicyEffect
+  principalType PrincipalType @default(USER) @map("principal_type")
+  conditions    Json? // runtime attribute conditions
 
   createdAt DateTime @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@unique([userId, resourceId, permissionId])
   @@index([resourceId, resourceType])
@@ -291,7 +324,7 @@ model ProjectMember {
 
   project Project @relation(fields: [projectId, workspaceId], references: [id, workspaceId], onDelete: Cascade)
 
-  projectRole CustomRole? @relation(fields: [projectRoleId, workspaceId], references: [id, workspaceId])
+  projectRole Role? @relation("ProjectMemberRole", fields: [projectRoleId, workspaceId], references: [id, workspaceId])
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

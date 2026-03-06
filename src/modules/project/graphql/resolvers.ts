@@ -6,6 +6,22 @@ import {
   CreateProjectSchema,
   checkSlugAvailability,
   CheckSlugAvailabilitySchema,
+  updateProject,
+  UpdateProjectSchema,
+  addProjectMember,
+  AddProjectMemberSchema,
+  removeProjectMember,
+  RemoveProjectMemberSchema,
+  updateProjectMemberRole,
+  UpdateProjectMemberRoleSchema,
+  archiveProject,
+  ArchiveProjectSchema,
+  unarchiveProject,
+  UnarchiveProjectSchema,
+  deleteProject,
+  DeleteProjectSchema,
+  leaveProject,
+  LeaveProjectSchema,
 } from "../services";
 import {
   getMyProjects,
@@ -14,6 +30,8 @@ import {
   GetProjectByIdSchema,
   getProjectBySlug,
   GetProjectBySlugSchema,
+  getProjectMembers,
+  GetProjectMembersSchema,
 } from "../queries";
 
 export const resolvers: Resolvers = {
@@ -43,6 +61,15 @@ export const resolvers: Resolvers = {
       const data = GetProjectBySlugSchema.parse(input);
       return getProjectBySlug(data, ctx);
     },
+
+    projectMembers: async (_, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = GetProjectMembersSchema.parse({
+        projectId: args.projectId,
+        actorUserId: ctx.auth.userId,
+      });
+      return getProjectMembers(data, ctx);
+    },
   },
   Mutation: {
     checkProjectSlugAvailability: async (_, args, ctx) => {
@@ -62,6 +89,86 @@ export const resolvers: Resolvers = {
         },
         ctx
       );
+    },
+
+    updateProject: async (_, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = UpdateProjectSchema.parse({
+        projectId: args.projectId,
+        actorUserId: ctx.auth.userId,
+        ...args.input,
+      });
+      return updateProject(data, ctx);
+    },
+
+    addProjectMember: async (_, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = AddProjectMemberSchema.parse({
+        projectId: args.projectId,
+        workspaceId: args.workspaceId,
+        actorUserId: ctx.auth.userId,
+        targetUserId: args.userId,
+      });
+      return addProjectMember(data, ctx);
+    },
+
+    removeProjectMember: async (_, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = RemoveProjectMemberSchema.parse({
+        projectId: args.projectId,
+        workspaceId: args.workspaceId,
+        actorUserId: ctx.auth.userId,
+        targetUserId: args.userId,
+      });
+      return removeProjectMember(data, ctx);
+    },
+
+    updateProjectMemberRole: async (_, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = UpdateProjectMemberRoleSchema.parse({
+        projectId: args.projectId,
+        workspaceId: args.workspaceId,
+        actorUserId: ctx.auth.userId,
+        targetUserId: args.userId,
+        roleId: args.roleId,
+      });
+      return updateProjectMemberRole(data, ctx);
+    },
+
+    archiveProject: async (_, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = ArchiveProjectSchema.parse({
+        projectId: args.projectId,
+        actorUserId: ctx.auth.userId,
+      });
+      return archiveProject(data, ctx);
+    },
+
+    unarchiveProject: async (_, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = UnarchiveProjectSchema.parse({
+        projectId: args.projectId,
+        actorUserId: ctx.auth.userId,
+      });
+      return unarchiveProject(data, ctx);
+    },
+
+    deleteProject: async (_, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = DeleteProjectSchema.parse({
+        projectId: args.projectId,
+        actorUserId: ctx.auth.userId,
+      });
+      return deleteProject(data, ctx);
+    },
+
+    leaveProject: async (_, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = LeaveProjectSchema.parse({
+        projectId: args.projectId,
+        actorUserId: ctx.auth.userId,
+      });
+      return leaveProject(data, ctx);
     },
   },
 };

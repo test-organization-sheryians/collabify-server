@@ -3,18 +3,20 @@
  * Throws BAD_REQUEST if removing them would leave the workspace ownerless.
  */
 import { AppError } from "@/shared/errors";
-import { RoleType, type WorkspaceMember } from "@prisma/client";
+import type { Role, WorkspaceMember } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
+
+type MemberWithRole = WorkspaceMember & { assignedRole: Role };
 
 export async function guardLastOwner(
   workspaceId: string,
-  targetMember: WorkspaceMember,
+  targetMember: MemberWithRole,
   db: PrismaClient
 ): Promise<void> {
-  if (targetMember.role !== RoleType.OWNER) return;
+  if (targetMember.assignedRole.name !== "OWNER") return;
 
   const ownerCount = await db.workspaceMember.count({
-    where: { workspaceId, role: RoleType.OWNER },
+    where: { workspaceId, assignedRole: { name: "OWNER" } },
   });
 
   if (ownerCount <= 1) {

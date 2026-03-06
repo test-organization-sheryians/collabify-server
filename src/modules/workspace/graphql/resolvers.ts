@@ -18,6 +18,18 @@ import {
   UpdateMemberRoleSchema,
   removeMember,
   RemoveMemberSchema,
+  updateWorkspace,
+  UpdateWorkspaceSchema,
+  leaveWorkspace,
+  LeaveWorkspaceSchema,
+  cancelWorkspaceInvite,
+  CancelWorkspaceInviteSchema,
+  resendWorkspaceInvite,
+  ResendWorkspaceInviteSchema,
+  deleteWorkspace,
+  DeleteWorkspaceSchema,
+  transferWorkspaceOwnership,
+  TransferWorkspaceOwnershipSchema,
 } from "../services";
 
 // Queries
@@ -32,6 +44,10 @@ import {
   GetInviteInfoSchema,
   getWorkspaceMembers,
   GetWorkspaceMembersSchema,
+  getWorkspaceById,
+  GetWorkspaceByIdSchema,
+  getWorkspaceInvites,
+  GetWorkspaceInvitesSchema,
 } from "../queries";
 
 export const resolvers: Resolvers = {
@@ -83,6 +99,24 @@ export const resolvers: Resolvers = {
         actorUserId: ctx.auth.userId,
       });
       return getWorkspaceMembers(data, ctx);
+    },
+
+    workspaceById: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = GetWorkspaceByIdSchema.parse({
+        workspaceId: args.workspaceId,
+        actorUserId: ctx.auth.userId,
+      });
+      return getWorkspaceById(data, ctx);
+    },
+
+    workspaceInvites: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = GetWorkspaceInvitesSchema.parse({
+        workspaceId: args.workspaceId,
+        actorUserId: ctx.auth.userId,
+      });
+      return getWorkspaceInvites(data, ctx);
     },
   },
 
@@ -156,6 +190,64 @@ export const resolvers: Resolvers = {
         actorUserId: ctx.auth.userId,
       });
       return removeMember(data, ctx);
+    },
+
+    updateWorkspace: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = UpdateWorkspaceSchema.parse({
+        workspaceId: args.workspaceId,
+        actorUserId: ctx.auth.userId,
+        ...args.input,
+      });
+      return updateWorkspace(data, ctx);
+    },
+
+    leaveWorkspace: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = LeaveWorkspaceSchema.parse({
+        workspaceId: args.workspaceId,
+        actorUserId: ctx.auth.userId,
+      });
+      return leaveWorkspace(data, ctx);
+    },
+
+    cancelWorkspaceInvite: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = CancelWorkspaceInviteSchema.parse({
+        inviteId: args.inviteId,
+        workspaceId: args.workspaceId,
+        actorUserId: ctx.auth.userId,
+      });
+      return cancelWorkspaceInvite(data, ctx);
+    },
+
+    resendWorkspaceInvite: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = ResendWorkspaceInviteSchema.parse({
+        inviteId: args.inviteId,
+        workspaceId: args.workspaceId,
+        actorUserId: ctx.auth.userId,
+      });
+      return resendWorkspaceInvite(data, ctx);
+    },
+
+    deleteWorkspace: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = DeleteWorkspaceSchema.parse({
+        workspaceId: args.workspaceId,
+        actorUserId: ctx.auth.userId,
+      });
+      return deleteWorkspace(data, ctx);
+    },
+
+    transferWorkspaceOwnership: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = TransferWorkspaceOwnershipSchema.parse({
+        workspaceId: args.workspaceId,
+        actorUserId: ctx.auth.userId,
+        newOwnerId: args.newOwnerId,
+      });
+      return transferWorkspaceOwnership(data, ctx);
     },
   },
 };
