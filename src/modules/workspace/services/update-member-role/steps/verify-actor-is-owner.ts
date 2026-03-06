@@ -1,6 +1,5 @@
 /** Verify the actor is a workspace OWNER. Throws FORBIDDEN if not. */
 import { AppError } from "@/shared/errors";
-import { RoleType } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
 
 export async function verifyActorIsOwner(
@@ -10,9 +9,10 @@ export async function verifyActorIsOwner(
 ): Promise<void> {
   const actorMember = await db.workspaceMember.findUnique({
     where: { workspaceId_userId: { workspaceId, userId: actorUserId } },
+    include: { assignedRole: true },
   });
 
-  if (!actorMember || actorMember.role !== RoleType.OWNER) {
+  if (!actorMember || actorMember.assignedRole.name !== "OWNER") {
     throw AppError.forbidden("Only owners can update roles");
   }
 }

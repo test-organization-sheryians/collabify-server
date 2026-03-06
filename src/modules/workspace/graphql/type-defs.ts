@@ -4,8 +4,14 @@ import {
   createOnboardingWorkspaceTypeDefs,
   createWorkspaceTypeDefs,
   inviteToWorkspaceTypeDefs,
+  leaveWorkspaceTypeDefs,
+  cancelWorkspaceInviteTypeDefs,
+  resendWorkspaceInviteTypeDefs,
+  deleteWorkspaceTypeDefs,
+  transferWorkspaceOwnershipTypeDefs,
   removeMemberTypeDefs,
   updateMemberRoleTypeDefs,
+  updateWorkspaceTypeDefs,
 } from "../services";
 
 import {
@@ -14,6 +20,8 @@ import {
   getOnboardingStatusTypeDefs,
   getWorkspaceBySlugTypeDefs,
   getWorkspaceMembersTypeDefs,
+  getWorkspaceByIdTypeDefs,
+  getWorkspaceInvitesTypeDefs,
 } from "../queries";
 
 const baseTypeDefs = `
@@ -36,8 +44,14 @@ export const typeDefs = [
   createOnboardingWorkspaceTypeDefs,
   createWorkspaceTypeDefs,
   inviteToWorkspaceTypeDefs,
+  leaveWorkspaceTypeDefs,
+  cancelWorkspaceInviteTypeDefs,
+  resendWorkspaceInviteTypeDefs,
+  deleteWorkspaceTypeDefs,
+  transferWorkspaceOwnershipTypeDefs,
   removeMemberTypeDefs,
   updateMemberRoleTypeDefs,
+  updateWorkspaceTypeDefs,
 
   // Queries
   getInviteInfoTypeDefs,
@@ -45,4 +59,6 @@ export const typeDefs = [
   getOnboardingStatusTypeDefs,
   getWorkspaceBySlugTypeDefs,
   getWorkspaceMembersTypeDefs,
+  getWorkspaceByIdTypeDefs,
+  getWorkspaceInvitesTypeDefs,
 ];
