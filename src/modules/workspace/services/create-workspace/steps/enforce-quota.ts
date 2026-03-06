@@ -19,7 +19,7 @@ async function countOwnedWorkspaces(
 ): Promise<number> {
   return db.workspace.count({
     where: {
-      members: { some: { userId, role: "OWNER" } },
+      members: { some: { userId, assignedRole: { name: "OWNER" } } },
       deletedAt: null,
     },
   });
