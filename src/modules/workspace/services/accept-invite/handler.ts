@@ -2,13 +2,12 @@
  * acceptInvite — Service Handler (thin orchestrator)
  *
  * ⚠️ All steps run inside a SINGLE db.$transaction to preserve atomicity.
- * The original had everything in one tx — this refactor keeps that guarantee.
  *
  * Steps (tx-scoped):
  *   1. fetchInvite             — find invite, guard expiry
  *   2. verifyInviteEmail       — assert email matches authenticated user
  *   3. checkExistingMembership — if already a member: delete invite, early return
- *   4. createMembership        — create member + delete invite + fetch slug
+ *   4. createMembership        — resolve role → create member + delete invite + fetch slug
  */
 import type { AcceptInviteInput } from "./types";
 import type { ServiceContext } from "@/graphql/types";
@@ -48,9 +47,26 @@ export const acceptInvite = async (
       };
     }
 
-    // Step 4: create membership + delete invite + get slug
+    // Step 4: resolve the Role row for this workspace by invite.role name
+    const role = await tx.role.findUnique({
+      where: {
+        workspaceId_name: {
+          workspaceId: invite.workspaceId,
+          name: invite.role, // invite.role is RoleType enum value e.g. "MEMBER"
+        },
+      },
+    });
+    if (!role) {
+      throw new AppError(
+        `Role "${invite.role}" not found in workspace ${invite.workspaceId}`,
+        "INTERNAL_SERVER_ERROR",
+        500
+      );
+    }
+
+    // Step 4 cont: create membership + delete invite + get slug
     await tx.workspaceMember.create({
-      data: { workspaceId: invite.workspaceId, userId, role: invite.role },
+      data: { workspaceId: invite.workspaceId, userId, roleId: role.id },
     });
     await tx.workspaceInvite.delete({ where: { token } });
     const workspace = await tx.workspace.findUniqueOrThrow({
