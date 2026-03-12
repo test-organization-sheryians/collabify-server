@@ -1,37 +1,38 @@
-import { ServiceContext } from "@/graphql/types";
+import { createLogger } from "@/shared/lib/logger";
+import type { ServiceContext } from "@/graphql/types";
+import type { GetChannelMembersInput } from "./schema";
+import { assertAccess } from "./steps/assert-access";
+import { fetchChannelMembers } from "./steps/fetch-channel-members";
 import { AppError } from "@/shared/errors";
-import { GetChannelMembersInput } from "./types";
 
+const log = createLogger("chat:queries:get-channel-members");
+
+/**
+ * getChannelMembers — returns paginated members of a chat channel.
+ *
+ * Steps:
+ *  1. assertAccess        — verify channel exists, caller is a member (Redis-cached),
+ *                           and has conversation.member:read permission (Redis-cached)
+ *  2. fetchChannelMembers — DB query with explicit select + role-priority sort
+ *                           (OWNER → ADMIN → MANAGER → MEMBER → GUEST)
+ *
+ * @throws AppError 401  if ctx.authGate / ctx.permissions is missing
+ * @throws AppError 404  if channel does not exist
+ * @throws AppError 403  if caller is not a channel member or lacks permission
+ */
 export const handler = async (
   input: GetChannelMembersInput,
   ctx: ServiceContext
 ) => {
-  const { userId } = ctx.auth;
-  if (!userId)
-    throw new AppError("User not authenticated", "UNAUTHORIZED", 401);
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
-
-  // 1. Authorization: Step 0 — channel member gate + permission
-  const cachedChannel = await ctx.authGate.getChannel(input.channelId);
-  if (!cachedChannel) throw AppError.notFound("Channel not found");
-  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
-  await Promise.all([
-    ctx.authGate.assertChannelMember(input.channelId),
-    ctx.permissions.assert("conversation.member:read", scope),
-  ]);
-
-  // 2. Fetch Members with Pagination
-  return ctx.db.chatMember.findMany({
-    where: {
-      conversationId: input.channelId,
-    },
-    take: input.limit,
-    skip: input.offset,
-    orderBy: [
-      { role: "asc" }, // Show Owners/Admins first? (Assuming role string "OWNER" < "MEMBER" might not work alphabetically as intended, but acceptable for now)
-      { joinedAt: "asc" },
-    ],
-    // Note: We don't need 'include' here because the ChatMember Type Resolver handles fetching the User object via Dataloader
-    // This solves the N+1 problem at the graph level
-  });
+  try {
+    await assertAccess(input.channelId, ctx);
+    return await fetchChannelMembers(input, ctx);
+  } catch (err) {
+    if (err instanceof AppError) throw err; // operational — pass through as-is
+    log.error("[get-channel-members] Unexpected failure", {
+      err,
+      channelId: input.channelId,
+    });
+    throw err; // non-operational — GraphQL layer returns INTERNAL_SERVER_ERROR
+  }
 };
