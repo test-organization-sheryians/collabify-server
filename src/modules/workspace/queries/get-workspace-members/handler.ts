@@ -1,13 +1,16 @@
 /**
  * getWorkspaceMembers — Query Handler (thin orchestrator)
  *
+ * Auth:
+ *   - assertWorkspaceMember — cache-backed; FORBIDDEN if not a member
+ *   - permissions.assert("workspace.member:read") — RBAC check
  * Steps:
- *   1. verifyWorkspaceMembership — assert actor is a member; throw FORBIDDEN if not
- *   2. fetchMembers              — load all members with user profiles, ordered by joinedAt
+ *   1. [auth] assertWorkspaceMember + assert("workspace.member:read") — parallel
+ *   2. fetchMembers — load all members with user profiles, ordered by joinedAt
  */
+import { AppError } from "@/shared/errors";
 import type { GetWorkspaceMembersInput } from "./types";
 import type { ServiceContext } from "@/graphql/types";
-import { verifyWorkspaceMembership } from "./steps/verify-workspace-membership";
 import { fetchMembers } from "./steps/fetch-members";
 
 export const getWorkspaceMembers = async (
@@ -17,6 +20,12 @@ export const getWorkspaceMembers = async (
   const { workspaceId, actorUserId } = input;
   const { db } = ctx;
 
-  await verifyWorkspaceMembership(workspaceId, actorUserId, db);
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
+  const scope = { type: "workspace" as const, id: workspaceId };
+  await Promise.all([
+    ctx.authGate.assertWorkspaceMember(workspaceId),
+    ctx.permissions.assert("workspace.member:read", scope),
+  ]);
+
   return fetchMembers(workspaceId, db);
 };

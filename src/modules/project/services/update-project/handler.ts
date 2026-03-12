@@ -1,14 +1,17 @@
 /**
  * updateProject — Service Handler (thin orchestrator)
  *
+ * Auth:
+ *   - assertProjectManager — FORBIDDEN if actor cannot manage project
+ *   - permissions.assert("project:update") — RBAC check
  * Steps:
- *   1. verifyActorIsProjectManager — FORBIDDEN if actor cannot manage this project
- *   2. updateProjectFields         — update name/description/isPrivate; return project
+ *   1. getProject — cache-backed fetch for workspaceId
+ *   2. [auth] assertProjectManager + assert("project:update") — parallel
+ *   3. updateProjectFields — update name/description/isPrivate; return project
  */
+import { AppError } from "@/shared/errors";
 import type { UpdateProjectInput } from "./schema";
 import type { ServiceContext } from "@/graphql/types";
-import { AppError } from "@/shared/errors";
-import { verifyActorIsProjectManager } from "./steps/verify-actor-is-project-manager";
 import { updateProjectFields } from "./steps/update-project-fields";
 
 export const updateProject = async (
@@ -18,18 +21,20 @@ export const updateProject = async (
   const { projectId, actorUserId, name, description, isPrivate } = input;
   const { db } = ctx;
 
-  // Fetch the project's workspaceId for the guard
-  const project = await db.project.findUnique({
-    where: { id: projectId },
-    select: { workspaceId: true },
-  });
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
+
+  const project = await ctx.authGate.getProject(projectId);
   if (!project) throw AppError.notFound("Project not found");
 
-  await verifyActorIsProjectManager(
-    projectId,
-    project.workspaceId,
-    actorUserId,
-    db
-  );
+  const scope = {
+    type: "project" as const,
+    id: projectId,
+    workspaceId: project.workspaceId,
+  };
+  await Promise.all([
+    ctx.authGate.assertProjectManager(projectId, project.workspaceId),
+    ctx.permissions.assert("project:update", scope),
+  ]);
+
   return updateProjectFields(projectId, { name, description, isPrivate }, db);
 };

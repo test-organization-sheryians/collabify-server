@@ -26,15 +26,26 @@ export const moveVaultFolderHandler = async (
 ) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   try {
-    await fetchFolder(input.folderId, ctx.db);
+    const folder = await fetchFolder(input.folderId, ctx.db);
+    const proj = await ctx.authGate.getProject(folder.projectId);
+    const scope = {
+      type: "project" as const,
+      id: folder.projectId,
+      workspaceId: proj?.workspaceId ?? "",
+    };
+    await Promise.all([
+      ctx.authGate.assertProjectMember(folder.projectId),
+      ctx.permissions.assert("vault.folder:update", scope),
+    ]);
     await validateMoveTarget(
       input.folderId,
       input.targetParentFolderId,
       ctx.db
     );
-    const folder = await updateFolderParent(
+    const updatedFolder = await updateFolderParent(
       input.folderId,
       input.targetParentFolderId,
       ctx.db
@@ -46,7 +57,7 @@ export const moveVaultFolderHandler = async (
       userId,
     });
 
-    return { folder };
+    return { folder: updatedFolder };
   } catch (error: unknown) {
     if (error instanceof AppError) throw error;
     logger.error("Failed to move vault folder", {

@@ -16,15 +16,9 @@ export const typingStopHandler = async (
   const { userId } = socket.data;
 
   try {
-    // 1. Verify membership (optional - could skip for performance)
-    const member = await ctx.db.chatMember.findFirst({
-      where: { conversationId, userId },
-    });
-
-    if (!member) {
-      logger.warn("Typing-stop: Member not found", { userId, conversationId });
-      return;
-    }
+    // 1. Verify membership (cache-backed)
+    if (!ctx.authGate) { return; }
+    await ctx.authGate.assertChannelMember(conversationId);
 
     // 2. Clear typing state in Redis
     await clearTyping(conversationId, userId);

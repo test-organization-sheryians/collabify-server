@@ -3,10 +3,11 @@ import { AppError } from "@/shared/errors";
 import type { GetBoardCollaboratorsInput, BoardCollaborator } from "./types";
 
 /**
- * Get Board Collaborators Handler
+ * getBoardCollaborators — Query Handler
  *
- * Fetches all collaborators with access to a board.
- * User must be a collaborator or creator to view.
+ * Auth:
+ *   - assertBoardCollaborator — cache-backed membership gate
+ *   - permissions.assert("board.collaborator:read") — RBAC check
  */
 export const handler = async (
   input: GetBoardCollaboratorsInput,
@@ -14,48 +15,37 @@ export const handler = async (
 ): Promise<BoardCollaborator[]> => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   const { boardId } = input;
 
   try {
-    // Check if user has access to the board
-    const board = await ctx.db.whiteboard.findFirst({
-      where: {
-        id: boardId,
-        OR: [
-          { createdBy: userId },
-          {
-            collaborators: {
-              some: { userId },
-            },
-          },
-        ],
-      },
-    });
+    // Step 1 — collaborator gate (cache-backed)
+    const cachedBoard = await ctx.authGate.getBoard(boardId);
+    if (!cachedBoard) throw AppError.notFound("Whiteboard not found");
+    const proj = await ctx.authGate.getProject(cachedBoard.projectId);
+    const scope = {
+      type: "resource" as const,
+      id: boardId,
+      projectId: cachedBoard.projectId,
+      workspaceId: proj?.workspaceId ?? "",
+    };
+    await Promise.all([
+      ctx.authGate.assertBoardCollaborator(boardId),
+      ctx.permissions.assert("board.collaborator:read", scope),
+    ]);
 
-    if (!board) {
-      throw AppError.forbidden(
-        "Whiteboard not found or you do not have access"
-      );
-    }
-
-    // Fetch collaborators with user info
+    // Step 2 — fetch collaborators with user info
     const collaborators = await ctx.db.whiteboardCollaborator.findMany({
       where: { whiteboardId: boardId },
       include: {
         user: {
-          select: {
-            id: true,
-            fullName: true,
-            email: true,
-            avatarUrl: true,
-          },
+          select: { id: true, fullName: true, email: true, avatarUrl: true },
         },
       },
       orderBy: { joinedAt: "asc" },
     });
 
-    // Transform to match GraphQL schema (handle fullName null)
     return collaborators.map((c) => ({
       userId: c.userId,
       joinedAt: c.joinedAt,

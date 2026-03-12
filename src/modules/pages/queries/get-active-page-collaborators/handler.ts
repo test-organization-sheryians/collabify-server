@@ -5,7 +5,7 @@
  * For persistent collaborator list (all users with access), use getPageCollaborators.
  *
  * Execution:
- *   Step 1 — checkAccess       : verify caller is a page collaborator
+ *   Step 1 — [auth] assertPageCollaborator + assert("page.collaborator:read") — parallel (cache-backed)
  *   Step 2 — fetchActiveIds    : ZRANGE page:{id}:subscribers → userId[]
  *   Step 3 — fetchUserProfiles : user.findMany batch + join → ActiveCollaborator[]
  */
@@ -14,7 +14,6 @@ import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
 import type { ServiceContext } from "@/graphql/types";
 import type { GetActivePageCollaboratorsInput } from "./schema";
-import { checkAccess } from "./steps/check-access";
 import { fetchActiveIds } from "./steps/fetch-active-ids";
 import { fetchUserProfiles } from "./steps/fetch-user-profiles";
 
@@ -26,10 +25,23 @@ export const getActivePageCollaboratorsHandler = async (
 ) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   try {
-    // Step 1 — access gate
-    await checkAccess(input.pageId, userId, ctx.db);
+    // Step 1 — access gate (cache-backed collaborator check)
+    const cachedPage = await ctx.authGate.getPage(input.pageId);
+    if (!cachedPage) throw AppError.notFound("Page not found");
+    const proj = await ctx.authGate.getProject(cachedPage.projectId);
+    const scope = {
+      type: "resource" as const,
+      id: input.pageId,
+      projectId: cachedPage.projectId,
+      workspaceId: proj?.workspaceId ?? "",
+    };
+    await Promise.all([
+      ctx.authGate.assertPageCollaborator(input.pageId),
+      ctx.permissions.assert("page.collaborator:read", scope),
+    ]);
 
     // Step 2 — presence ZSET read
     const activeIds = await fetchActiveIds(input.pageId, ctx.redis);

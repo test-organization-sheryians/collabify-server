@@ -16,8 +16,14 @@ export const handler = async (
   if (!userId) {
     throw AppError.unauthorized("User not authenticated");
   }
+  if (!ctx.authGate) throw AppError.unauthorized();
 
   const { conversationId, isMuted } = input;
+
+  // Step 0 — channel member gate
+  const cachedChannel = await ctx.authGate.getChannel(conversationId);
+  if (!cachedChannel) throw AppError.notFound("Conversation not found");
+  await ctx.authGate.assertChannelMember(conversationId);
 
   // Verify membership exists
   const membership = await ctx.db.chatMember.findUnique({

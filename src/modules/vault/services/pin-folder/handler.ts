@@ -24,8 +24,19 @@ export const pinVaultFolderHandler = async (
 ) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   try {
+    const proj = await ctx.authGate.getProject(input.projectId);
+    const scope = {
+      type: "project" as const,
+      id: input.projectId,
+      workspaceId: proj?.workspaceId ?? "",
+    };
+    await Promise.all([
+      ctx.authGate.assertProjectMember(input.projectId),
+      ctx.permissions.assert("vault.folder:read", scope),
+    ]);
     const folder = await fetchFolderForPin(
       input.folderId,
       input.projectId,

@@ -1,78 +1,66 @@
 import { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
-
-const logger = createLogger("whiteboard:services:create-board");
 import { CreateBoardInput } from "./types";
 import { uploadSnapshot } from "../../infra/s3-client";
 import { WhiteboardKeys } from "../../infra/whiteboard-keys";
 
+const logger = createLogger("whiteboard:services:create-board");
+
 /**
- * Create Board Handler
+ * createBoard — Service Handler
  *
  * Creates a new whiteboard with optional collaborators.
- * - Initializes empty Y.Doc state for Excalidraw
- * - Validates collaborators are workspace members
- * - Creates board + collaborators atomically
- * - Returns board and successfully added collaborators
+ *
+ * Auth:
+ *   - assertProjectMember — cache-backed; creates within a project context
+ *   - permissions.assert("board:create") — RBAC check
+ * Falls back to assertWorkspaceMember if no projectId provided.
  */
 export const handler = async (input: CreateBoardInput, ctx: ServiceContext) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   try {
-    // Step 1: Authorization - User must be workspace member
-    const creatorMembership = await ctx.db.workspaceMember.findUnique({
-      where: {
-        workspaceId_userId: {
-          userId,
-          workspaceId: input.workspaceId,
-        },
-      },
-    });
-
-    if (!creatorMembership) {
-      throw AppError.forbidden("You are not a member of this workspace");
-    }
-
-    // Step 2: Validate Project (if provided)
+    // Step 1 — membership gate (cache-backed)
     if (input.projectId) {
-      const project = await ctx.db.project.findUnique({
-        where: { id: input.projectId },
-        select: { workspaceId: true },
-      });
-
-      if (!project || project.workspaceId !== input.workspaceId) {
+      const proj = await ctx.authGate.getProject(input.projectId);
+      if (!proj || proj.workspaceId !== input.workspaceId)
         throw AppError.badRequest("Invalid project ID for this workspace");
-      }
+      const scope = {
+        type: "project" as const,
+        id: input.projectId,
+        workspaceId: input.workspaceId,
+      };
+      await Promise.all([
+        ctx.authGate.assertProjectMember(input.projectId),
+        ctx.permissions.assert("board:create", scope),
+      ]);
+    } else {
+      const scope = { type: "workspace" as const, id: input.workspaceId };
+      await Promise.all([
+        ctx.authGate.assertWorkspaceMember(input.workspaceId),
+        ctx.permissions.assert("board:create", scope),
+      ]);
     }
 
-    // Step 3: Validate Collaborators (if provided)
+    // Step 2 — validate collaborators are workspace members (graceful degradation)
     let validCollaboratorIds: string[] = [];
 
     if (input.collaboratorIds && input.collaboratorIds.length > 0) {
-      // Remove duplicates and creator (will be added automatically)
-      const uniqueCollaboratorIds = Array.from(
+      const uniqueIds = Array.from(
         new Set(input.collaboratorIds.filter((id) => id !== userId))
       );
-
-      if (uniqueCollaboratorIds.length > 0) {
-        // Batch check: Are they workspace members?
+      if (uniqueIds.length > 0) {
         const workspaceMembers = await ctx.db.workspaceMember.findMany({
-          where: {
-            workspaceId: input.workspaceId,
-            userId: { in: uniqueCollaboratorIds },
-          },
+          where: { workspaceId: input.workspaceId, userId: { in: uniqueIds } },
           select: { userId: true },
         });
-
         validCollaboratorIds = workspaceMembers.map((m) => m.userId);
-
-        // Log warning for invalid users (graceful degradation)
-        const invalidUsers = uniqueCollaboratorIds.filter(
+        const invalidUsers = uniqueIds.filter(
           (id) => !validCollaboratorIds.includes(id)
         );
-
         if (invalidUsers.length > 0) {
           logger.warn(
             "Some users are not workspace members and will be skipped",
@@ -83,34 +71,11 @@ export const handler = async (input: CreateBoardInput, ctx: ServiceContext) => {
             }
           );
         }
-
-        // TODO: FUTURE - Add stricter project member validation
-        // Once project membership system is mature, add this check:
-        //
-        // if (input.projectId) {
-        //   const projectMembers = await ctx.db.projectMember.findMany({
-        //     where: {
-        //       projectId: input.projectId,
-        //       userId: { in: [userId, ...validCollaboratorIds] }
-        //     }
-        //   });
-        //
-        //   const nonProjectMembers = validCollaboratorIds.filter(
-        //     id => !projectMembers.some(pm => pm.userId === id)
-        //   );
-        //
-        //   if (nonProjectMembers.length > 0) {
-        //     throw AppError.forbidden(
-        //       "Some users are not project members"
-        //     );
-        //   }
-        // }
       }
     }
 
-    // Step 5: Create Board + Collaborators (Atomic Transaction)
+    // Step 3 — create board + collaborators atomically
     const result = await ctx.db.$transaction(async (tx) => {
-      // 5.1 Create whiteboard
       const board = await tx.whiteboard.create({
         data: {
           workspaceId: input.workspaceId,
@@ -118,21 +83,15 @@ export const handler = async (input: CreateBoardInput, ctx: ServiceContext) => {
           title: input.title,
           description: input.description,
           createdBy: userId,
-          s3Key: "", // TODO V4-1: Will be updated after S3 upload
+          s3Key: "",
           elementCount: 0,
-          // fileSizeBytes: BigInt(initialState.byteLength),
         },
       });
 
-      // 5.2 Add creator as collaborator
       await tx.whiteboardCollaborator.create({
-        data: {
-          whiteboardId: board.id,
-          userId: userId,
-        },
+        data: { whiteboardId: board.id, userId },
       });
 
-      // 5.3 Add additional collaborators (if any valid ones)
       const addedCollaborators: Array<{
         id: string;
         whiteboardId: string;
@@ -147,16 +106,13 @@ export const handler = async (input: CreateBoardInput, ctx: ServiceContext) => {
       }> = [];
 
       if (validCollaboratorIds.length > 0) {
-        // Bulk create collaborators
         await tx.whiteboardCollaborator.createMany({
-          data: validCollaboratorIds.map((collaboratorId) => ({
+          data: validCollaboratorIds.map((cId) => ({
             whiteboardId: board.id,
-            userId: collaboratorId,
+            userId: cId,
           })),
           skipDuplicates: true,
         });
-
-        // Fetch created collaborators for response
         const collaborators = await tx.whiteboardCollaborator.findMany({
           where: {
             whiteboardId: board.id,
@@ -173,25 +129,18 @@ export const handler = async (input: CreateBoardInput, ctx: ServiceContext) => {
             },
           },
         });
-
         addedCollaborators.push(...collaborators);
       }
 
       return { board, addedCollaborators };
-    }); // End of transaction
+    });
 
-    // Step 4: Initialize Y.Doc with y-excalidraw structure (AFTER board created)
+    // Step 4 — initialize Y.Doc snapshot in S3
     const Y = await import("yjs");
-    const ydoc = new Y.Doc({ guid: result.board.id }); // ✅ Deterministic GUID!
-
-    // ✅ CRITICAL: Initialize at root level for y-excalidraw library
-    ydoc.getArray("elements"); // Creates empty Y.Array
-    ydoc.getMap("assets"); // Creates empty Y.Map
-
-    // Encode to binary
+    const ydoc = new Y.Doc({ guid: result.board.id });
+    ydoc.getArray("elements");
+    ydoc.getMap("assets");
     const initialState = Y.encodeStateAsUpdate(ydoc);
-
-    // V4-1: Upload initial snapshot to S3
     const s3Key = await uploadSnapshot(result.board.id, initialState, {
       boardId: result.board.id,
       streamId: "0-0",
@@ -199,22 +148,15 @@ export const handler = async (input: CreateBoardInput, ctx: ServiceContext) => {
       elementCount: 0,
     });
 
-    // ✅ FIX: Update both s3Key AND snapshot metadata
     await ctx.db.whiteboard.update({
       where: { id: result.board.id },
-      data: {
-        s3Key,
-        lastSnapshotStreamId: "0-0", // Initial snapshot stream position
-        lastSnapshotAt: new Date(), // Track when snapshot was created
-      },
+      data: { s3Key, lastSnapshotStreamId: "0-0", lastSnapshotAt: new Date() },
     });
 
-    // V4-2: Create Redis stream + consumer group
+    // Step 5 — create Redis stream + consumer group
     const streamKey = WhiteboardKeys.BoardStream(result.board.id);
     const sequenceKey = WhiteboardKeys.BoardSequence(result.board.id);
-
     try {
-      // Create consumer group (creates stream if doesn't exist)
       await ctx.redis.xgroup(
         "CREATE",
         streamKey,
@@ -222,16 +164,12 @@ export const handler = async (input: CreateBoardInput, ctx: ServiceContext) => {
         "0",
         "MKSTREAM"
       );
-
-      // Initialize sequence counter
       await ctx.redis.set(sequenceKey, 0);
-
       logger.info("Redis stream initialized", {
         boardId: result.board.id,
         streamKey,
       });
     } catch (error) {
-      // Ignore "BUSYGROUP Consumer Group name already exists"
       const err = error as Error;
       if (!err.message?.includes("BUSYGROUP")) {
         logger.error("Failed to create Redis stream", {
@@ -242,7 +180,6 @@ export const handler = async (input: CreateBoardInput, ctx: ServiceContext) => {
       }
     }
 
-    // Log success
     logger.info("Board created successfully", {
       boardId: result.board.id,
       title: result.board.title,
@@ -257,17 +194,12 @@ export const handler = async (input: CreateBoardInput, ctx: ServiceContext) => {
       addedCollaborators: result.addedCollaborators,
     };
   } catch (error: unknown) {
-    // Re-throw AppErrors
     if (error instanceof AppError) throw error;
-
-    // Log unexpected errors
     logger.error("Failed to create board", {
       err: error,
       workspaceId: input.workspaceId,
       userId,
     });
-
-    // Default fallback
     throw new AppError("Failed to create whiteboard");
   }
 };

@@ -11,16 +11,25 @@ import { ApplicationContext } from "./types";
 import { db } from "@/infra/db";
 import { redis } from "@/infra/redis";
 import { s3Client } from "@/infra/aws/s3";
+import { createGraphQLAuthContext } from "../modules/authorization";
 
 export const createContext = (c: Context): ApplicationContext => {
   const auth = getAuth(c);
+  const userId = auth?.userId || null;
+
+  // Create per-request auth instances (null when unauthenticated)
+  const authContext = userId
+    ? createGraphQLAuthContext(userId, db, redis)
+    : null;
 
   const ctx: ApplicationContext = {
     c, // Hono context
     auth: {
-      userId: auth?.userId || null,
+      userId,
       sessionId: auth?.sessionId || null,
     },
+    authGate: authContext?.auth ?? null,
+    permissions: authContext?.permissions ?? null,
     db,
     redis,
     s3: s3Client,

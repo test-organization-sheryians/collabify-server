@@ -5,7 +5,7 @@
  * The creator cannot be removed (see guardCreator step).
  *
  * Execution:
- *   Step 1 — checkAccess       : page exists + EDITOR role gate
+ *   Step 1 — [auth] assertPageCollaborator + assert("page.collaborator:remove") — parallel (cache-backed)
  *   Step 2 — guardCreator      : prevent removing the page creator
  *   Step 3 — deleteCollaborator: hard-delete pageCollaborator record
  */
@@ -14,7 +14,6 @@ import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
 import type { ServiceContext } from "@/graphql/types";
 import type { RemovePageCollaboratorInput } from "./schema";
-import { checkAccess } from "./steps/check-access";
 import { guardCreator } from "./steps/guard-creator";
 import { deleteCollaborator } from "./steps/delete-collaborator";
 
@@ -26,10 +25,23 @@ export const handler = async (
 ) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   try {
-    // Step 1 — EDITOR gate
-    await checkAccess(input.pageId, userId, ctx.db);
+    // Step 1 — EDITOR gate (cache-backed)
+    const cachedPage = await ctx.authGate.getPage(input.pageId);
+    if (!cachedPage) throw AppError.notFound("Page not found");
+    const proj = await ctx.authGate.getProject(cachedPage.projectId);
+    const scope = {
+      type: "resource" as const,
+      id: input.pageId,
+      projectId: cachedPage.projectId,
+      workspaceId: proj?.workspaceId ?? "",
+    };
+    await Promise.all([
+      ctx.authGate.assertPageCollaborator(input.pageId),
+      ctx.permissions.assert("page.collaborator:remove", scope),
+    ]);
 
     // Step 2 — creator guard (cannot remove page owner)
     await guardCreator(input.pageId, input.userId, ctx.db);

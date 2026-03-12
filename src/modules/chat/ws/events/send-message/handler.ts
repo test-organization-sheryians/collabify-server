@@ -21,13 +21,16 @@ export const sendMessageHandler = async (
   const { conversationId, content, dedupeId, parentMessageId } = input;
   const { userId } = socket.data;
 
-  logger.info("Processing Send Message", {
-    userId,
-    conversationId,
-    dedupeId,
-  });
+  logger.info("Processing Send Message", { userId, conversationId, dedupeId });
 
   try {
+    // 0. Authorization — assertChannelMember (cache-backed)
+    if (!ctx.authGate) {
+      socket.send(createErrorFrame(dedupeId, "chat:ack-message", "UNAUTHORIZED", "Not authenticated"));
+      return;
+    }
+    await ctx.authGate.assertChannelMember(conversationId);
+
     // 1. Idempotency Check (Double Spend Protection)
     const existing = await ctx.db.outboxMessage.findUnique({
       where: { messageId: dedupeId },

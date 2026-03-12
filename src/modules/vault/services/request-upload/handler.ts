@@ -28,6 +28,7 @@ export const requestVaultUploadHandler = async (
 ) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   logger.info("requestVaultUpload started", {
     userId,
@@ -37,6 +38,18 @@ export const requestVaultUploadHandler = async (
     sizeBytes: input.sizeBytes,
     folderId: input.folderId ?? null,
   });
+
+  // Step 0 — project member gate (cache-backed)
+  const proj = await ctx.authGate.getProject(input.projectId);
+  const scope = {
+    type: "project" as const,
+    id: input.projectId,
+    workspaceId: proj?.workspaceId ?? input.workspaceId,
+  };
+  await Promise.all([
+    ctx.authGate.assertProjectMember(input.projectId),
+    ctx.permissions.assert("vault.file:create", scope),
+  ]);
 
   validateUploadInput(input);
 

@@ -16,8 +16,14 @@ export const handler = async (
   if (!userId) {
     throw AppError.unauthorized("User not authenticated");
   }
+  if (!ctx.authGate) throw AppError.unauthorized();
 
   const { threadId } = input;
+
+  // Step 0 — channel member gate (verifies access to thread/parent)
+  const cachedChannel = await ctx.authGate.getChannel(threadId);
+  if (!cachedChannel) throw AppError.notFound("Thread not found");
+  await ctx.authGate.assertChannelMember(threadId);
 
   // Verify thread exists
   const thread = await ctx.db.chatConversation.findFirst({

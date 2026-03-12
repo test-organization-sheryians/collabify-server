@@ -16,8 +16,14 @@ export const handler = async (
   if (!userId) {
     throw AppError.unauthorized("User not authenticated");
   }
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   const { workspaceId, groupId } = input;
+
+  // Step 0 — channel member gate
+  const cachedChannel = await ctx.authGate.getChannel(groupId);
+  if (!cachedChannel) throw AppError.notFound("Group not found");
+  await ctx.authGate.assertChannelMember(groupId);
 
   // Verify group exists and user is member
   const group = await ctx.db.chatConversation.findFirst({

@@ -5,7 +5,7 @@
  * recursively archived — see README improvement plan.
  *
  * Execution:
- *   Step 1 — checkAccess  : page exists + EDITOR role gate
+ *   Step 1 — [auth] assertPageCollaborator + assert("page:archive") — parallel (cache-backed)
  *   Step 2 — setArchived  : DB update isArchived = true
  *   Step 3 — broadcast    : PUBLISH page:archived event (best-effort)
  */
@@ -14,7 +14,6 @@ import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
 import type { ServiceContext } from "@/graphql/types";
 import type { ArchivePageInput } from "./schema";
-import { checkAccess } from "./steps/check-access";
 import { setArchived } from "./steps/set-archived";
 import { broadcast } from "./steps/broadcast";
 
@@ -23,10 +22,23 @@ const logger = createLogger("pages:services:archive-page");
 export const handler = async (input: ArchivePageInput, ctx: ServiceContext) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   try {
-    // Step 1 — EDITOR gate
-    await checkAccess(input.pageId, userId, ctx.db);
+    // Step 1 — EDITOR gate (cache-backed)
+    const cachedPage = await ctx.authGate.getPage(input.pageId);
+    if (!cachedPage) throw AppError.notFound("Page not found");
+    const proj = await ctx.authGate.getProject(cachedPage.projectId);
+    const scope = {
+      type: "resource" as const,
+      id: input.pageId,
+      projectId: cachedPage.projectId,
+      workspaceId: proj?.workspaceId ?? "",
+    };
+    await Promise.all([
+      ctx.authGate.assertPageCollaborator(input.pageId),
+      ctx.permissions.assert("page:archive", scope),
+    ]);
 
     // Step 2 — DB update
     const page = await setArchived(input.pageId, ctx.db);

@@ -10,10 +10,20 @@ export const handler = async (
   if (!userId) {
     throw AppError.unauthorized("User not authenticated");
   }
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   const { workspaceId, dmId } = input;
 
-  // Verify DM exists and user is member
+  // Step 0 — channel member gate (DM uses channelId = dmId)
+  const cachedChannel = await ctx.authGate.getChannel(dmId);
+  if (!cachedChannel) throw AppError.notFound("DM not found");
+  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
+  await Promise.all([
+    ctx.authGate.assertChannelMember(dmId),
+    ctx.permissions.assert("conversation:delete", scope),
+  ]);
+
+  // Verify DM exists and user is member (also needed for fanout participants)
   const dm = await ctx.db.chatConversation.findFirst({
     where: {
       id: dmId,

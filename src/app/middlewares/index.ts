@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import { clerkMiddleware } from "@hono/clerk-auth";
 import { pinoLogger } from "hono-pino";
 import { idempotencyMiddleware } from "./idempotency";
+import { rateLimitGuard, RATE_LIMITS } from "@/modules/authorization/middleware/rate-limit-guard";
 import { env } from "@/shared/config/env";
 import { createLogger } from "@/shared/lib/logger";
 
@@ -43,7 +44,13 @@ export const registerGlobalMiddleware = (app: Hono) => {
   // 3. Idempotency
   app.use("*", idempotencyMiddleware);
 
-  // 4. Logger
+  // 4. Rate Limiting
+  // GraphQL: 300 req/min per user (generous for batched operations)
+  app.use("/graphql", rateLimitGuard(RATE_LIMITS.GRAPHQL));
+  // General API write mutations: 60 req/min
+  app.use("/api/*", rateLimitGuard(RATE_LIMITS.API_WRITE));
+
+  // 5. Logger
   app.use("*", async (c: Context, next: Next) => {
     if (
       c.req.path === "/graphql" ||

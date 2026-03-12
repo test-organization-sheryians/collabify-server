@@ -6,11 +6,13 @@
  */
 import type { ServiceContext } from "@/graphql/types";
 import type { GetProjectByIdInput } from "./types";
+import { AppError } from "@/shared/errors";
 
 export const getProjectById = async (
   input: GetProjectByIdInput,
   ctx: ServiceContext
 ) => {
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
   const { id } = input;
 
   if (!ctx.dataloaders.project?.projectById) {

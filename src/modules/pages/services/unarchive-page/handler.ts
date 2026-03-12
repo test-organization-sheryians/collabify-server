@@ -5,7 +5,7 @@
  * Descendant pages are NOT recursively unarchived — each must be restored individually.
  *
  * Execution:
- *   Step 1 — checkAccess             : page exists + EDITOR role gate
+ *   Step 1 — [auth] assertPageCollaborator + assert("page:archive") — parallel (cache-backed)
  *   Step 2 — guardParentNotArchived  : parent page must be active first
  *   Step 3 — setUnarchived           : page.update({ isArchived: false })
  *   Step 4 — broadcast               : PUBLISH page:unarchived (best-effort)
@@ -15,7 +15,6 @@ import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
 import type { ServiceContext } from "@/graphql/types";
 import type { UnarchivePageInput } from "./schema";
-import { checkAccess } from "./steps/check-access";
 import { guardParentNotArchived } from "./steps/guard-parent-not-archived";
 import { setUnarchived } from "./steps/set-unarchived";
 import { broadcast } from "./steps/broadcast";
@@ -28,10 +27,23 @@ export const handler = async (
 ) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   try {
-    // Step 1 — EDITOR gate
-    await checkAccess(input.pageId, userId, ctx.db);
+    // Step 1 — EDITOR gate (cache-backed)
+    const cachedPage = await ctx.authGate.getPage(input.pageId);
+    if (!cachedPage) throw AppError.notFound("Page not found");
+    const proj = await ctx.authGate.getProject(cachedPage.projectId);
+    const scope = {
+      type: "resource" as const,
+      id: input.pageId,
+      projectId: cachedPage.projectId,
+      workspaceId: proj?.workspaceId ?? "",
+    };
+    await Promise.all([
+      ctx.authGate.assertPageCollaborator(input.pageId),
+      ctx.permissions.assert("page:archive", scope),
+    ]);
 
     // Step 2 — parent archived guard
     await guardParentNotArchived(input.pageId, ctx.db);
@@ -50,12 +62,12 @@ export const handler = async (
     logger.info("Page unarchived", { pageId: input.pageId, userId });
     return { page };
   } catch (error: unknown) {
-    if (error instanceof AppError)
-      throw new AppError("Failed to unarchive page");
+    if (error instanceof AppError) throw error;
     logger.error("Failed to unarchive page", {
       err: error,
       userId,
       pageId: input.pageId,
     });
+    throw new AppError("Failed to unarchive page");
   }
 };

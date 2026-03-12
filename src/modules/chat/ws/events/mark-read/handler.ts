@@ -16,15 +16,9 @@ export const markReadHandler = async (
   const { userId } = socket.data;
 
   try {
-    // 1. Verify membership
-    const member = await ctx.db.chatMember.findFirst({
-      where: { conversationId, userId },
-    });
-
-    if (!member) {
-      logger.warn("Member not found", { userId, conversationId });
-      return;
-    }
+    // 1. Verify membership (cache-backed)
+    if (!ctx.authGate) { logger.warn("mark-read: no authGate", { userId }); return; }
+    await ctx.authGate.assertChannelMember(conversationId);
 
     // 2. Get message sequence
     const message = await ctx.db.chatMessage.findUnique({

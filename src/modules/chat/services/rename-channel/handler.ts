@@ -10,31 +10,17 @@ export const handler = async (
   const { userId } = ctx.auth;
   if (!userId)
     throw new AppError("User not authenticated", "UNAUTHORIZED", 401);
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   try {
-    // 1. Fetch Channel to get Workspace context
-    const channel = await ctx.db.chatConversation.findUnique({
-      where: { id: input.channelId },
-      select: { id: true, workspaceId: true },
-    });
-
-    if (!channel) throw AppError.notFound("Channel not found");
-
-    // 2. Authorization: Check Workspace Membership
-    // (Renaming usually requires being a member, possibly admin/owner in future,
-    // but for now any workspace member can rename public channels as per implicit requirements)
-    const membership = await ctx.db.workspaceMember.findUnique({
-      where: {
-        workspaceId_userId: {
-          workspaceId: channel.workspaceId,
-          userId,
-        },
-      },
-    });
-
-    if (!membership) {
-      throw AppError.forbidden("You are not a member of this workspace");
-    }
+    // Step 0 — channel member gate + permission
+    const cachedChannel = await ctx.authGate.getChannel(input.channelId);
+    if (!cachedChannel) throw AppError.notFound("Channel not found");
+    const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
+    await Promise.all([
+      ctx.authGate.assertChannelMember(input.channelId),
+      ctx.permissions.assert("channel:update", scope),
+    ]);
 
     // 3. Update Name
     return await ctx.db.chatConversation.update({

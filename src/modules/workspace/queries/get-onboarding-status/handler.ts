@@ -8,12 +8,14 @@
  */
 import type { GetOnboardingStatusInput } from "./types";
 import type { ServiceContext } from "@/graphql/types";
+import { AppError } from "@/shared/errors";
 import { getMyWorkspaces } from "../../queries/get-my-workspaces";
 
 export const getOnboardingStatus = async (
   input: GetOnboardingStatusInput,
   ctx: ServiceContext
 ) => {
+  if (!ctx.auth.userId) throw AppError.unauthorized();
   const { userId } = input;
   const { db } = ctx;
 

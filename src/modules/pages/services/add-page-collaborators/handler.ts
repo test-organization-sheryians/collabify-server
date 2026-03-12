@@ -4,7 +4,7 @@
  * Upsert-semantics: invites new collaborators or updates existing roles in one call.
  *
  * Execution:
- *   Step 1 — checkAccess          : caller must be EDITOR on the page
+ *   Step 1 — [auth] assertPageCollaborator + assert("page.collaborator:add") — parallel (cache-backed)
  *   Step 2 — validateUsers        : all target userIds must exist in DB
  *   Step 3 — upsertCollaborators  : parallel upsert (create + role update) with user join
  */
@@ -13,7 +13,6 @@ import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
 import type { ServiceContext } from "@/graphql/types";
 import type { AddPageCollaboratorsInput } from "./schema";
-import { checkAccess } from "./steps/check-access";
 import { validateUsers } from "./steps/validate-users";
 import { upsertCollaborators } from "./steps/upsert-collaborators";
 
@@ -25,10 +24,23 @@ export const handler = async (
 ) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   try {
-    // Step 1 — EDITOR gate
-    await checkAccess(input.pageId, userId, ctx.db);
+    // Step 1 — EDITOR gate (cache-backed)
+    const cachedPage = await ctx.authGate.getPage(input.pageId);
+    if (!cachedPage) throw AppError.notFound("Page not found");
+    const proj = await ctx.authGate.getProject(cachedPage.projectId);
+    const scope = {
+      type: "resource" as const,
+      id: input.pageId,
+      projectId: cachedPage.projectId,
+      workspaceId: proj?.workspaceId ?? "",
+    };
+    await Promise.all([
+      ctx.authGate.assertPageCollaborator(input.pageId),
+      ctx.permissions.assert("page.collaborator:add", scope),
+    ]);
 
     // Step 2 — pre-flight user existence check
     const targetIds = input.collaborators.map((c) => c.userId);

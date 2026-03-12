@@ -106,13 +106,13 @@ export const handler = async (
   logger.info("📥 get-board-snapshot: Handler entry", { boardId, userId });
 
   try {
-    // 1. Validate access (MUST check on every query - stateless HTTP)
-    const board = await ctx.db.whiteboard.findFirst({
-      where: {
-        id: boardId,
-        OR: [{ createdBy: userId }, { collaborators: { some: { userId } } }],
-        deletedAt: null,
-      },
+    // 1. Authorization — cache-backed collaborator gate
+    if (!ctx.authGate) throw AppError.unauthorized();
+    await ctx.authGate.assertBoardCollaborator(boardId);
+
+    // Load board metadata from DB (still needed for s3Key / stream positions)
+    const board = await ctx.db.whiteboard.findUnique({
+      where: { id: boardId, deletedAt: null },
       select: {
         id: true,
         s3Key: true,
@@ -121,12 +121,7 @@ export const handler = async (
       },
     });
 
-    if (!board) {
-      logger.warn("❌ Board not found or access denied", { boardId, userId });
-      throw AppError.forbidden(
-        "Whiteboard not found or you do not have access"
-      );
-    }
+    if (!board) throw AppError.notFound("Whiteboard not found");
 
     logger.info("✅ Board found and access granted", {
       boardId,

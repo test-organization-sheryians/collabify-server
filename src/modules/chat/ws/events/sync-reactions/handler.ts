@@ -13,6 +13,14 @@ export const syncReactionsHandler = async (
 ) => {
   const { conversationId, lastEventId } = input;
 
+  // Auth gate
+  if (!ctx.authGate) return;
+  try {
+    await ctx.authGate.assertChannelMember(conversationId);
+  } catch {
+    return; // silently drop — WS event, no frame needed
+  }
+
   const events = await syncReactionEvents(
     ctx.redis,
     conversationId,

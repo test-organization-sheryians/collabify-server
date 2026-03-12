@@ -2,11 +2,13 @@
  * deleteIssueStatus — Service Handler (thin orchestrator)
  *
  * Steps:
- *   1. fetchStatus          — load status (id, projectId, isSystem)
- *   2. guardSystemStatus    — throw FORBIDDEN if isSystem = true
- *   3. verifyProjectMember  — auth gate
- *   4. guardNonEmptyColumn  — throw CONFLICT if column has active issues
- *   5. softDeleteStatus     — set deletedAt = now()
+ *   1. fetchStatus               — load status (id, projectId, isSystem)
+ *   2. guardSystemStatus         — throw FORBIDDEN if isSystem = true
+ *   3. getProject                — cache-backed fetch for workspaceId
+ *   4. assertProjectMember       — auth gate (cache-backed)
+ *   5. assert issue.status:delete — RBAC permission check
+ *   6. guardNonEmptyColumn       — throw CONFLICT if column has active issues
+ *   7. softDeleteStatus          — set deletedAt = now()
  */
 import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
@@ -15,7 +17,6 @@ import type { DeleteIssueStatusInput } from "./schema";
 import type { DeleteIssueStatusResult } from "./types";
 import { fetchStatus } from "./steps/fetch-status";
 import { guardSystemStatus } from "./steps/guard-system-status";
-import { verifyProjectMember } from "./steps/verify-project-member";
 import { guardNonEmptyColumn } from "./steps/guard-non-empty-column";
 import { softDeleteStatus } from "./steps/soft-delete-status";
 
@@ -26,7 +27,9 @@ export const deleteIssueStatusHandler = async (
   ctx: ServiceContext
 ): Promise<DeleteIssueStatusResult> => {
   const { userId } = ctx.auth;
-  if (!userId) throw AppError.unauthorized("User not authenticated.");
+  if (!userId || !ctx.authGate || !ctx.permissions) {
+    throw AppError.unauthorized("User not authenticated.");
+  }
 
   logger.debug("deleteIssueStatus started", {
     userId,
@@ -35,7 +38,21 @@ export const deleteIssueStatusHandler = async (
 
   const existing = await fetchStatus(input.statusId, ctx.db);
   guardSystemStatus(existing.isSystem);
-  await verifyProjectMember(existing.projectId, userId, ctx.db);
+
+  const project = await ctx.authGate.getProject(existing.projectId);
+  if (!project) throw AppError.notFound("Project not found.");
+
+  const scope = {
+    type: "project" as const,
+    id: existing.projectId,
+    workspaceId: project.workspaceId,
+  };
+
+  await Promise.all([
+    ctx.authGate.assertProjectMember(existing.projectId),
+    ctx.permissions.assert("issue.status:delete", scope),
+  ]);
+
   await guardNonEmptyColumn(input.statusId, ctx.db);
   await softDeleteStatus(input.statusId, ctx.db);
 

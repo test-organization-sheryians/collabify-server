@@ -1,13 +1,16 @@
 /**
  * getWorkspaceInvites — Query Handler (thin orchestrator)
  *
+ * Auth:
+ *   - assertWorkspaceAdminOrAbove — FORBIDDEN if rank < ADMIN
+ *   - permissions.assert("workspace.member:invite") — RBAC check
  * Steps:
- *   1. verifyActorIsAtLeastAdmin — FORBIDDEN if rank < 80
- *   2. fetchPendingInvites       — load all non-expired invites
+ *   1. [auth] assertWorkspaceAdminOrAbove + assert("workspace.member:invite") — parallel
+ *   2. fetchPendingInvites — load all non-expired invites
  */
+import { AppError } from "@/shared/errors";
 import type { GetWorkspaceInvitesInput } from "./schema";
 import type { ServiceContext } from "@/graphql/types";
-import { verifyActorIsAtLeastAdmin } from "./steps/verify-actor-is-at-least-admin";
 import { fetchPendingInvites } from "./steps/fetch-pending-invites";
 
 export const getWorkspaceInvites = async (
@@ -17,6 +20,12 @@ export const getWorkspaceInvites = async (
   const { workspaceId, actorUserId } = input;
   const { db } = ctx;
 
-  await verifyActorIsAtLeastAdmin(workspaceId, actorUserId, db);
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
+  const scope = { type: "workspace" as const, id: workspaceId };
+  await Promise.all([
+    ctx.authGate.assertWorkspaceAdminOrAbove(workspaceId),
+    ctx.permissions.assert("workspace.member:invite", scope),
+  ]);
+
   return fetchPendingInvites(workspaceId, db);
 };

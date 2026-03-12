@@ -22,8 +22,26 @@ export const getVaultAncestorsHandler = async (
 ) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   try {
+    // Step 0 — derive projectId from folderId, assert project member
+    const folder = await ctx.db.vaultFolder.findFirst({
+      where: { id: input.folderId },
+      select: { projectId: true },
+    });
+    if (folder) {
+      const proj = await ctx.authGate.getProject(folder.projectId);
+      const scope = {
+        type: "project" as const,
+        id: folder.projectId,
+        workspaceId: proj?.workspaceId ?? "",
+      };
+      await Promise.all([
+        ctx.authGate.assertProjectMember(folder.projectId),
+        ctx.permissions.assert("vault:read", scope),
+      ]);
+    }
     return await fetchAncestors(input.folderId, ctx.db);
   } catch (error: unknown) {
     if (error instanceof AppError) throw error;

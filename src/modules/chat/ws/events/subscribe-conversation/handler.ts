@@ -21,24 +21,18 @@ export const subscribeConversationHandler = async (
   const { conversationId, conversationType } = input;
   const { userId, socketId } = socket.data;
 
-  // 1. Authorization: Verify user is a member of the conversation
-  const membership = await ctx.db.chatMember.findUnique({
-    where: {
-      conversationId_userId: {
-        conversationId,
-        userId,
-      },
-    },
-  });
-
-  if (!membership) {
+  // 1. Authorization: assertChannelMember (cache-backed)
+  if (!ctx.authGate || !ctx.permissions) {
+    socket.send(JSON.stringify({ type: "chat:subscribe-error", error: { code: "UNAUTHORIZED", message: "Not authenticated" } }));
+    return;
+  }
+  try {
+    await ctx.authGate.assertChannelMember(conversationId);
+  } catch {
     socket.send(
       JSON.stringify({
         type: "chat:subscribe-error",
-        error: {
-          code: "FORBIDDEN",
-          message: "You are not a member of this conversation",
-        },
+        error: { code: "FORBIDDEN", message: "You are not a member of this conversation" },
       })
     );
     return;

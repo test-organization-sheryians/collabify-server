@@ -8,11 +8,13 @@
 import { SlugUtil } from "@/shared/utils/slug.util";
 import type { ServiceContext } from "@/graphql/types";
 import type { GetProjectBySlugInput } from "./types";
+import { AppError } from "@/shared/errors";
 
 export const getProjectBySlug = async (
   input: GetProjectBySlugInput,
   ctx: ServiceContext
 ) => {
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
   const { workspaceId, slug } = input;
   const normalizedSlug = SlugUtil.sanitize(slug).toLowerCase();
 

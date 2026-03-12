@@ -29,6 +29,12 @@ export const editMessageHandler = async (
   });
 
   try {
+    // 0. Auth gate
+    if (!ctx.authGate) {
+      socket.send(createErrorFrame(nonce, "chat:edit-message", "UNAUTHORIZED", "Not authenticated"));
+      return;
+    }
+
     // 1️⃣ VALIDATION (BEFORE OUTBOX WRITE)
     const validation = await validateEditMessage(ctx.db, userId, messageId);
 

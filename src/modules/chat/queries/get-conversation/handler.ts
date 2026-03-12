@@ -17,8 +17,18 @@ export const handler = async (
   if (!userId) {
     throw AppError.unauthorized("User not authenticated");
   }
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   const { conversationId } = input;
+
+  // Step 0 — channel member gate + permission
+  const cachedChannel = await ctx.authGate.getChannel(conversationId);
+  if (!cachedChannel) throw AppError.notFound("Conversation not found");
+  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
+  await Promise.all([
+    ctx.authGate.assertChannelMember(conversationId),
+    ctx.permissions.assert("conversation:read", scope),
+  ]);
 
   // Fetch conversation with membership check
   // Note: We don't filter by deletedAt here because we want to allow

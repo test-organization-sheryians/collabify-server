@@ -2,16 +2,16 @@
  * getIssueDescriptionUrl — Query Handler
  *
  * Steps:
- *   1. fetchIssueForDescription — load only id, projectId, descriptionS3Key (lean select)
- *   2. verifyProjectMember      — auth gate
- *   3. generatePresignedGet     — presigned S3 GET URL (TTL: 60 min)
+ *   1. fetchIssueForDescription — load id, projectId, descriptionS3Key (lean)
+ *   2. getProject               — cache-backed fetch for workspaceId
+ *   3. assertProjectMember      — auth gate (cache-backed)
+ *   4. assert issue:read        — RBAC permission check
+ *   5. generatePresignedGet     — presigned S3 GET URL (TTL: 60 min)
  */
-
 import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
 import type { ServiceContext } from "@/graphql/types";
 import type { GetIssueDescriptionUrlInput } from "./schema";
-import { verifyProjectMember } from "./steps/verify-project-member";
 import { fetchIssueForDescription } from "./steps/fetch-issue";
 import { generatePresignedGet } from "./steps/generate-presigned-get";
 
@@ -22,7 +22,9 @@ export const getIssueDescriptionUrlHandler = async (
   ctx: ServiceContext
 ) => {
   const { userId } = ctx.auth;
-  if (!userId) throw AppError.unauthorized("User not authenticated.");
+  if (!userId || !ctx.authGate || !ctx.permissions) {
+    throw AppError.unauthorized("User not authenticated.");
+  }
 
   logger.debug("getIssueDescriptionUrl started", {
     userId,
@@ -30,7 +32,20 @@ export const getIssueDescriptionUrlHandler = async (
   });
 
   const issue = await fetchIssueForDescription(input.issueId, ctx.db);
-  await verifyProjectMember(issue.projectId, userId, ctx.db);
+  const project = await ctx.authGate.getProject(issue.projectId);
+  if (!project) throw AppError.notFound("Project not found.");
+
+  const scope = {
+    type: "project" as const,
+    id: issue.projectId,
+    workspaceId: project.workspaceId,
+  };
+
+  await Promise.all([
+    ctx.authGate.assertProjectMember(issue.projectId),
+    ctx.permissions.assert("issue:read", scope),
+  ]);
+
   const result = await generatePresignedGet(issue);
 
   logger.debug("getIssueDescriptionUrl done", { issueId: input.issueId });

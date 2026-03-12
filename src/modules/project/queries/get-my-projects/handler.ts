@@ -1,13 +1,16 @@
 /**
  * getMyProjects — Query Handler (thin orchestrator)
  *
+ * Auth:
+ *   - assertWorkspaceMember — cache-backed; FORBIDDEN if not a workspace member
+ *   - permissions.assert("project:read") — RBAC check
  * Steps:
- *   1. verifyWorkspaceMember — assert caller is workspace member; throw FORBIDDEN if not
- *   2. fetchProjects         — load all workspace projects ordered by createdAt desc
+ *   1. [auth] assertWorkspaceMember + assert("project:read") — parallel
+ *   2. fetchProjects — load all workspace projects ordered by createdAt desc
  */
+import { AppError } from "@/shared/errors";
 import type { ServiceContext } from "@/graphql/types";
 import type { GetMyProjectsInput } from "./types";
-import { verifyWorkspaceMember } from "./steps/verify-workspace-member";
 import { fetchProjects } from "./steps/fetch-projects";
 
 export const getMyProjects = async (
@@ -17,6 +20,13 @@ export const getMyProjects = async (
   const { workspaceId, userId } = input;
   const { db } = ctx;
 
-  await verifyWorkspaceMember(workspaceId, userId, db);
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
+
+  const scope = { type: "workspace" as const, id: workspaceId };
+  await Promise.all([
+    ctx.authGate.assertWorkspaceMember(workspaceId),
+    ctx.permissions.assert("project:read", scope),
+  ]);
+
   return fetchProjects(workspaceId, db);
 };

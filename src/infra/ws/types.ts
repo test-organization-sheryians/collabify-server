@@ -2,6 +2,8 @@ import { ServerWebSocket } from "bun";
 import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
 import { ZodSchema } from "zod";
+import type { AuthGate } from "@/modules/authorization/auth-gate/auth-gate";
+import type { PermissionEngine } from "@/modules/authorization/engine/permission-engine";
 
 /**
  * The Socket Data attached to every WebSocket connection.
@@ -31,6 +33,10 @@ export interface WSHandlerContext {
     userId: string;
     workspaceId: string;
   };
+  /** Cache-backed identity/membership checks — always present for authenticated sockets */
+  authGate: AuthGate | null;
+  /** RBAC permission engine — always present for authenticated sockets */
+  permissions: PermissionEngine | null;
 }
 
 /**

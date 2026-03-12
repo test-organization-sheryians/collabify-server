@@ -10,8 +10,18 @@ export const handler = async (
   if (!userId) {
     throw AppError.unauthorized("User not authenticated");
   }
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   const { workspaceId, threadId } = input;
+
+  // Step 0 — channel member gate + permission
+  const cachedChannel = await ctx.authGate.getChannel(threadId);
+  if (!cachedChannel) throw AppError.notFound("Thread not found");
+  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
+  await Promise.all([
+    ctx.authGate.assertChannelMember(threadId),
+    ctx.permissions.assert("conversation:update", scope),
+  ]);
 
   // Verify thread exists and user is member
   const thread = await ctx.db.chatConversation.findFirst({

@@ -10,6 +10,17 @@ export async function handler(input: GetHistoryInput, ctx: ServiceContext) {
 
   const fetchLimit = limit ?? 50;
 
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
+
+  // 1b. Authorization: Requester must be a member of the conversation
+  const cachedChannel = await ctx.authGate.getChannel(conversationId);
+  if (!cachedChannel) throw AppError.notFound("Conversation not found");
+  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
+  await Promise.all([
+    ctx.authGate.assertChannelMember(conversationId),
+    ctx.permissions.assert("conversation:read", scope),
+  ]);
+
   // 2. Query
   // Fetch limit + 1 to detect hasMore
   const messages = await ctx.db.chatMessage.findMany({

@@ -1,4 +1,5 @@
 import { ServiceContext } from "@/graphql/types";
+import { AppError } from "@/shared/errors";
 import type { User } from "@prisma/client";
 import type { GetMessageReactionsInput } from "./types";
 import {
@@ -18,27 +19,25 @@ export const handler = async (
   const { messageId } = input;
   const userId = ctx.auth.userId!;
 
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
+
   // ✅ M-8: Verify user has access to conversation
-  const message = await ctx.db.chatMessage.findFirst({
-    where: {
-      id: messageId,
-      conversation: {
-        members: {
-          some: {
-            userId,
-          },
-        },
-      },
-    },
-    select: {
-      id: true,
-      conversationId: true,
-    },
+  const message = await ctx.db.chatMessage.findUnique({
+    where: { id: messageId },
+    select: { conversationId: true },
   });
 
   if (!message) {
-    throw new Error("MESSAGE_NOT_FOUND_OR_NO_ACCESS");
+    throw AppError.notFound("Message not found");
   }
+
+  const cachedChannel = await ctx.authGate.getChannel(message.conversationId);
+  if (!cachedChannel) throw AppError.notFound("Channel not found");
+  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
+  await Promise.all([
+    ctx.authGate.assertChannelMember(message.conversationId),
+    ctx.permissions.assert("conversation:read", scope),
+  ]);
 
   // 1. Try Redis first (HOT PATH)
   let counts = await getReactionCounts(ctx.redis, messageId);

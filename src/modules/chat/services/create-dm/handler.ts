@@ -22,6 +22,7 @@ export const handler = async (
 ): Promise<CreateDmOutput> => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   const { workspaceId, projectId, recipientUserId } = input;
 
@@ -29,6 +30,18 @@ export const handler = async (
   if (userId === recipientUserId) {
     throw AppError.badRequest("Cannot create DM with yourself");
   }
+
+  // Step 0 — project member gate (cache-backed)
+  const proj = await ctx.authGate.getProject(projectId);
+  const scope = {
+    type: "project" as const,
+    id: projectId,
+    workspaceId: proj?.workspaceId ?? workspaceId,
+  };
+  await Promise.all([
+    ctx.authGate.assertProjectMember(projectId),
+    ctx.permissions.assert("conversation:create", scope),
+  ]);
 
   // 1. Verify project exists and is not archived/deleted
   const project = await ctx.db.project.findUnique({

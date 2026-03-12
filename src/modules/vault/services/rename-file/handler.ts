@@ -23,9 +23,24 @@ export const renameVaultFileHandler = async (
 ) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   try {
-    await fetchActiveFileForEdit(input.fileId, userId, ctx.db);
+    const fileRecord = await fetchActiveFileForEdit(
+      input.fileId,
+      userId,
+      ctx.db
+    );
+    const proj = await ctx.authGate.getProject(fileRecord.projectId);
+    const scope = {
+      type: "project" as const,
+      id: fileRecord.projectId,
+      workspaceId: proj?.workspaceId ?? "",
+    };
+    await Promise.all([
+      ctx.authGate.assertProjectMember(fileRecord.projectId),
+      ctx.permissions.assert("vault.file:update", scope),
+    ]);
     const file = await updateFileName(input.fileId, input.name, ctx.db);
 
     logger.info("Vault file renamed", {

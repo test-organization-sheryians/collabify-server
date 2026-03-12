@@ -26,9 +26,20 @@ export const moveVaultFileHandler = async (
 ) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   try {
     const file = await fetchActiveFileForEdit(input.fileId, userId, ctx.db);
+    const proj = await ctx.authGate.getProject(file.projectId);
+    const scope = {
+      type: "project" as const,
+      id: file.projectId,
+      workspaceId: proj?.workspaceId ?? "",
+    };
+    await Promise.all([
+      ctx.authGate.assertProjectMember(file.projectId),
+      ctx.permissions.assert("vault.file:update", scope),
+    ]);
     await validateTargetFolder(input.targetFolderId, file.projectId, ctx.db);
     const updated = await updateFileFolder(
       input.fileId,

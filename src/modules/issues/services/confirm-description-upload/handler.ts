@@ -4,9 +4,11 @@
  * Steps:
  *   1. fetchPendingFile        — load file record, assert status = PENDING
  *   2. fetchIssue              — load parent issue lean
- *   3. verifyProjectMember     — auth gate
- *   4. verifyS3Object          — HeadObject: confirm object exists, get contentLength
- *   5. activateFile            — tx: supersede old ACTIVE → activate this → update issue.descriptionS3Key
+ *   3. getProject              — cache-backed fetch for workspaceId
+ *   4. assertProjectMember     — auth gate (cache-backed)
+ *   5. assert issue:update     — RBAC permission check
+ *   6. verifyS3Object          — HeadObject: confirm object exists, get contentLength
+ *   7. activateFile            — tx: supersede old ACTIVE → activate this → update issue.descriptionS3Key
  */
 import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
@@ -15,7 +17,6 @@ import type { ConfirmDescriptionUploadInput } from "./schema";
 import type { ConfirmDescriptionUploadResult } from "./types";
 import { fetchPendingFile } from "./steps/fetch-pending-file";
 import { fetchIssue } from "./steps/fetch-issue";
-import { verifyProjectMember } from "./steps/verify-project-member";
 import { verifyS3Object } from "./steps/verify-s3-object";
 import { activateFile } from "./steps/activate-file";
 
@@ -26,7 +27,9 @@ export const confirmDescriptionUploadHandler = async (
   ctx: ServiceContext
 ): Promise<ConfirmDescriptionUploadResult> => {
   const { userId } = ctx.auth;
-  if (!userId) throw AppError.unauthorized("User not authenticated.");
+  if (!userId || !ctx.authGate || !ctx.permissions) {
+    throw AppError.unauthorized("User not authenticated.");
+  }
 
   logger.debug("confirmDescriptionUpload started", {
     userId,
@@ -35,7 +38,20 @@ export const confirmDescriptionUploadHandler = async (
 
   const fileRecord = await fetchPendingFile(input.descriptionFileId, ctx.db);
   const issue = await fetchIssue(fileRecord.issueId, ctx.db);
-  await verifyProjectMember(issue.projectId, userId, ctx.db);
+  const project = await ctx.authGate.getProject(issue.projectId);
+  if (!project) throw AppError.notFound("Project not found.");
+
+  const scope = {
+    type: "project" as const,
+    id: issue.projectId,
+    workspaceId: project.workspaceId,
+  };
+
+  await Promise.all([
+    ctx.authGate.assertProjectMember(issue.projectId),
+    ctx.permissions.assert("issue:update", scope),
+  ]);
+
   const meta = await verifyS3Object(fileRecord.s3Key);
   const updatedIssue = await activateFile(fileRecord, meta, ctx.db);
 

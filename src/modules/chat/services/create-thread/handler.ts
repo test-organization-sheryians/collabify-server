@@ -28,33 +28,16 @@ export const handler = async (
 
   const { workspaceId, projectId, conversationId, messageId } = input;
 
-  // 1. Validate project membership
-  const projectMembership = await ctx.db.projectMember.findUnique({
-    where: {
-      projectId_userId: {
-        projectId,
-        userId,
-      },
-    },
-  });
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
-  if (!projectMembership) {
-    throw AppError.forbidden("You are not a member of this project");
-  }
-
-  // 2. Validate parent conversation membership
-  const conversationMembership = await ctx.db.chatMember.findUnique({
-    where: {
-      conversationId_userId: {
-        conversationId,
-        userId,
-      },
-    },
-  });
-
-  if (!conversationMembership) {
-    throw AppError.forbidden("You are not a member of this conversation");
-  }
+  // Step 0 — member gates + permission
+  const proj = await ctx.authGate.getProject(projectId);
+  const scope = { type: "project" as const, id: projectId, workspaceId: proj?.workspaceId ?? workspaceId };
+  await Promise.all([
+    ctx.authGate.assertProjectMember(projectId),
+    ctx.authGate.assertChannelMember(conversationId),
+    ctx.permissions.assert("conversation:create", scope),
+  ]);
 
   // 3. Validate parent message exists and belongs to conversation
   const parentMessage = await ctx.db.chatMessage.findUnique({

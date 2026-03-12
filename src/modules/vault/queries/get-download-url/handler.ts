@@ -24,9 +24,21 @@ export const getVaultDownloadUrlHandler = async (
 ) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   try {
     const file = await fetchActiveFile(input.fileId, ctx.db);
+    // Step 0 — project member gate
+    const proj = await ctx.authGate.getProject(file.projectId);
+    const scope = {
+      type: "project" as const,
+      id: file.projectId,
+      workspaceId: proj?.workspaceId ?? "",
+    };
+    await Promise.all([
+      ctx.authGate.assertProjectMember(file.projectId),
+      ctx.permissions.assert("vault.file:read", scope),
+    ]);
     return generateDownloadUrl(file.s3Key);
   } catch (error: unknown) {
     if (error instanceof AppError) throw error;

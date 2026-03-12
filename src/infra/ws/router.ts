@@ -12,6 +12,7 @@ import {
 import { env } from "../../shared/config/env";
 import { db } from "@/infra/db";
 import { redis } from "@/infra/redis";
+import { createWSAuthContext } from "@/modules/authorization/context/ws-context";
 
 import { ping } from "./events/ping";
 
@@ -108,6 +109,7 @@ export class WSRouter {
     }
 
     // 4. Build WSHandlerContext (matches GraphQL pattern)
+    const wsAuth = createWSAuthContext(socket.data.userId, db, redis);
     const handlerContext: WSHandlerContext = {
       db,
       redis,
@@ -115,6 +117,8 @@ export class WSRouter {
         userId: socket.data.userId,
         workspaceId: socket.data.workspaceId,
       },
+      authGate: wsAuth.auth,
+      permissions: wsAuth.permissions,
     };
 
     // 5. Execute

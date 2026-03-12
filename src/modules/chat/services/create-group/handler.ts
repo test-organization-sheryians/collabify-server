@@ -23,8 +23,21 @@ export const handler = async (
 ): Promise<CreateGroupOutput> => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   const { workspaceId, projectId, name, memberUserIds } = input;
+
+  // Step 0 — project member gate (cache-backed)
+  const proj = await ctx.authGate.getProject(projectId);
+  const scope = {
+    type: "project" as const,
+    id: projectId,
+    workspaceId: proj?.workspaceId ?? workspaceId,
+  };
+  await Promise.all([
+    ctx.authGate.assertProjectMember(projectId),
+    ctx.permissions.assert("conversation:create", scope),
+  ]);
 
   // 1. Verify project exists and is not archived/deleted
   const project = await ctx.db.project.findUnique({

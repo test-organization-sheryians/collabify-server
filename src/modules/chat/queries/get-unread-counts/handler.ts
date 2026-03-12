@@ -1,4 +1,5 @@
 import type { ServiceContext } from "@/graphql/types";
+import { AppError } from "@/shared/errors";
 import type { GetUnreadCountsInput, GetUnreadCountsOutput } from "./schema";
 
 export const handler = async (
@@ -7,6 +8,9 @@ export const handler = async (
 ): Promise<GetUnreadCountsOutput> => {
   const { workspaceId, projectId } = input;
   const userId = ctx.auth.userId!;
+
+  if (!ctx.authGate) throw AppError.unauthorized();
+  await ctx.authGate.assertWorkspaceMember(workspaceId);
 
   // 1. Get user's conversations with sequences
   const members = await ctx.db.chatMember.findMany({

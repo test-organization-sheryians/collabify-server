@@ -20,6 +20,12 @@ export const removeReactionHandler = async (
   const { userId } = socket.data;
 
   try {
+    // 0. Authorization
+    if (!ctx.authGate) {
+      socket.send(createErrorFrame(undefined, "chat:remove-reaction", "UNAUTHORIZED", "Not authenticated"));
+      return;
+    }
+
     // 1. Get conversationId
     const message = await ctx.db.chatMessage.findUnique({
       where: { id: messageId },
@@ -37,6 +43,9 @@ export const removeReactionHandler = async (
       );
       return;
     }
+
+    // 1b. Assert conversation membership (cache-backed)
+    await ctx.authGate.assertChannelMember(message.conversationId);
 
     // 2. Remove reaction from Redis (Lua script - atomic)
     const { removed } = await removeReaction(ctx.redis, {

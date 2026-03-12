@@ -4,7 +4,7 @@
  * Updates the page title in the DB and broadcasts the change to connected clients.
  *
  * Execution:
- *   Step 1 — checkAccess  : page exists + EDITOR role gate
+ *   Step 1 — [auth] assertPageCollaborator + assert("page:update") — parallel (cache-backed)
  *   Step 2 — updateTitle  : page.update({ title })
  *   Step 3 — broadcast    : PUBLISH page:renamed with new title (best-effort)
  */
@@ -13,7 +13,6 @@ import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
 import type { ServiceContext } from "@/graphql/types";
 import type { RenamePageInput } from "./schema";
-import { checkAccess } from "./steps/check-access";
 import { updateTitle } from "./steps/update-title";
 import { broadcast } from "./steps/broadcast";
 
@@ -22,10 +21,23 @@ const logger = createLogger("pages:services:rename-page");
 export const handler = async (input: RenamePageInput, ctx: ServiceContext) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   try {
-    // Step 1 — EDITOR gate
-    await checkAccess(input.pageId, userId, ctx.db);
+    // Step 1 — EDITOR gate (cache-backed)
+    const cachedPage = await ctx.authGate.getPage(input.pageId);
+    if (!cachedPage) throw AppError.notFound("Page not found");
+    const proj = await ctx.authGate.getProject(cachedPage.projectId);
+    const scope = {
+      type: "resource" as const,
+      id: input.pageId,
+      projectId: cachedPage.projectId,
+      workspaceId: proj?.workspaceId ?? "",
+    };
+    await Promise.all([
+      ctx.authGate.assertPageCollaborator(input.pageId),
+      ctx.permissions.assert("page:update", scope),
+    ]);
 
     // Step 2 — DB update
     const page = await updateTitle(input.pageId, input.title, ctx.db);

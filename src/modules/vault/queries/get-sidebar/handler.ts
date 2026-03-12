@@ -24,8 +24,21 @@ export const getVaultSidebarHandler = async (
 ) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   try {
+    // Step 0 — project member gate (cache-backed)
+    const proj = await ctx.authGate.getProject(input.projectId);
+    const scope = {
+      type: "project" as const,
+      id: input.projectId,
+      workspaceId: proj?.workspaceId ?? "",
+    };
+    await Promise.all([
+      ctx.authGate.assertProjectMember(input.projectId),
+      ctx.permissions.assert("vault:read", scope),
+    ]);
+
     const [pinnedFolders, systemFolders] = await Promise.all([
       fetchPinnedFolders(userId, input.projectId, ctx.db),
       fetchSystemFolders(input.projectId, ctx.db),

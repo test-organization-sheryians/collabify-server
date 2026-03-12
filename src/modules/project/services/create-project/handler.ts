@@ -1,17 +1,20 @@
 /**
  * createProject — Service Handler (thin orchestrator)
  *
+ * Auth:
+ *   - assertWorkspaceMember — must be a workspace member to create projects
+ *   - permissions.assert("project:create") — RBAC check
  * Steps:
- *   1. verifyWorkspaceMember     — assert caller is workspace member
+ *   1. [auth] assertWorkspaceMember + assert("project:create") — parallel
  *   2. normalizeAndValidateSlug  — lowercase, sanitize, reject reserved keywords
  *   3. verifySlugReservation     — assert user holds Redis lock; return lockKey
  *   4. insertProject             — $transaction: project.create + projectMember.create
  *   5. finalizeProjectLock       — promote lock → exists-cache; swallow Redis errors
  */
+import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
 import type { ServiceContext } from "@/graphql/types";
 import type { CreateProjectInput } from "./types";
-import { verifyWorkspaceMember } from "./steps/verify-workspace-member";
 import { normalizeAndValidateSlug } from "./steps/normalize-and-validate-slug";
 import { verifySlugReservation } from "./steps/verify-slug-reservation";
 import { insertProject } from "./steps/insert-project";
@@ -30,6 +33,8 @@ export const createProject = async (
   const { workspaceId, input: rawInput, userId } = input;
   const { db, redis } = ctx;
 
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
+
   const sanitizedInput = {
     ...rawInput,
     name: rawInput.name.trim().replace(/[<>]/g, ""),
@@ -38,7 +43,12 @@ export const createProject = async (
       : undefined,
   };
 
-  await verifyWorkspaceMember(workspaceId, userId, db);
+  const scope = { type: "workspace" as const, id: workspaceId };
+  await Promise.all([
+    ctx.authGate.assertWorkspaceMember(workspaceId),
+    ctx.permissions.assert("project:create", scope),
+  ]);
+
   const slug = normalizeAndValidateSlug(
     sanitizedInput.slug ?? "",
     sanitizedInput.name

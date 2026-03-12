@@ -9,20 +9,16 @@ export const handler = async (
   const { userId } = ctx.auth;
   if (!userId)
     throw new AppError("User not authenticated", "UNAUTHORIZED", 401);
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
-  // 1. Authorization: Requester must be a member of the channel
-  const membership = await ctx.db.chatMember.findUnique({
-    where: {
-      conversationId_userId: {
-        conversationId: input.channelId,
-        userId,
-      },
-    },
-  });
-
-  if (!membership) {
-    throw AppError.forbidden("You are not a member of this channel");
-  }
+  // 1. Authorization: Step 0 — channel member gate + permission
+  const cachedChannel = await ctx.authGate.getChannel(input.channelId);
+  if (!cachedChannel) throw AppError.notFound("Channel not found");
+  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
+  await Promise.all([
+    ctx.authGate.assertChannelMember(input.channelId),
+    ctx.permissions.assert("conversation.member:read", scope),
+  ]);
 
   // 2. Fetch Members with Pagination
   return ctx.db.chatMember.findMany({

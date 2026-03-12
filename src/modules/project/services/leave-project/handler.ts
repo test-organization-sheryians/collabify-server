@@ -1,13 +1,15 @@
 /**
  * leaveProject — Service Handler (thin orchestrator)
  *
+ * Auth:
+ *   - assertProjectMember — cache-backed; FORBIDDEN if not a member (self-action)
  * Steps:
- *   1. verifyIsMember          — NOT_FOUND if actor is not a project member
+ *   1. [auth] assertProjectMember — membership gate (no RBAC needed)
  *   2. deleteProjectMembership — delete the actor's ProjectMember row
  */
+import { AppError } from "@/shared/errors";
 import type { LeaveProjectInput } from "./schema";
 import type { ServiceContext } from "@/graphql/types";
-import { verifyIsMember } from "./steps/verify-is-member";
 import { deleteProjectMembership } from "./steps/delete-project-membership";
 
 export const leaveProject = async (
@@ -17,7 +19,9 @@ export const leaveProject = async (
   const { projectId, actorUserId } = input;
   const { db } = ctx;
 
-  await verifyIsMember(projectId, actorUserId, db);
+  if (!ctx.authGate) throw AppError.unauthorized();
+
+  await ctx.authGate.assertProjectMember(projectId);
   await deleteProjectMembership(projectId, actorUserId, db);
   return true;
 };

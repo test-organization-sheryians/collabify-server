@@ -1,18 +1,20 @@
 /**
  * removeMember — Service Handler (thin orchestrator)
  *
+ * Auth:
+ *   - assertWorkspaceAdminOrAbove — FORBIDDEN if actor rank < ADMIN
+ *   - permissions.assert("workspace.member:remove") — RBAC check
  * Steps:
- *   1. fetchMembers           — load actor + target; throw NOT_FOUND if target missing
- *   2. verifyRemovePermission — assert isSelf || isOwner; throw FORBIDDEN if not
- *   3. guardLastOwner         — if target is OWNER, assert not the last one
- *   4. deleteMember           — delete workspaceMember record
+ *   1. [auth] assertWorkspaceAdminOrAbove + assert("workspace.member:remove") — parallel
+ *   2. guardLastOwner  — if target is OWNER, assert not the last one
+ *   3. deleteMember    — delete workspaceMember record
  */
+import { AppError } from "@/shared/errors";
 import type { RemoveMemberInput } from "./types";
 import type { ServiceContext } from "@/graphql/types";
-import { fetchMembers } from "./steps/fetch-members";
-import { verifyRemovePermission } from "./steps/verify-remove-permission";
 import { guardLastOwner } from "./steps/guard-last-owner";
 import { deleteMember } from "./steps/delete-member";
+import { fetchMembers } from "./steps/fetch-members";
 
 export const removeMember = async (
   input: RemoveMemberInput,
@@ -21,14 +23,16 @@ export const removeMember = async (
   const { workspaceId, memberId, actorUserId } = input;
   const { db } = ctx;
 
-  const { actorMember, targetMember } = await fetchMembers(
-    workspaceId,
-    memberId,
-    actorUserId,
-    db
-  );
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
+  const scope = { type: "workspace" as const, id: workspaceId };
+  const [, { targetMember }] = await Promise.all([
+    Promise.all([
+      ctx.authGate.assertWorkspaceAdminOrAbove(workspaceId),
+      ctx.permissions.assert("workspace.member:remove", scope),
+    ]),
+    fetchMembers(workspaceId, memberId, actorUserId, db),
+  ]);
 
-  verifyRemovePermission(actorMember, targetMember, actorUserId);
   await guardLastOwner(workspaceId, targetMember, db);
   await deleteMember(memberId, db);
 

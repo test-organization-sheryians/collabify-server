@@ -20,6 +20,12 @@ export const addReactionHandler = async (
   const { userId } = socket.data;
 
   try {
+    // 0. Authorization
+    if (!ctx.authGate) {
+      socket.send(createErrorFrame(tempId || messageId, "chat:add-reaction", "UNAUTHORIZED", "Not authenticated"));
+      return;
+    }
+
     // 1. Verify message exists and get conversationId
     const message = await ctx.db.chatMessage.findUnique({
       where: { id: messageId },
@@ -38,27 +44,8 @@ export const addReactionHandler = async (
       return;
     }
 
-    // 2. Verify user is conversation member
-    const membership = await ctx.db.chatMember.findUnique({
-      where: {
-        conversationId_userId: {
-          conversationId: message.conversationId,
-          userId,
-        },
-      },
-    });
-
-    if (!membership) {
-      socket.send(
-        createErrorFrame(
-          tempId || messageId,
-          "chat:add-reaction",
-          "FORBIDDEN",
-          "Not a conversation member"
-        )
-      );
-      return;
-    }
+    // 1b. Gate access by conversation membership (cache-backed)
+    await ctx.authGate.assertChannelMember(message.conversationId);
 
     // 3. Add reaction to Redis (Lua script - atomic)
     const { added } = await addReaction(ctx.redis, {

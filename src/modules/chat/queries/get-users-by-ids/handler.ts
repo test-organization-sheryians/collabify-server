@@ -1,4 +1,5 @@
 import { ServiceContext } from "@/graphql/types";
+import { AppError } from "@/shared/errors";
 import type { GetUsersByIdsInput } from "./types";
 import type { UserBasic } from "@/graphql/generated";
 
@@ -12,6 +13,7 @@ export const handler = async (
   input: GetUsersByIdsInput,
   ctx: ServiceContext
 ): Promise<UserBasic[]> => {
+  if (!ctx.auth.userId) throw AppError.unauthorized();
   const { userIds } = input;
 
   // Batch fetch users from database

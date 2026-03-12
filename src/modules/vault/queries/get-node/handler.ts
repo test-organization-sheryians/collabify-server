@@ -24,12 +24,36 @@ export const getVaultNodeHandler = async (
 ) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   try {
+    // Step 0 — derive projectId from node, assert project member
     if (input.type === "FOLDER") {
-      return await fetchFolderNode(input.id, ctx.db);
+      const node = await fetchFolderNode(input.id, ctx.db);
+      const proj = await ctx.authGate.getProject(node.projectId);
+      const scope = {
+        type: "project" as const,
+        id: node.projectId,
+        workspaceId: proj?.workspaceId ?? "",
+      };
+      await Promise.all([
+        ctx.authGate.assertProjectMember(node.projectId),
+        ctx.permissions.assert("vault:read", scope),
+      ]);
+      return node;
     }
-    return await fetchFileNode(input.id, ctx.db);
+    const node = await fetchFileNode(input.id, ctx.db);
+    const proj = await ctx.authGate.getProject(node.projectId);
+    const scope = {
+      type: "project" as const,
+      id: node.projectId,
+      workspaceId: proj?.workspaceId ?? "",
+    };
+    await Promise.all([
+      ctx.authGate.assertProjectMember(node.projectId),
+      ctx.permissions.assert("vault.file:read", scope),
+    ]);
+    return node;
   } catch (error: unknown) {
     if (error instanceof AppError) throw error;
     logger.error("Failed to get vault node", { err: error, userId, ...input });

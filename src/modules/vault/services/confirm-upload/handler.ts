@@ -26,10 +26,22 @@ export const confirmVaultUploadHandler = async (
 ) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   logger.debug("confirmVaultUpload started", { userId, fileId: input.fileId });
 
   const file = await validatePendingFile(input.fileId, userId, ctx.db);
+  // Step 0 — project member gate (cache-backed, using file.projectId)
+  const proj = await ctx.authGate.getProject(file.projectId);
+  const scope = {
+    type: "project" as const,
+    id: file.projectId,
+    workspaceId: proj?.workspaceId ?? "",
+  };
+  await Promise.all([
+    ctx.authGate.assertProjectMember(file.projectId),
+    ctx.permissions.assert("vault.file:create", scope),
+  ]);
   await verifyS3Object(file);
   const activeFile = await activateFile(file, ctx.db);
 

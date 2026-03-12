@@ -26,19 +26,15 @@ export const handler = async (
     throw AppError.badRequest("Cannot create DM with yourself");
   }
 
-  // Verify project membership
-  const projectMembership = await ctx.db.projectMember.findUnique({
-    where: {
-      projectId_userId: {
-        projectId,
-        userId,
-      },
-    },
-  });
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
-  if (!projectMembership) {
-    throw AppError.forbidden("You are not a member of this project");
-  }
+  // Verify project membership
+  const proj = await ctx.authGate.getProject(projectId);
+  const scope = { type: "project" as const, id: projectId, workspaceId: proj?.workspaceId ?? workspaceId };
+  await Promise.all([
+    ctx.authGate.assertProjectMember(projectId),
+    ctx.permissions.assert("conversation:read", scope),
+  ]);
 
   // Find DM with both users (project-scoped)
   const dm = await ctx.db.chatConversation.findFirst({

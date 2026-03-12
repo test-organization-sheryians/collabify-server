@@ -10,14 +10,14 @@ import type { DeleteBoardInput, DeleteBoardResult } from "./types";
 const logger = createLogger("whiteboard:services:delete-board");
 
 /**
- * Delete Board Handler
+ * deleteBoard — Service Handler
  *
- * Soft-deletes a whiteboard by setting deletedAt timestamp.
- * Only the creator can delete a board (core-first approach).
+ * Soft-deletes a whiteboard. Only the creator can delete.
  *
- * Post-delete:
- * 1. Broadcasts board:deleted to all connected users via Redis pub/sub
- * 2. Fire-and-forgets async cleanup of Redis keys + S3 snapshots
+ * Auth:
+ *   - assertBoardCollaborator — cache-backed membership gate
+ *   - permissions.assert("board:delete") — RBAC check
+ * Note: creator-only rule preserved after auth gate
  */
 export const handler = async (
   input: DeleteBoardInput,
@@ -25,11 +25,27 @@ export const handler = async (
 ): Promise<DeleteBoardResult> => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   const { boardId } = input;
 
   try {
-    // 1. Fetch board + authorization check inside a transaction for atomicity
+    // Step 1 — collaborator gate (cache-backed)
+    const cachedBoard = await ctx.authGate.getBoard(boardId);
+    if (!cachedBoard) throw AppError.notFound("Whiteboard not found");
+    const proj = await ctx.authGate.getProject(cachedBoard.projectId);
+    const scope = {
+      type: "resource" as const,
+      id: boardId,
+      projectId: cachedBoard.projectId,
+      workspaceId: proj?.workspaceId ?? "",
+    };
+    await Promise.all([
+      ctx.authGate.assertBoardCollaborator(boardId),
+      ctx.permissions.assert("board:delete", scope),
+    ]);
+
+    // Step 2 — fetch board + creator check, soft-delete atomically
     const board = await ctx.db.$transaction(async (tx) => {
       const found = await tx.whiteboard.findUnique({
         where: { id: boardId },
@@ -41,24 +57,15 @@ export const handler = async (
         },
       });
 
-      if (!found) {
-        throw AppError.notFound("Whiteboard not found");
-      }
-
-      if (found.deletedAt) {
+      if (!found) throw AppError.notFound("Whiteboard not found");
+      if (found.deletedAt)
         throw AppError.badRequest("Whiteboard already deleted");
-      }
-
-      if (found.createdBy !== userId) {
+      if (found.createdBy !== userId)
         throw AppError.forbidden("Only the creator can delete this whiteboard");
-      }
 
-      // 2. Soft delete with audit trail
       return tx.whiteboard.update({
         where: { id: boardId },
-        data: {
-          deletedAt: new Date(),
-        },
+        data: { deletedAt: new Date() },
         select: { id: true, workspaceId: true },
       });
     });
@@ -69,13 +76,8 @@ export const handler = async (
       workspaceId: board.workspaceId,
     });
 
-    // 3. Broadcast board:deleted to all connected users via Redis pub/sub
-    //
-    // Pattern: publish raw createSuccessFrame string (subscribe-board pattern)
-    // redis-subscriber.ts parses it, finds no `message` key, dispatches raw string to all sockets
-    // Do NOT use { message, originSocketId } wrapper — we want ALL subscribers notified (no self-exclusion)
     const boardDeletedFrame = createSuccessFrame(
-      undefined, // No request ID — this is a broadcast
+      undefined,
       "whiteboard:board-deleted",
       {
         boardId,
@@ -84,22 +86,17 @@ export const handler = async (
       }
     );
 
-    logger.info("Broadcasting board:deleted to subscribers", { boardId });
     appRedis
       .publish(WhiteboardKeys.BoardEvents(boardId), boardDeletedFrame)
       .catch((err) =>
         logger.error("Failed to publish board:deleted event", { boardId, err })
       );
 
-    // 4. Fire-and-forget resource cleanup (Redis + S3)
     cleanupBoardResources(boardId, appRedis).catch((err) =>
       logger.error("Board resource cleanup failed", { boardId, err })
     );
 
-    return {
-      success: true,
-      boardId,
-    };
+    return { success: true, boardId };
   } catch (error: unknown) {
     if (error instanceof AppError) throw error;
     logger.error("Failed to delete whiteboard", { boardId, err: error });

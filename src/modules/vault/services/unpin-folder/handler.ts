@@ -21,8 +21,25 @@ export const unpinVaultFolderHandler = async (
 ) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   try {
+    // Step 0 — look up projectId from folder, then assert project member
+    const folder = await ctx.db.vaultFolder.findFirst({
+      where: { id: input.folderId },
+      select: { projectId: true },
+    });
+    if (folder) {
+      const proj = await ctx.authGate.getProject(folder.projectId);
+      const scope = {
+        type: "project" as const,
+        id: folder.projectId,
+        workspaceId: proj?.workspaceId ?? "",
+      };
+      await ctx.authGate.assertProjectMember(folder.projectId);
+      await ctx.permissions.assert("vault.folder:read", scope);
+    }
+
     await deletePin(userId, input.folderId, ctx.db);
 
     logger.info("Vault folder unpinned", {

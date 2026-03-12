@@ -6,6 +6,7 @@ export const getWorkspaceBySlug = async (
   input: GetWorkspaceBySlugInput,
   ctx: ServiceContext
 ) => {
+  if (!ctx.auth.userId) throw AppError.unauthorized();
   const { userId, slug } = input;
   const { db } = ctx;
 

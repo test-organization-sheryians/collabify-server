@@ -10,10 +10,20 @@ export const handler = async (
   if (!userId) {
     throw AppError.unauthorized("User not authenticated");
   }
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   const { workspaceId, groupId } = input;
 
-  // Verify group exists and user is member
+  // Step 0 — channel member gate + permission
+  const cachedChannel = await ctx.authGate.getChannel(groupId);
+  if (!cachedChannel) throw AppError.notFound("Group not found");
+  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
+  await Promise.all([
+    ctx.authGate.assertChannelMember(groupId),
+    ctx.permissions.assert("conversation:delete", scope),
+  ]);
+
+  // Verify group exists and user is member (still needed to get members for fanout)
   const group = await ctx.db.chatConversation.findFirst({
     where: {
       id: groupId,

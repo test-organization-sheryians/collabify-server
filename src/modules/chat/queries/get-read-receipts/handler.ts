@@ -1,4 +1,5 @@
 import type { ServiceContext } from "@/graphql/types";
+import { AppError } from "@/shared/errors";
 import type { GetReadReceiptsInput, ReadReceiptsOutput } from "./schema";
 import {
   getUsersWhoRead,
@@ -10,6 +11,7 @@ export const handler = async (
   ctx: ServiceContext
 ): Promise<ReadReceiptsOutput> => {
   const { messageId } = input;
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   // 1. Get message + conversation
   const message = await ctx.db.chatMessage.findUnique({
@@ -21,8 +23,16 @@ export const handler = async (
   });
 
   if (!message) {
-    throw new Error("MESSAGE_NOT_FOUND");
+    throw AppError.notFound("Message not found");
   }
+
+  const cachedChannel = await ctx.authGate.getChannel(message.conversationId);
+  if (!cachedChannel) throw AppError.notFound("Channel not found");
+  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
+  await Promise.all([
+    ctx.authGate.assertChannelMember(message.conversationId),
+    ctx.permissions.assert("conversation:read", scope),
+  ]);
 
   // 2. Try Redis first (fast path)
   const readCount = await getMessageReadCount(messageId);

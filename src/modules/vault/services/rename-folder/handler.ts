@@ -23,9 +23,20 @@ export const renameVaultFolderHandler = async (
 ) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   try {
-    await fetchEditableFolder(input.folderId, ctx.db);
+    const editableFolder = await fetchEditableFolder(input.folderId, ctx.db);
+    const proj = await ctx.authGate.getProject(editableFolder.projectId);
+    const scope = {
+      type: "project" as const,
+      id: editableFolder.projectId,
+      workspaceId: proj?.workspaceId ?? "",
+    };
+    await Promise.all([
+      ctx.authGate.assertProjectMember(editableFolder.projectId),
+      ctx.permissions.assert("vault.folder:update", scope),
+    ]);
     const folder = await updateFolderName(input.folderId, input.name, ctx.db);
 
     logger.info("Vault folder renamed", {

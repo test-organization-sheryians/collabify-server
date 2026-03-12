@@ -7,10 +7,11 @@ import type {
 } from "./types";
 
 /**
- * Add Board Collaborators Handler
+ * addBoardCollaborators — Service Handler
  *
- * Grants users access to a whiteboard.
- * Only workspace members can be added.
+ * Auth:
+ *   - assertBoardCollaborator — cache-backed; FORBIDDEN if not a collaborator
+ *   - permissions.assert("board.collaborator:add") — RBAC check
  */
 export const handler = async (
   input: AddBoardCollaboratorsInput,
@@ -18,67 +19,50 @@ export const handler = async (
 ): Promise<AddBoardCollaboratorsResult> => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   const { boardId, userIds } = input;
 
   try {
-    // 1. Get board and verify requester has access
-    const board = await ctx.db.whiteboard.findUnique({
-      where: { id: boardId },
-      select: {
-        id: true,
-        workspaceId: true,
-        createdBy: true,
-      },
-    });
+    // Step 1 — collaborator gate (cache-backed)
+    const cachedBoard = await ctx.authGate.getBoard(boardId);
+    if (!cachedBoard) throw AppError.notFound("Whiteboard not found");
+    const proj = await ctx.authGate.getProject(cachedBoard.projectId);
+    const scope = {
+      type: "resource" as const,
+      id: boardId,
+      projectId: cachedBoard.projectId,
+      workspaceId: proj?.workspaceId ?? "",
+    };
+    await Promise.all([
+      ctx.authGate.assertBoardCollaborator(boardId),
+      ctx.permissions.assert("board.collaborator:add", scope),
+    ]);
 
-    if (!board) {
-      throw AppError.notFound("Whiteboard not found");
-    }
-
-    // Check requester is creator or collaborator
-    const hasAccess =
-      board.createdBy === userId ||
-      (await ctx.db.whiteboardCollaborator.findFirst({
-        where: { whiteboardId: boardId, userId },
-      }));
-
-    if (!hasAccess) {
-      throw AppError.forbidden("You do not have access to this whiteboard");
-    }
-
-    // 2. Validate all users are workspace members
+    // Step 2 — validate all users are workspace members
     const workspaceMembers = await ctx.db.workspaceMember.findMany({
-      where: {
-        workspaceId: board.workspaceId,
-        userId: { in: userIds },
-      },
+      where: { workspaceId: proj?.workspaceId ?? "", userId: { in: userIds } },
       select: { userId: true },
     });
 
     const validUserIds = workspaceMembers.map((m) => m.userId);
-
     if (validUserIds.length !== userIds.length) {
       throw AppError.badRequest(
         "One or more users are not members of this workspace"
       );
     }
 
-    // 3. Batch insert collaborators (ignore duplicates)
+    // Step 3 — batch insert collaborators (ignore duplicates)
     let addedCount = 0;
     let skippedCount = 0;
 
     for (const uid of validUserIds) {
       try {
         await ctx.db.whiteboardCollaborator.create({
-          data: {
-            whiteboardId: boardId,
-            userId: uid,
-          },
+          data: { whiteboardId: boardId, userId: uid },
         });
         addedCount++;
       } catch (error) {
-        // If unique constraint violation, skip
         if (
           error instanceof Prisma.PrismaClientKnownRequestError &&
           error.code === "P2002"
@@ -90,11 +74,7 @@ export const handler = async (
       }
     }
 
-    return {
-      success: true,
-      addedCount,
-      skippedCount,
-    };
+    return { success: true, addedCount, skippedCount };
   } catch (error: unknown) {
     if (error instanceof AppError) throw error;
     throw new AppError("Failed to add collaborators");

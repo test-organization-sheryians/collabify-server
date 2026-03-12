@@ -3,10 +3,11 @@ import { AppError } from "@/shared/errors";
 import type { UpdateBoardDescriptionInput } from "./types";
 
 /**
- * Update Board Description Handler
+ * updateBoardDescription — Service Handler
  *
- * Updates the whiteboard description.
- * User must be a collaborator to update.
+ * Auth:
+ *   - assertBoardCollaborator — cache-backed; FORBIDDEN if not a collaborator
+ *   - permissions.assert("board:update") — RBAC check
  */
 export const handler = async (
   input: UpdateBoardDescriptionInput,
@@ -14,23 +15,27 @@ export const handler = async (
 ) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   const { boardId, description } = input;
 
   try {
-    // 1. Check if user is a collaborator
-    const collaborator = await ctx.db.whiteboardCollaborator.findFirst({
-      where: {
-        whiteboardId: boardId,
-        userId,
-      },
-    });
+    // Step 1 — collaborator gate (cache-backed)
+    const cachedBoard = await ctx.authGate.getBoard(boardId);
+    if (!cachedBoard) throw AppError.notFound("Whiteboard not found");
+    const proj = await ctx.authGate.getProject(cachedBoard.projectId);
+    const scope = {
+      type: "resource" as const,
+      id: boardId,
+      projectId: cachedBoard.projectId,
+      workspaceId: proj?.workspaceId ?? "",
+    };
+    await Promise.all([
+      ctx.authGate.assertBoardCollaborator(boardId),
+      ctx.permissions.assert("board:update", scope),
+    ]);
 
-    if (!collaborator) {
-      throw AppError.forbidden("You do not have access to this whiteboard");
-    }
-
-    // 2. Update the board description
+    // Step 2 — update description
     const board = await ctx.db.whiteboard.update({
       where: { id: boardId },
       data: { description },

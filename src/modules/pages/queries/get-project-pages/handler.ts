@@ -5,7 +5,7 @@
  * Archived pages are included — client decides whether to display the archive section.
  *
  * Execution:
- *   Step 1 — checkAccess     : project exists + workspace membership gate
+ *   Step 1 — [auth] assertProjectMember + assert("page:read") — parallel (cache-backed)
  *   Step 2 — fetchFlatPages  : single DB query (position ASC)
  *   Step 3 — buildTree       : O(N) in-memory BFS — pure sync, no IO
  */
@@ -14,7 +14,6 @@ import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
 import type { ServiceContext } from "@/graphql/types";
 import type { GetProjectPagesInput } from "./schema";
-import { checkAccess } from "./steps/check-access";
 import { fetchFlatPages } from "./steps/fetch-flat-pages";
 import { buildTree } from "./steps/build-tree";
 
@@ -26,10 +25,21 @@ export const getProjectPagesHandler = async (
 ) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   try {
-    // Step 1 — project exists + workspace member check
-    await checkAccess(input.projectId, userId, ctx.db);
+    // Step 1 — project member gate (cache-backed)
+    const proj = await ctx.authGate.getProject(input.projectId);
+    if (!proj) throw AppError.notFound("Project not found");
+    const scope = {
+      type: "project" as const,
+      id: input.projectId,
+      workspaceId: proj.workspaceId,
+    };
+    await Promise.all([
+      ctx.authGate.assertProjectMember(input.projectId),
+      ctx.permissions.assert("page:read", scope),
+    ]);
 
     // Step 2 — flat DB fetch (all non-deleted pages, position ASC)
     const flat = await fetchFlatPages(input.projectId, userId, ctx.db);

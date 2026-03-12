@@ -18,10 +18,20 @@ export const handler = async (
   if (!userId) {
     throw AppError.unauthorized("User not authenticated");
   }
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   const { workspaceId, channelId } = input;
 
-  // Fetch channel
+  // Step 0 — channel member gate + permission
+  const cachedChannel = await ctx.authGate.getChannel(channelId);
+  if (!cachedChannel) throw AppError.notFound("Channel not found");
+  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
+  await Promise.all([
+    ctx.authGate.assertChannelMember(channelId),
+    ctx.permissions.assert("channel:delete", scope),
+  ]);
+
+  // Fetch channel (still needed for archived check + members for fanout)
   const channel = await ctx.db.chatConversation.findFirst({
     where: {
       id: channelId,

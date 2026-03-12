@@ -18,12 +18,14 @@ export async function validateAccess(
   ctx: ServiceContext,
   userId: string
 ): Promise<void> {
-  // 1 — Workspace membership
-  const member = await ctx.db.workspaceMember.findUnique({
-    where: { workspaceId_userId: { workspaceId: input.workspaceId, userId } },
-  });
-  if (!member)
-    throw AppError.forbidden("You are not a member of this workspace");
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
+
+  // 1 — Workspace membership (cache-backed)
+  const scope = { type: "workspace" as const, id: input.workspaceId };
+  await Promise.all([
+    ctx.authGate.assertWorkspaceMember(input.workspaceId),
+    ctx.permissions.assert("page:create", scope),
+  ]);
 
   // 2 — Project belongs to the workspace
   const project = await ctx.db.project.findUnique({

@@ -20,23 +20,32 @@ export async function validateAccess(
   ctx: ServiceContext,
   userId: string
 ): Promise<PageRow> {
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
+
+  // Step 0a — page collaborator gate (cache-backed); fetch workspaceId for scope
+  await ctx.authGate.assertPageCollaborator(input.pageId);
+
   const page = await ctx.db.page.findFirst({
     where: {
       id: input.pageId,
       deletedAt: null,
-      OR: [{ createdBy: userId }, { collaborators: { some: { userId } } }],
     },
     select: {
       id: true,
       s3Key: true,
       lastSnapshotStreamId: true,
       lastSnapshotAt: true,
+      workspaceId: true,
     },
   });
 
   if (!page) {
-    throw AppError.forbidden("Page not found or you do not have access");
+    throw AppError.notFound("Page not found");
   }
 
-  return page;
+  // Step 0b — RBAC permission check (workspace-scoped)
+  await ctx.permissions.assert("page:read", { type: "workspace", id: page.workspaceId });
+
+  const { workspaceId: _ws, ...pageRow } = page;
+  return pageRow as PageRow;
 }

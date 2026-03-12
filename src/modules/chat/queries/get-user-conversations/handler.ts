@@ -34,6 +34,23 @@ export const handler = async (
     cursor,
   } = getUserConversationsSchema.parse(input);
 
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
+
+  // Authorization: Step 0
+  if (projectId) {
+    const proj = await ctx.authGate.getProject(projectId);
+    const scope = { type: "project" as const, id: projectId, workspaceId: proj?.workspaceId ?? workspaceId };
+    await Promise.all([
+      ctx.authGate.assertProjectMember(projectId),
+      ctx.permissions.assert("conversation:read", scope),
+    ]);
+  } else {
+    await Promise.all([
+      ctx.authGate.assertWorkspaceMember(workspaceId),
+      ctx.permissions.assert("conversation:read", { type: "workspace", id: workspaceId }),
+    ]);
+  }
+
   // ──────────────────────────────────────────────────────────────────────────
   // Build query with filters
   // ──────────────────────────────────────────────────────────────────────────

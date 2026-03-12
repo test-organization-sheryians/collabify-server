@@ -1,13 +1,16 @@
 /**
  * updateWorkspace — Service Handler (thin orchestrator)
  *
+ * Auth:
+ *   - assertWorkspaceAdminOrAbove — cache-backed; FORBIDDEN if rank < ADMIN
+ *   - permissions.assert("workspace:update") — RBAC check
  * Steps:
- *   1. verifyActorIsAtLeastAdmin — FORBIDDEN if actor rank < 80 (ADMIN)
- *   2. updateWorkspaceFields     — update name/logoUrl/domainWhitelist; return workspace
+ *   1. [auth] assertWorkspaceAdminOrAbove + assert("workspace:update") — parallel
+ *   2. updateWorkspaceFields — update name/logoUrl/domainWhitelist; return workspace
  */
+import { AppError } from "@/shared/errors";
 import type { UpdateWorkspaceInput } from "./schema";
 import type { ServiceContext } from "@/graphql/types";
-import { verifyActorIsAtLeastAdmin } from "./steps/verify-actor-is-at-least-admin";
 import { updateWorkspaceFields } from "./steps/update-workspace-fields";
 
 export const updateWorkspace = async (
@@ -17,7 +20,13 @@ export const updateWorkspace = async (
   const { workspaceId, actorUserId, name, logoUrl, domainWhitelist } = input;
   const { db } = ctx;
 
-  await verifyActorIsAtLeastAdmin(workspaceId, actorUserId, db);
+  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
+  const scope = { type: "workspace" as const, id: workspaceId };
+  await Promise.all([
+    ctx.authGate.assertWorkspaceAdminOrAbove(workspaceId),
+    ctx.permissions.assert("workspace:update", scope),
+  ]);
+
   return updateWorkspaceFields(
     workspaceId,
     { name, logoUrl, domainWhitelist },

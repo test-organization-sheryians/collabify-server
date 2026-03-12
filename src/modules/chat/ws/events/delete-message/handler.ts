@@ -28,6 +28,12 @@ export const deleteMessageHandler = async (
   });
 
   try {
+    // 0. Auth gate
+    if (!ctx.authGate) {
+      socket.send(createErrorFrame(nonce, "chat:delete-message", "UNAUTHORIZED", "Not authenticated"));
+      return;
+    }
+
     // 1️⃣ VALIDATION
     const validation = await validateDeleteMessage(ctx.db, userId, messageId);
 

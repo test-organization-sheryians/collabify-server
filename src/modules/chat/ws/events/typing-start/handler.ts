@@ -16,15 +16,9 @@ export const typingStartHandler = async (
   const { userId } = socket.data;
 
   try {
-    // 1. Verify membership
-    const member = await ctx.db.chatMember.findFirst({
-      where: { conversationId, userId },
-    });
-
-    if (!member) {
-      logger.warn("Typing-start: Member not found", { userId, conversationId });
-      return;
-    }
+    // 1. Verify membership (cache-backed)
+    if (!ctx.authGate) { return; }
+    await ctx.authGate.assertChannelMember(conversationId);
 
     // 2. Set typing state in Redis (auto-expires in 5s)
     await setTyping(conversationId, userId);
