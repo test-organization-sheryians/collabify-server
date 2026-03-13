@@ -27,5 +27,10 @@ export const getWorkspaceMembers = async (
     ctx.permissions.assert("workspace.member:read", scope),
   ]);
 
-  return fetchMembers(workspaceId, db);
+  const members = await fetchMembers(workspaceId, db);
+
+  return members.map((m) => ({
+    ...m,
+    role: m.assignedRole.name,
+  }));
 };

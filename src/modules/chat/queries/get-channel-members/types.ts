@@ -1,23 +1,5 @@
-import type { ChatMember } from "@prisma/client";
-
-/**
- * Explicit DB row shape returned by fetchChannelMembers step.
- * Mirrors the `select` clause in steps/fetch-channel-members.ts.
- * Aligns 1:1 with the ChatMemberRecord SDL fields.
- */
-export type ChannelMemberRow = Pick<
-  ChatMember,
-  | "id"
-  | "conversationId"
-  | "userId"
-  | "lastReadMsgId"
-  | "lastDeliveredMsgId"
-  | "lastReadSeq"
-  | "lastReadAt"
-  | "role"
-  | "isMuted"
-  | "joinedAt"
->;
-
-export type GetChannelMembersResult = ChannelMemberRow[];
-
+// ── DB row types — re-exported from the step that owns them ──────────────────
+// The select const lives in fetch-channel-members.ts, next to the query.
+// ChannelMemberRow derives from it via Prisma.ChatMemberGetPayload so it
+// can never drift from the actual select shape.
+export type { ChannelMemberRow, GetChannelMembersResult } from "./steps/fetch-channel-members";

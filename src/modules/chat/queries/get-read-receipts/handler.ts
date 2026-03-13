@@ -1,101 +1,36 @@
-import type { ServiceContext } from "@/graphql/types";
+import { createLogger } from "@/shared/lib/logger";
 import { AppError } from "@/shared/errors";
+import type { ServiceContext } from "@/graphql/types";
 import type { GetReadReceiptsInput, ReadReceiptsOutput } from "./schema";
-import {
-  getUsersWhoRead,
-  getMessageReadCount,
-} from "@/modules/chat/domain/read-receipts/redis-ops";
+import { assertAccess } from "./steps/assert-access";
+import { fetchReadReceipts } from "./steps/fetch-read-receipts";
 
+const log = createLogger("chat:queries:get-read-receipts");
+
+/**
+ * getReadReceipts — returns users who have read a message, with Redis-first fallback.
+ *
+ * Steps:
+ *  1. assertAccess      — message → channel auth gate, returns { conversationId, sequence }
+ *  2. fetchReadReceipts — Redis reader IDs, then DB watermark fallback
+ *
+ * @throws AppError 401  if not authenticated
+ * @throws AppError 404  if message or channel not found
+ * @throws AppError 403  if not a member or lacks conversation:read
+ */
 export const handler = async (
   input: GetReadReceiptsInput,
   ctx: ServiceContext
 ): Promise<ReadReceiptsOutput> => {
-  const { messageId } = input;
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
-
-  // 1. Get message + conversation
-  const message = await ctx.db.chatMessage.findUnique({
-    where: { id: messageId },
-    select: {
-      conversationId: true,
-      sequence: true,
-    },
-  });
-
-  if (!message) {
-    throw AppError.notFound("Message not found");
-  }
-
-  const cachedChannel = await ctx.authGate.getChannel(message.conversationId);
-  if (!cachedChannel) throw AppError.notFound("Channel not found");
-  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
-  await Promise.all([
-    ctx.authGate.assertChannelMember(message.conversationId),
-    ctx.permissions.assert("conversation:read", scope),
-  ]);
-
-  // 2. Try Redis first (fast path)
-  const readCount = await getMessageReadCount(messageId);
-  const readerIds = await getUsersWhoRead(
-    message.conversationId,
-    message.sequence
-  );
-
-  if (readerIds.length > 0) {
-    // Fetch user details
-    const users = await ctx.db.user.findMany({
-      where: { id: { in: readerIds } },
-      select: {
-        id: true,
-        fullName: true,
-        avatarUrl: true,
-      },
+  try {
+    const { conversationId, sequence } = await assertAccess(input.messageId, ctx);
+    return await fetchReadReceipts(input.messageId, conversationId, sequence, ctx);
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    log.error("[get-read-receipts] Unexpected failure", {
+      err,
+      messageId: input.messageId,
     });
-
-    // Get total members
-    const totalMembers = await ctx.db.chatMember.count({
-      where: { conversationId: message.conversationId },
-    });
-
-    return {
-      readBy: users.map((u) => ({
-        userId: u.id,
-        username: u.fullName || "Unknown",
-        avatarUrl: u.avatarUrl,
-      })),
-      totalReads: readCount || readerIds.length,
-      totalMembers,
-    };
+    throw err;
   }
-
-  // 3. Fallback: DB watermarks (for older messages)
-  const readers = await ctx.db.chatMember.findMany({
-    where: {
-      conversationId: message.conversationId,
-      lastReadSeq: { gte: message.sequence },
-    },
-    select: {
-      user: {
-        select: {
-          id: true,
-          fullName: true,
-          avatarUrl: true,
-        },
-      },
-    },
-  });
-
-  const totalMembers = await ctx.db.chatMember.count({
-    where: { conversationId: message.conversationId },
-  });
-
-  return {
-    readBy: readers.map((r) => ({
-      userId: r.user.id,
-      username: r.user.fullName || "Unknown",
-      avatarUrl: r.user.avatarUrl,
-    })),
-    totalReads: readers.length,
-    totalMembers,
-  };
 };

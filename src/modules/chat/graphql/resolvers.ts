@@ -10,12 +10,17 @@ export const resolvers: Resolvers = {
       await requireUser(ctx);
       const input =
         queries.getThreadMessages.getThreadMessagesSchema.parse(args);
-      return queries.getThreadMessages.handler(input, ctx);
+      const msgs = await queries.getThreadMessages.handler(input, ctx);
+      // Stubs for computed fields — ChatMessage field resolvers override these at runtime
+      return msgs.map((m) => ({ ...m, replyCount: 0, isEdited: false, editedAt: null }));
     },
     getMessageById: async (_, args, ctx) => {
       await requireUser(ctx);
       const input = queries.getMessageById.getMessageByIdSchema.parse(args);
-      return queries.getMessageById.handler(input, ctx);
+      const msg = await queries.getMessageById.handler(input, ctx);
+      if (!msg) return null;
+      // Stubs for computed fields — ChatMessage field resolvers override these at runtime
+      return { ...msg, replyCount: 0, isEdited: false, editedAt: null };
     },
     // @ts-expect-error - Field resolvers (ChatMessage.replyCount, isEdited, editedAt) compute missing fields
     getMessagesAfterCursor: async (_, args, ctx) => {
@@ -28,7 +33,9 @@ export const resolvers: Resolvers = {
       await requireUser(ctx);
       const input =
         queries.getMissingMessages.getMissingMessagesSchema.parse(args);
-      return queries.getMissingMessages.handler(input, ctx);
+      const msgs = await queries.getMissingMessages.handler(input, ctx);
+      // Stubs for computed fields — ChatMessage field resolvers override these at runtime
+      return msgs.map((m) => ({ ...m, replyCount: 0, isEdited: false, editedAt: null }));
     },
     getChannelMembers: async (_, args, ctx) => {
       await requireUser(ctx);
@@ -50,7 +57,7 @@ export const resolvers: Resolvers = {
     },
     history: async (_, args, ctx) => {
       await requireUser(ctx); // Ensure Auth
-      const input = queries.getHistory.GetHistoryInputSchema.parse(args);
+      const input = queries.getHistory.getHistorySchema.parse(args);
       return queries.getHistory.handler(input, ctx);
     },
     messageReactions: async (_, args, ctx) => {

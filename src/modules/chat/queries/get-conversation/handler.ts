@@ -1,120 +1,60 @@
-import { ServiceContext } from "@/graphql/types";
+import { createLogger } from "@/shared/lib/logger";
 import { AppError } from "@/shared/errors";
-import type { GetConversationInput } from "./types";
-import type { Conversation } from "@/graphql/generated";
-import { ConversationType } from "@/graphql/generated";
+import type { ServiceContext } from "@/graphql/types";
+import type { GetConversationInput } from "./schema";
+import { assertAccess } from "./steps/assert-access";
+import { fetchConversation } from "./steps/fetch-conversation";
+import { fetchUnreadCount } from "./steps/fetch-unread-count";
+import { fetchLastMessage } from "./steps/fetch-last-message";
+import { buildResponse } from "./steps/build-response";
+
+const log = createLogger("chat:queries:get-conversation");
 
 /**
- * Get Conversation Handler
+ * getConversation — returns a single conversation with members, unread count,
+ * and last message preview.
  *
- * Fetches a single conversation with full membership details and metadata.
+ * Steps:
+ *  1. assertAccess       — auth gate (authGate null-check, getChannel, assertChannelMember,
+ *                          permissions.assert) — all Redis-cached
+ *  2. fetchConversation  — single DB query with explicit select; no redundant membership filter
+ *  3. fetchLastMessage   — chatMessage.findFirst(desc) for preview   ┐ parallelised
+ *  4. fetchUnreadCount   — chatMessage.count(seq > lastReadSeq ?? 0)
+ *  5. buildResponse      — pure mapping: DB rows → Conversation GQL type
+ *
+ * @throws AppError 401  if ctx.authGate / ctx.permissions is missing
+ * @throws AppError 404  if conversation does not exist
+ * @throws AppError 403  if caller is not a member or lacks conversation:read permission
  */
 export const handler = async (
   input: GetConversationInput,
   ctx: ServiceContext
-): Promise<Conversation> => {
-  const { userId } = ctx.auth;
-  if (!userId) {
-    throw AppError.unauthorized("User not authenticated");
+) => {
+  try {
+    await assertAccess(input.conversationId, ctx);
+
+    // fetchConversation and fetchLastMessage are independent DB reads — run in parallel.
+    const [conversation, lastMessage] = await Promise.all([
+      fetchConversation(input.conversationId, ctx),
+      fetchLastMessage(input.conversationId, ctx),
+    ]);
+
+    // Safe: assertAccess guarantees an authenticated session before reaching here.
+    const userId = ctx.auth.userId!;
+    const userMember = conversation.members.find((m) => m.userId === userId);
+    const unreadCount = await fetchUnreadCount(
+      input.conversationId,
+      userMember?.lastReadSeq ?? null,
+      ctx
+    );
+
+    return buildResponse(conversation, unreadCount, lastMessage, userId);
+  } catch (err) {
+    if (err instanceof AppError) throw err; // operational — pass through as-is
+    log.error("[get-conversation] Unexpected failure", {
+      err,
+      conversationId: input.conversationId,
+    });
+    throw err; // non-operational — GraphQL layer returns INTERNAL_SERVER_ERROR
   }
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
-
-  const { conversationId } = input;
-
-  // Step 0 — channel member gate + permission
-  const cachedChannel = await ctx.authGate.getChannel(conversationId);
-  if (!cachedChannel) throw AppError.notFound("Conversation not found");
-  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
-  await Promise.all([
-    ctx.authGate.assertChannelMember(conversationId),
-    ctx.permissions.assert("conversation:read", scope),
-  ]);
-
-  // Fetch conversation with membership check
-  // Note: We don't filter by deletedAt here because we want to allow
-  // viewing archived channels (e.g., in settings modal)
-  const conversation = await ctx.db.chatConversation.findFirst({
-    where: {
-      id: conversationId,
-      members: {
-        some: { userId },
-      },
-    },
-    include: {
-      members: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              fullName: true,
-              email: true,
-              avatarUrl: true,
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (!conversation) {
-    throw AppError.notFound("Conversation not found or access denied");
-  }
-
-  // Get user's member record for unread count
-  const userMember = conversation.members.find((m) => m.userId === userId);
-
-  // Calculate unread count
-  const unreadCount = await ctx.db.chatMessage.count({
-    where: {
-      conversationId,
-      sequence: { gt: userMember?.lastReadSeq || 0 },
-      deletedAt: null,
-    },
-  });
-
-  // Fetch last message
-  const lastMessage = await ctx.db.chatMessage.findFirst({
-    where: {
-      conversationId,
-      deletedAt: null,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-    select: {
-      id: true,
-      content: true,
-      authorUserId: true,
-      createdAt: true,
-    },
-  });
-
-  return {
-    id: conversation.id,
-    type: conversation.type as unknown as ConversationType,
-    name: conversation.name,
-    topic: conversation.topic,
-    isPublic: conversation.type === "CHANNEL",
-    workspaceId: conversation.workspaceId,
-    projectId: conversation.projectId,
-    parentMessageId: conversation.parentMessageId,
-    createdBy: null, // Not tracked in current schema
-    isArchived: conversation.isArchived, // Use actual isArchived field from DB
-    memberCount: conversation.members.length,
-    unreadCount,
-    members: conversation.members.map((m) => ({
-      userId: m.userId,
-      role: m.role,
-      isMuted: m.isMuted,
-      joinedAt: m.joinedAt,
-      user: {
-        ...m.user,
-        fullName: m.user.fullName || "Unknown",
-      },
-    })),
-    lastMessage: lastMessage || null,
-    createdAt: conversation.createdAt,
-    updatedAt: conversation.updatedAt,
-    deletedAt: conversation.deletedAt,
-  };
 };

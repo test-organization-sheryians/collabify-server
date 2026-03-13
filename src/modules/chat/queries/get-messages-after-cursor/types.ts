@@ -1,6 +1,2 @@
-import { z } from "zod";
-import { getMessagesAfterCursorSchema } from "./schema";
-
-export type GetMessagesAfterCursorInput = z.infer<
-  typeof getMessagesAfterCursorSchema
->;
+export type { MessageAfterCursorRow } from "./steps/fetch-messages-after-cursor";
+export type { GetMessagesAfterCursorInput } from "./schema";

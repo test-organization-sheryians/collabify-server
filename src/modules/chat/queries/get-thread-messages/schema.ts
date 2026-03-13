@@ -5,3 +5,5 @@ export const getThreadMessagesSchema = z.object({
   limit: z.number().min(1).max(100).default(50),
   beforeCursor: z.string().optional(),
 });
+
+export type GetThreadMessagesInput = z.infer<typeof getThreadMessagesSchema>;

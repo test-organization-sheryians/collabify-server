@@ -1,3 +1,3 @@
 export { handler } from "./handler";
-export { getMessageReactionsSchema } from "./types";
+export { getMessageReactionsSchema } from "./schema";
 export { typeDefs } from "./type-defs";

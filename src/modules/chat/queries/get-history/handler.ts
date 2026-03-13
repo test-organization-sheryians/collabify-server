@@ -1,62 +1,41 @@
-import { GetHistoryInput } from "./types";
-import { GetHistoryInputSchema } from "./schema";
+import { createLogger } from "@/shared/lib/logger";
 import { AppError } from "@/shared/errors";
-import { ServiceContext } from "@/graphql/types";
+import type { ServiceContext } from "@/graphql/types";
+import type { GetHistoryInput } from "./schema";
+import { assertAccess } from "./steps/assert-access";
+import { fetchMessages } from "./steps/fetch-messages";
+import { buildResponse } from "./steps/build-response";
 
+const log = createLogger("chat:queries:get-history");
+
+/**
+ * getHistory — paginated message history fetcher for a conversation.
+ *
+ * Steps:
+ *  1. assertAccess   — authGate + assertChannelMember + permissions.assert
+ *  2. fetchMessages  — DB findMany (sequence < beforeSequence, desc, limit+1)
+ *  3. buildResponse  — pure: compute hasMore, minSequence (next cursor), slice
+ *
+ * Pagination is cursor-based using sequence numbers (not offsets). Fetching
+ * limit+1 rows avoids a separate COUNT query for hasMore detection.
+ *
+ * @throws AppError 401  if not authenticated
+ * @throws AppError 404  if conversation does not exist
+ * @throws AppError 403  if caller is not a channel member or lacks conversation:read
+ */
 export async function handler(input: GetHistoryInput, ctx: ServiceContext) {
-  // 1. Validation
-  const { conversationId, beforeSequence, limit } =
-    GetHistoryInputSchema.parse(input);
+  const { conversationId, beforeSequence } = input;
+  const limit = input.limit ?? 50;
 
-  const fetchLimit = limit ?? 50;
+  try {
+    await assertAccess(conversationId, ctx);
 
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
+    const messages = await fetchMessages(conversationId, beforeSequence, limit, ctx);
 
-  // 1b. Authorization: Requester must be a member of the conversation
-  const cachedChannel = await ctx.authGate.getChannel(conversationId);
-  if (!cachedChannel) throw AppError.notFound("Conversation not found");
-  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
-  await Promise.all([
-    ctx.authGate.assertChannelMember(conversationId),
-    ctx.permissions.assert("conversation:read", scope),
-  ]);
-
-  // 2. Query
-  // Fetch limit + 1 to detect hasMore
-  const messages = await ctx.db.chatMessage.findMany({
-    where: {
-      conversationId,
-      sequence: {
-        lt: beforeSequence,
-      },
-      deletedAt: null,
-    },
-    orderBy: {
-      sequence: "desc", // Newest first (closest to the gap)
-    },
-    take: fetchLimit + 1,
-    include: {
-      // Include any necessary relations?
-      // For basic message list, usually just author info if needed, but client might just need IDs
-      // Standard ChatMessage type typically maps directly to prisma Message + simple resolvers
-    },
-  });
-
-  // 3. Logic
-  const hasMore = messages.length > fetchLimit;
-  const slicedMessages = hasMore ? messages.slice(0, fetchLimit) : messages;
-
-  const minSequence =
-    slicedMessages.length > 0
-      ? slicedMessages[slicedMessages.length - 1].sequence
-      : null;
-
-  // 4. Return
-  return {
-    messages: slicedMessages, // Logic note: Client might expect them ASC? Resequencer usually handles any order, but DESC is efficient for paging back.
-    // If client needs ASC, we can reverse here. But "History" usually implies "going back".
-    // Let's keep them DESC (50, 49, 48...) as it matches the standard "cursor-based" approach.
-    hasMore,
-    minSequence,
-  };
+    return buildResponse(messages, limit);
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    log.error("[get-history] Unexpected failure", { err, conversationId, beforeSequence });
+    throw err;
+  }
 }

@@ -4,7 +4,7 @@ import type { PrismaClient } from "@prisma/client";
 export async function fetchMembers(workspaceId: string, db: PrismaClient) {
   return db.workspaceMember.findMany({
     where: { workspaceId },
-    include: { user: true },
+    include: { user: true, assignedRole: true },
     orderBy: { joinedAt: "desc" },
   });
 }

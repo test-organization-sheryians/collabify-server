@@ -1,54 +1,36 @@
-import { ServiceContext } from "@/graphql/types";
+import { createLogger } from "@/shared/lib/logger";
 import { AppError } from "@/shared/errors";
-import type { User } from "@prisma/client";
-import type { GetReactionUsersInput } from "./types";
-import { getReactionUsers } from "@/modules/chat/domain/reactions/redis-helpers";
+import type { ServiceContext } from "@/graphql/types";
+import type { GetReactionUsersInput } from "./schema";
+import { assertAccess } from "./steps/assert-access";
+import { fetchReactionUsers } from "./steps/fetch-reaction-users";
 
+const log = createLogger("chat:queries:get-reaction-users");
+
+/**
+ * getReactionUsers — returns paginated list of users who reacted with a given emoji.
+ *
+ * Steps:
+ *  1. assertAccess       — message → channel auth gate (returns conversationId)
+ *  2. fetchReactionUsers — Redis lookup + dataloader batch resolve
+ *
+ * @throws AppError 401  if not authenticated
+ * @throws AppError 404  if message or channel not found
+ * @throws AppError 403  if not a member or lacks conversation:read
+ */
 export const handler = async (
   input: GetReactionUsersInput,
   ctx: ServiceContext
 ) => {
-  const { messageId, emoji, cursor = 0 } = input;
-
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
-
-  // ✅ M-8: Verify user has access to conversation
-  const message = await ctx.db.chatMessage.findUnique({
-    where: { id: messageId },
-    select: { conversationId: true },
-  });
-
-  if (!message) {
-    throw AppError.notFound("Message not found");
+  try {
+    await assertAccess(input.messageId, ctx);
+    return await fetchReactionUsers(input, ctx);
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    log.error("[get-reaction-users] Unexpected failure", {
+      err,
+      messageId: input.messageId,
+    });
+    throw err;
   }
-
-  const cachedChannel = await ctx.authGate.getChannel(message.conversationId);
-  if (!cachedChannel) throw AppError.notFound("Channel not found");
-  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
-  await Promise.all([
-    ctx.authGate.assertChannelMember(message.conversationId),
-    ctx.permissions.assert("conversation:read", scope),
-  ]);
-
-  const { userIds, nextCursor } = await getReactionUsers(
-    ctx.redis,
-    messageId,
-    emoji,
-    cursor,
-    20
-  );
-
-  const users = await Promise.all(
-    userIds.map((id) => ctx.dataloaders.chat.userById.load(id))
-  );
-
-  // Filter out nulls
-  const validUsers: User[] = users.filter(
-    (u: User | null): u is User => u !== null
-  );
-
-  return {
-    users: validUsers,
-    nextCursor,
-  };
 };

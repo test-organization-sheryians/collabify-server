@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const getReadReceiptsSchema = z.object({
-  messageId: z.string(),
+  messageId: z.string().min(1),
 });
 
 export type GetReadReceiptsInput = z.infer<typeof getReadReceiptsSchema>;

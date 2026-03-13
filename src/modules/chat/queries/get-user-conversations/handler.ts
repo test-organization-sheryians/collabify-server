@@ -1,177 +1,111 @@
-import { ServiceContext } from "@/graphql/types";
+import { createLogger } from "@/shared/lib/logger";
 import { AppError } from "@/shared/errors";
-import { getUserConversationsSchema } from "./schema";
-import type {
-  GetUserConversationsInput,
-  GetUserConversationsOutput,
-} from "./types";
-import type { Conversation } from "@/graphql/generated";
-import type { Prisma } from "@prisma/client";
+import type { ServiceContext } from "@/graphql/types";
+import type { GetUserConversationsInput, GetUserConversationsOutput } from "./schema";
 import { ConversationType } from "@/graphql/generated";
+import type { Conversation } from "@/graphql/generated";
+import { assertAccess } from "./steps/assert-access";
+import { fetchConversations } from "./steps/fetch-conversations";
+
+const log = createLogger("chat:queries:get-user-conversations");
 
 /**
- * Get User Conversations Handler
+ * getUserConversations — fetches all conversations the user is a member of,
+ * with filtering, pagination, and per-conversation metadata (unread count, last message).
  *
- * Unified query for fetching all conversation types with filtering and pagination.
- * Replaces: getDmConversations, getGroupConversations, getUserChannels
+ * Steps:
+ *  1. assertAccess       — workspace or project-scoped auth gate (bug fixed: no longer
+ *                          silently uses user-supplied workspaceId when getProject returns null)
+ *  2. fetchConversations — DB findMany with explicit select (limit+1 look-ahead)
+ *  3. metadata loop      — per-conversation: chatMember findUnique + chatMessage count + findFirst
+ *
+ * TODO: Step 3 is O(N×3) queries. Future optimization: batch via dataloaders.
+ *
+ * @throws AppError 401  if not authenticated
+ * @throws AppError 403  if not a workspace/project member or lacks conversation:read
  */
 export const handler = async (
   input: GetUserConversationsInput,
   ctx: ServiceContext
 ): Promise<GetUserConversationsOutput> => {
-  const { userId } = ctx.auth;
-  if (!userId) {
-    throw AppError.unauthorized("User not authenticated");
-  }
+  const userId = ctx.auth.userId;
+  if (!userId) throw AppError.unauthorized("User not authenticated");
 
-  // Validate and parse input
-  const {
-    workspaceId,
-    projectId,
-    type,
-    includeArchived = false,
-    limit = 50,
-    cursor,
-  } = getUserConversationsSchema.parse(input);
+  try {
+    await assertAccess(input.workspaceId, input.projectId, ctx);
 
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
+    const limit = input.limit ?? 50;
+    const conversations = await fetchConversations(input, userId, ctx);
 
-  // Authorization: Step 0
-  if (projectId) {
-    const proj = await ctx.authGate.getProject(projectId);
-    const scope = { type: "project" as const, id: projectId, workspaceId: proj?.workspaceId ?? workspaceId };
-    await Promise.all([
-      ctx.authGate.assertProjectMember(projectId),
-      ctx.permissions.assert("conversation:read", scope),
-    ]);
-  } else {
-    await Promise.all([
-      ctx.authGate.assertWorkspaceMember(workspaceId),
-      ctx.permissions.assert("conversation:read", { type: "workspace", id: workspaceId }),
-    ]);
-  }
+    const hasNextPage = conversations.length > limit;
+    const edges = hasNextPage ? conversations.slice(0, limit) : conversations;
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Build query with filters
-  // ──────────────────────────────────────────────────────────────────────────
-
-  const where: Prisma.ChatConversationWhereInput = {
-    workspaceId,
-    projectId,
-    members: {
-      some: { userId },
-    },
-  };
-
-  // Filter by type (CHANNEL, DM, or GROUP_DM)
-  // THREAD is excluded from this query - handled separately
-  if (type) {
-    where.type = type as any;
-  } else {
-    // Default: exclude threads even though schema doesn't allow it
-    // This is defensive programming in case schema changes
-    where.type = { in: ["CHANNEL", "DM", "GROUP_DM"] };
-  }
-
-  // Filter archived
-  if (!includeArchived) {
-    where.isArchived = false; // Use isArchived field instead of deletedAt
-  }
-
-  // Cursor-based pagination
-  if (cursor) {
-    where.updatedAt = {
-      lt: new Date(cursor),
-    };
-  }
-
-  // Fetch conversations (limit + 1 for hasNextPage check)
-  const conversations = await ctx.db.chatConversation.findMany({
-    where,
-    take: limit + 1,
-    orderBy: {
-      updatedAt: "desc", // Most recently updated first
-    },
-    include: {
-      members: {
-        select: { userId: true },
-      },
-    },
-  });
-
-  // Check if there are more results
-  const hasNextPage = conversations.length > limit;
-  const edges = hasNextPage ? conversations.slice(0, limit) : conversations;
-
-  // Fetch metadata for each conversation (unread count, last message)
-  const conversationsWithMetadata = await Promise.all(
-    edges.map(async (conv): Promise<Conversation> => {
-      // Get user's membership for unread count
-      const member = await ctx.db.chatMember.findUnique({
-        where: {
-          conversationId_userId: {
-            conversationId: conv.id,
-            userId,
+    // Per-conversation metadata fetch (N×3 queries — see TODO above)
+    const conversationsWithMetadata = await Promise.all(
+      edges.map(async (conv): Promise<Conversation> => {
+        const member = await ctx.db.chatMember.findUnique({
+          where: {
+            conversationId_userId: { conversationId: conv.id, userId },
           },
-        },
-      });
+        });
 
-      // Calculate unread count
-      const unreadCount = await ctx.db.chatMessage.count({
-        where: {
-          conversationId: conv.id,
-          sequence: { gt: member?.lastReadSeq || 0 },
-          deletedAt: null,
-        },
-      });
+        const [unreadCount, lastMessage] = await Promise.all([
+          ctx.db.chatMessage.count({
+            where: {
+              conversationId: conv.id,
+              sequence: { gt: member?.lastReadSeq ?? 0 },
+              deletedAt: null,
+            },
+          }),
+          ctx.db.chatMessage.findFirst({
+            where: { conversationId: conv.id, deletedAt: null },
+            orderBy: { createdAt: "desc" },
+            select: {
+              id: true,
+              content: true,
+              authorUserId: true,
+              createdAt: true,
+            },
+          }),
+        ]);
 
-      // Fetch last message
-      const lastMessage = await ctx.db.chatMessage.findFirst({
-        where: {
-          conversationId: conv.id,
-          deletedAt: null,
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-        select: {
-          id: true,
-          content: true,
-          authorUserId: true,
-          createdAt: true,
-        },
-      });
+        return {
+          id: conv.id,
+          type: conv.type as ConversationType,
+          name: conv.name,
+          topic: conv.topic,
+          isPublic: conv.type === "CHANNEL" && !conv.name?.startsWith("#private-"),
+          workspaceId: conv.workspaceId,
+          projectId: conv.projectId,
+          parentMessageId: conv.parentMessageId,
+          createdBy: null,
+          isArchived: conv.isArchived,
+          memberCount: conv.members.length,
+          unreadCount,
+          members: [],
+          lastMessage: lastMessage || null,
+          createdAt: conv.createdAt,
+          updatedAt: conv.updatedAt,
+          deletedAt: conv.deletedAt,
+        };
+      })
+    );
 
-      return {
-        id: conv.id,
-        type: conv.type as ConversationType,
-        name: conv.name,
-        topic: conv.topic,
-        isPublic:
-          conv.type === "CHANNEL" && !conv.name?.startsWith("#private-"),
-        workspaceId: conv.workspaceId,
-        projectId: conv.projectId,
-        parentMessageId: conv.parentMessageId,
-        createdBy: null, // Not tracked in current schema
-        isArchived: conv.isArchived, // Use actual isArchived field from DB
-        memberCount: conv.members.length,
-        unreadCount,
-        members: [], // Empty for list queries (performance optimization)
-        lastMessage: lastMessage || null,
-        createdAt: conv.createdAt,
-        updatedAt: conv.updatedAt,
-        deletedAt: conv.deletedAt,
-      };
-    })
-  );
-
-  return {
-    edges: conversationsWithMetadata,
-    pageInfo: {
-      hasNextPage,
-      endCursor: hasNextPage
-        ? edges[edges.length - 1].updatedAt.toISOString()
-        : null,
-    },
-  };
+    return {
+      edges: conversationsWithMetadata,
+      pageInfo: {
+        hasNextPage,
+        endCursor: hasNextPage
+          ? edges[edges.length - 1]!.updatedAt.toISOString()
+          : null,
+      },
+    };
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    log.error("[get-user-conversations] Unexpected failure", {
+      err,
+      workspaceId: input.workspaceId,
+    });
+    throw err;
+  }
 };

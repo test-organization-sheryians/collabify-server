@@ -1,62 +1,64 @@
-import type { ServiceContext } from "@/graphql/types";
+import { createLogger } from "@/shared/lib/logger";
 import { AppError } from "@/shared/errors";
+import type { ServiceContext } from "@/graphql/types";
 import type { GetUnreadCountsInput, GetUnreadCountsOutput } from "./schema";
+import { assertAccess } from "./steps/assert-access";
+import { fetchMemberSequences } from "./steps/fetch-member-sequences";
 
+const log = createLogger("chat:queries:get-unread-counts");
+
+/**
+ * getUnreadCounts — computes unread message counts for all user conversations
+ * in a workspace+project via Redis pipeline with DB fallback.
+ *
+ * Steps:
+ *  1. assertAccess          — workspace-scoped: assertWorkspaceMember only
+ *  2. fetchMemberSequences  — DB chatMember rows (lastReadSeq + conversation.lastSequence)
+ *  3. Redis pipeline        — batch zscore for user read watermarks
+ *  4. compute+return        — Math.max(0, lastMsgSeq - userReadSeq) per conversation
+ *
+ * @throws AppError 401  if not authenticated or not workspace member
+ */
 export const handler = async (
   input: GetUnreadCountsInput,
   ctx: ServiceContext
 ): Promise<GetUnreadCountsOutput> => {
-  const { workspaceId, projectId } = input;
   const userId = ctx.auth.userId!;
 
-  if (!ctx.authGate) throw AppError.unauthorized();
-  await ctx.authGate.assertWorkspaceMember(workspaceId);
+  try {
+    await assertAccess(input.workspaceId, ctx);
+    const members = await fetchMemberSequences(input, userId, ctx);
 
-  // 1. Get user's conversations with sequences
-  const members = await ctx.db.chatMember.findMany({
-    where: {
-      userId,
-      conversation: {
-        workspaceId,
-        projectId,
-        deletedAt: null,
-      },
-    },
-    select: {
-      conversationId: true,
-      lastReadSeq: true,
-      conversation: {
-        select: {
-          lastSequence: true,
-        },
-      },
-    },
-  });
+    // Batch fetch read watermarks from Redis (single pipeline)
+    const pipeline = ctx.redis.pipeline();
+    members.forEach((member) => {
+      pipeline.zscore(`read:${member.conversationId}`, userId);
+    });
+    const results = await pipeline.exec();
 
-  // 2. Batch fetch read watermarks from Redis (single pipeline)
-  const pipeline = ctx.redis.pipeline();
+    const conversations = members.map((member, index) => {
+      const redisScore = results?.[index]?.[1];
+      const userReadSeq = redisScore
+        ? parseInt(redisScore as string)
+        : (member.lastReadSeq ?? 0);
 
-  members.forEach((member) => {
-    pipeline.zscore(`read:${member.conversationId}`, userId);
-  });
+      const lastMsgSeq = member.conversation.lastSequence ?? 0;
+      const unreadCount = Math.max(0, lastMsgSeq - userReadSeq);
 
-  const results = await pipeline.exec();
+      return {
+        conversationId: member.conversationId,
+        unreadCount,
+        lastUnreadMessageId: null,
+      };
+    });
 
-  // 3. Calculate unread counts
-  const conversations = members.map((member, index) => {
-    const userReadSeq = results?.[index]?.[1]
-      ? parseInt(results[index][1] as string)
-      : member.lastReadSeq || 0;
-
-    const lastMsgSeq = member.conversation.lastSequence || 0;
-    const unreadCount = Math.max(0, lastMsgSeq - userReadSeq);
-
-    return {
-      conversationId: member.conversationId,
-      unreadCount,
-      lastUnreadMessageId: null, // Not tracked in current schema
-    };
-  });
-
-  return { conversations };
+    return { conversations };
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    log.error("[get-unread-counts] Unexpected failure", {
+      err,
+      workspaceId: input.workspaceId,
+    });
+    throw err;
+  }
 };

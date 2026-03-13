@@ -1,6 +1,27 @@
+import { Prisma } from "@prisma/client";
 import type { ServiceContext } from "@/graphql/types";
 import type { GetChannelMembersInput } from "../schema";
-import type { ChannelMemberRow } from "../types";
+
+// Select const lives here — next to the query that uses it.
+// ChannelMemberRow derives from it via GetPayload so they can never drift.
+const channelMemberSelect = {
+  id: true,
+  conversationId: true,
+  userId: true,
+  lastReadMsgId: true,
+  lastDeliveredMsgId: true,
+  lastReadSeq: true,
+  lastReadAt: true,
+  role: true,
+  isMuted: true,
+  joinedAt: true,
+} satisfies Prisma.ChatMemberSelect;
+
+export type ChannelMemberRow = Prisma.ChatMemberGetPayload<{
+  select: typeof channelMemberSelect;
+}>;
+
+export type GetChannelMembersResult = ChannelMemberRow[];
 
 /**
  * Role priority map — lower number = higher rank in the list.
@@ -38,18 +59,7 @@ export async function fetchChannelMembers(
     where: { conversationId: input.channelId },
     take: input.limit,
     skip: input.offset,
-    select: {
-      id: true,
-      conversationId: true,
-      userId: true,
-      lastReadMsgId: true,
-      lastDeliveredMsgId: true,
-      lastReadSeq: true,
-      lastReadAt: true,
-      role: true,
-      isMuted: true,
-      joinedAt: true,
-    },
+    select: channelMemberSelect,
   });
 
   return members.sort((a, b) => {

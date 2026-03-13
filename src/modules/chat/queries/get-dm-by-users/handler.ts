@@ -1,89 +1,47 @@
-import { ServiceContext } from "@/graphql/types";
+import { createLogger } from "@/shared/lib/logger";
 import { AppError } from "@/shared/errors";
-import type { GetDmByUsersInput, GetDmByUsersOutput } from "./types";
-import { ConversationType } from "@/graphql/generated";
+import type { ServiceContext } from "@/graphql/types";
+import type { GetDmByUsersInput } from "./schema";
+import { assertAccess } from "./steps/assert-access";
+import { assertNotSelf } from "./steps/assert-not-self";
+import { fetchDm } from "./steps/fetch-dm";
+import { buildResponse } from "./steps/build-response";
+
+const log = createLogger("chat:queries:get-dm-by-users");
 
 /**
- * Get DM By Users Handler
+ * getDmByUsers — finds an existing DM conversation between the caller and another user.
  *
- * Finds an existing DM conversation between two users in a project.
- * Returns null if no DM exists (not an error).
- * Used for "start conversation" UI to check for existing DMs.
+ * Steps:
+ *  1. assertAccess    — authGate null-check (userId auth only, no scope gate needed)
+ *  2. assertNotSelf   — guard: userId !== otherUserId
+ *  3. fetchDm         — DB findFirst scoped to workspaceId + projectId + both members
+ *  4. buildResponse   — pure mapping: DmRow → DmConversation GQL type (or null)
+ *
+ * Returns null when no DM exists — this is a valid, non-error response that tells
+ * the client no prior DM exists and they may create one.
+ *
+ * @throws AppError 401  if ctx.authGate / ctx.permissions is missing
+ * @throws AppError 400  if caller === otherUserId (self-DM attempt)
  */
 export const handler = async (
   input: GetDmByUsersInput,
   ctx: ServiceContext
-): Promise<GetDmByUsersOutput> => {
-  const { userId } = ctx.auth;
-  if (!userId) {
-    throw AppError.unauthorized("User not authenticated");
+) => {
+  try {
+    await assertAccess(ctx);
+
+    // Safe: assertAccess guarantees an authenticated session before reaching here.
+    const userId = ctx.auth.userId!;
+    assertNotSelf(userId, input.otherUserId);
+
+    const dm = await fetchDm(input, userId, ctx);
+    if (!dm) return null;
+
+    return buildResponse(dm);
+  } catch (err) {
+    if (err instanceof AppError) throw err; // operational — pass through as-is
+    log.error("[get-dm-by-users] Unexpected failure", { err, ...input });
+    throw err; // non-operational — GraphQL layer returns INTERNAL_SERVER_ERROR
   }
-
-  const { workspaceId, projectId, otherUserId } = input;
-
-  // Prevent DM with self
-  if (userId === otherUserId) {
-    throw AppError.badRequest("Cannot create DM with yourself");
-  }
-
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
-
-  // Verify project membership
-  const proj = await ctx.authGate.getProject(projectId);
-  const scope = { type: "project" as const, id: projectId, workspaceId: proj?.workspaceId ?? workspaceId };
-  await Promise.all([
-    ctx.authGate.assertProjectMember(projectId),
-    ctx.permissions.assert("conversation:read", scope),
-  ]);
-
-  // Find DM with both users (project-scoped)
-  const dm = await ctx.db.chatConversation.findFirst({
-    where: {
-      workspaceId,
-      projectId,
-      type: "DM",
-      AND: [
-        { members: { some: { userId } } },
-        { members: { some: { userId: otherUserId } } },
-      ],
-      deletedAt: null,
-    },
-    include: {
-      members: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              fullName: true,
-              email: true,
-              avatarUrl: true,
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (!dm) {
-    return null; // No DM exists
-  }
-
-  return {
-    id: dm.id,
-    workspaceId: dm.workspaceId,
-    projectId: dm.projectId!,
-    type: ConversationType.Dm,
-    memberCount: dm.members.length,
-    members: dm.members.map((m) => ({
-      userId: m.userId,
-      user: {
-        id: m.user.id,
-        fullName: m.user.fullName || "Unknown",
-        email: m.user.email,
-        avatarUrl: m.user.avatarUrl,
-      },
-    })),
-    createdAt: dm.createdAt,
-    updatedAt: dm.updatedAt,
-  };
 };

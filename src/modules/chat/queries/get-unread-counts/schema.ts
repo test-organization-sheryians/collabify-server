@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 export const getUnreadCountsSchema = z.object({
-  workspaceId: z.string(),
-  projectId: z.string(),
+  workspaceId: z.string().cuid(),
+  projectId: z.string().cuid(),
 });
 
 export type GetUnreadCountsInput = z.infer<typeof getUnreadCountsSchema>;

@@ -1,4 +1,3 @@
-import { z } from "zod";
-import { getLastReadMessageSchema } from "./schema";
-
-export type GetLastReadMessageInput = z.infer<typeof getLastReadMessageSchema>;
+// No DB row types needed — getLastReadMessage returns a bare string | null scalar.
+// Input type is exported from schema.ts.
+export type { GetLastReadMessageInput } from "./schema";

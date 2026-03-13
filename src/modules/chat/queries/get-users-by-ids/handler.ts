@@ -1,39 +1,40 @@
-import { ServiceContext } from "@/graphql/types";
+import { createLogger } from "@/shared/lib/logger";
 import { AppError } from "@/shared/errors";
-import type { GetUsersByIdsInput } from "./types";
-import type { UserBasic } from "@/graphql/generated";
+import type { ServiceContext } from "@/graphql/types";
+import type { GetUsersByIdsInput } from "./schema";
+import { fetchUsers } from "./steps/fetch-users";
+
+const log = createLogger("chat:queries:get-users-by-ids");
 
 /**
- * Get Users By IDs Handler
+ * getUsersByIds — batch-fetches basic user info for multiple IDs.
+ * Used to populate the member cache with message authors not in current conversation.
  *
- * Batch fetches basic user information for multiple user IDs.
- * Used to populate member cache with message authors who may not be current conversation members.
+ * Steps:
+ *  1. Auth check  — userId guard only (per auth-api-inventory: 🔐 ws member, no scope assert)
+ *  2. fetchUsers  — DB findMany with explicit select
+ *  3. Map         — fullName ?? "Unknown User" (nullish, not falsy-collapse)
+ *
+ * @throws AppError 401  if not authenticated
  */
 export const handler = async (
   input: GetUsersByIdsInput,
   ctx: ServiceContext
-): Promise<UserBasic[]> => {
+) => {
   if (!ctx.auth.userId) throw AppError.unauthorized();
-  const { userIds } = input;
 
-  // Batch fetch users from database
-  const users = await ctx.db.user.findMany({
-    where: {
-      id: { in: userIds },
-    },
-    select: {
-      id: true,
-      fullName: true,
-      email: true,
-      avatarUrl: true,
-    },
-  });
+  try {
+    const users = await fetchUsers(input.userIds, ctx);
 
-  // Map to UserBasic type, ensuring fullName is never null
-  return users.map((u) => ({
-    id: u.id,
-    fullName: u.fullName || "Unknown User",
-    email: u.email,
-    avatarUrl: u.avatarUrl,
-  }));
+    return users.map((u) => ({
+      id: u.id,
+      fullName: u.fullName ?? "Unknown User",
+      email: u.email,
+      avatarUrl: u.avatarUrl,
+    }));
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    log.error("[get-users-by-ids] Unexpected failure", { err });
+    throw err;
+  }
 };

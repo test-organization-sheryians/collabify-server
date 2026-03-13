@@ -1,32 +1,36 @@
-import { ServiceContext } from "@/graphql/types";
+import { createLogger } from "@/shared/lib/logger";
 import { AppError } from "@/shared/errors";
-import type { GetMissingMessagesInput } from "./types";
+import type { ServiceContext } from "@/graphql/types";
+import type { GetMissingMessagesInput } from "./schema";
+import { assertAccess } from "./steps/assert-access";
+import { fetchMissingMessages } from "./steps/fetch-missing-messages";
 
+const log = createLogger("chat:queries:get-missing-messages");
+
+/**
+ * getMissingMessages — fetches messages in a ULID range for offline gap recovery.
+ *
+ * Steps:
+ *  1. assertAccess        — channel auth gate
+ *  2. fetchMissingMessages — DB findMany (id gte rangeStart, lte rangeEnd) with explicit select
+ *
+ * @throws AppError 401  if not authenticated
+ * @throws AppError 404  if channel not found
+ * @throws AppError 403  if not a member or lacks conversation:read
+ */
 export const handler = async (
   input: GetMissingMessagesInput,
   ctx: ServiceContext
 ) => {
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
-
-  const cachedChannel = await ctx.authGate.getChannel(input.channelId);
-  if (!cachedChannel) throw AppError.notFound("Channel not found");
-  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
-  await Promise.all([
-    ctx.authGate.assertChannelMember(input.channelId),
-    ctx.permissions.assert("conversation:read", scope),
-  ]);
-
-  return await ctx.db.chatMessage.findMany({
-    where: {
-      conversationId: input.channelId,
-      // Lexicographical string comparison for ULIDs works for range
-      id: {
-        gte: input.rangeStart,
-        lte: input.rangeEnd,
-      },
-    },
-    orderBy: {
-      id: "asc", // Or createdAt
-    },
-  });
+  try {
+    await assertAccess(input.channelId, ctx);
+    return await fetchMissingMessages(input, ctx);
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    log.error("[get-missing-messages] Unexpected failure", {
+      err,
+      channelId: input.channelId,
+    });
+    throw err;
+  }
 };

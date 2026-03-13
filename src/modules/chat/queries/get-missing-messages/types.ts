@@ -1,4 +1,2 @@
-import { z } from "zod";
-import { getMissingMessagesSchema } from "./schema";
-
-export type GetMissingMessagesInput = z.infer<typeof getMissingMessagesSchema>;
+export type { MissingMessageRow } from "./steps/fetch-missing-messages";
+export type { GetMissingMessagesInput } from "./schema";

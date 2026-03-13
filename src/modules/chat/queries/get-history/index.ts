@@ -1,4 +1,4 @@
-export * from "./schema";
-export * from "./types";
-export * from "./type-defs";
-export * from "./handler";
+export { handler } from "./handler";
+export { getHistorySchema } from "./schema";
+export { typeDefs } from "./type-defs";
+export type * from "./types";

@@ -1,4 +1,2 @@
-import { z } from "zod";
-import { getThreadMessagesSchema } from "./schema";
-
-export type GetThreadMessagesInput = z.infer<typeof getThreadMessagesSchema>;
+export type { ThreadMessageRow } from "./steps/fetch-thread-messages";
+export type { GetThreadMessagesInput } from "./schema";

@@ -1,24 +1,5 @@
-import { z } from "zod";
-import { getDmByUsersSchema } from "./schema";
-import { ConversationType } from "@/graphql/generated";
-
-export type GetDmByUsersInput = z.infer<typeof getDmByUsersSchema>;
-
-export type GetDmByUsersOutput = {
-  id: string;
-  workspaceId: string;
-  projectId: string;
-  type: ConversationType;
-  memberCount: number;
-  members: {
-    userId: string;
-    user: {
-      id: string;
-      fullName: string;
-      email: string;
-      avatarUrl: string | null;
-    };
-  }[];
-  createdAt: Date;
-  updatedAt: Date;
-} | null; // Returns null if no DM exists
+// ── DB row types — re-exported from the step that owns them ──────────────────
+// The select const lives in fetch-dm.ts, next to the query that uses it.
+// DmRow/DmMemberRow derive from it via Prisma.ChatConversationGetPayload so
+// they can never drift from the actual select shape.
+export type { DmRow, DmMemberRow } from "./steps/fetch-dm";

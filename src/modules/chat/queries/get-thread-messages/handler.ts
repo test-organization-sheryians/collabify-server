@@ -1,37 +1,36 @@
-import { ServiceContext } from "@/graphql/types";
+import { createLogger } from "@/shared/lib/logger";
 import { AppError } from "@/shared/errors";
-import type { GetThreadMessagesInput } from "./types";
+import type { ServiceContext } from "@/graphql/types";
+import type { GetThreadMessagesInput } from "./schema";
+import { assertAccess } from "./steps/assert-access";
+import { fetchThreadMessages } from "./steps/fetch-thread-messages";
 
+const log = createLogger("chat:queries:get-thread-messages");
+
+/**
+ * getThreadMessages — fetches replies to a parent message in chronological order.
+ *
+ * Steps:
+ *  1. assertAccess      — fetches parent message conversationId + channel auth gate
+ *  2. fetchThreadMessages — DB findMany (parentMessageId = input.parentMessageId) with explicit select
+ *
+ * @throws AppError 401  if not authenticated
+ * @throws AppError 404  if parent message or conversation not found
+ * @throws AppError 403  if not a member or lacks conversation:read
+ */
 export const handler = async (
   input: GetThreadMessagesInput,
   ctx: ServiceContext
 ) => {
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
-
-  // Validate parent message access first
-  const parentMessage = await ctx.db.chatMessage.findUnique({
-    where: { id: input.parentMessageId },
-    select: { conversationId: true },
-  });
-  if (!parentMessage) throw AppError.notFound("Message not found");
-
-  const cachedChannel = await ctx.authGate.getChannel(parentMessage.conversationId);
-  if (!cachedChannel) throw AppError.notFound("Conversation not found");
-  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
-  await Promise.all([
-    ctx.authGate.assertChannelMember(parentMessage.conversationId),
-    ctx.permissions.assert("conversation:read", scope),
-  ]);
-
-  return await ctx.db.chatMessage.findMany({
-    where: {
+  try {
+    await assertAccess(input.parentMessageId, ctx);
+    return await fetchThreadMessages(input, ctx);
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    log.error("[get-thread-messages] Unexpected failure", {
+      err,
       parentMessageId: input.parentMessageId,
-    },
-    take: input.limit,
-    skip: input.beforeCursor ? 1 : 0,
-    cursor: input.beforeCursor ? { id: input.beforeCursor } : undefined,
-    orderBy: {
-      createdAt: "asc", // Threads usually read chronologically? Or like Slack? Slack is chrono.
-    },
-  });
+    });
+    throw err;
+  }
 };
