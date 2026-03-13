@@ -32,6 +32,7 @@ export const getProjectMembers = async (
     workspaceId: project.workspaceId,
   };
   await Promise.all([
+    ctx.authGate.assertWorkspaceMember(project.workspaceId),
     ctx.authGate.assertProjectMember(projectId),
     ctx.permissions.assert("project.member:read", scope),
   ]);

@@ -150,6 +150,15 @@ export class AuthGate {
     return isWorkspaceMember(workspaceId, this.userId, this.redis, this.db);
   }
 
+  isWorkspaceAdminOrAbove(workspaceId: string): Promise<boolean> {
+    return isWorkspaceAdminOrAbove(
+      workspaceId,
+      this.userId,
+      this.redis,
+      this.db
+    );
+  }
+
   isProjectMember(projectId: string): Promise<boolean> {
     return isProjectMember(projectId, this.userId, this.redis, this.db);
   }

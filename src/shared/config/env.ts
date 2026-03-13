@@ -24,10 +24,19 @@ const envSchema = z.object({
 
   // Email
   EMAIL_FROM: z.string().email(),
-  EMAIL_PROVIDER: z.enum(["ses", "console", "sendgrid"]).default("console"),
+  EMAIL_PROVIDER: z
+    .enum(["ses", "console", "sendgrid", "nodemailer"])
+    .default("console"),
 
   // SendGrid
   SENDGRID_API_KEY: z.string().optional(),
+
+  // SMTP (Nodemailer adapter — works with any SMTP server or Ethereal for local dev)
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_SECURE: z.coerce.boolean().default(false), // true for port 465
 
   // AWS (SES, S3, etc)
   AWS_ACCESS_KEY_ID: z.string().optional(),

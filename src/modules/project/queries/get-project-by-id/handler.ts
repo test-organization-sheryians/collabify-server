@@ -1,8 +1,10 @@
 /**
  * getProjectById — Query Handler
  *
- * Single DataLoader call — no steps/ needed.
- * Signature fixed to (input, ctx) to match module-wide convention.
+ * Auth:
+ *   - assertWorkspaceMember — user must be in the workspace
+ *   - assertProjectMember   — user must be a direct project member
+ *                            (skipped for workspace admins/owners)
  */
 import type { ServiceContext } from "@/graphql/types";
 import type { GetProjectByIdInput } from "./types";
@@ -19,5 +21,19 @@ export const getProjectById = async (
     throw new Error("Project DataLoaders not initialized");
   }
 
+  // 1. Resolve project metadata from cache (no extra DB round-trip on hit)
+  const meta = await ctx.authGate.getProject(id);
+  if (!meta) throw AppError.notFound("Project not found");
+
+  // 2. Workspace gate — cheap, cached
+  await ctx.authGate.assertWorkspaceMember(meta.workspaceId);
+
+  // 3. Project gate — admins bypass
+  const isAdmin = await ctx.authGate.isWorkspaceAdminOrAbove(meta.workspaceId);
+  if (!isAdmin) {
+    await ctx.authGate.assertProjectMember(id);
+  }
+
   return ctx.dataloaders.project.projectById.load(id);
 };
+

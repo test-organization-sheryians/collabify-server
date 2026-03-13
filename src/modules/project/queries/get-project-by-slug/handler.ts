@@ -1,9 +1,10 @@
 /**
  * getProjectBySlug — Query Handler
  *
- * Single DB call — no steps/ needed.
- * Signature fixed to (input, ctx) to match module-wide convention.
- * Infra import removed; uses ctx.db.
+ * Auth:
+ *   - assertWorkspaceMember — user must be in the workspace
+ *   - assertProjectMember   — user must be a direct project member
+ *                            (skipped for workspace admins/owners)
  */
 import { SlugUtil } from "@/shared/utils/slug.util";
 import type { ServiceContext } from "@/graphql/types";
@@ -18,7 +19,22 @@ export const getProjectBySlug = async (
   const { workspaceId, slug } = input;
   const normalizedSlug = SlugUtil.sanitize(slug).toLowerCase();
 
-  return ctx.db.project.findFirst({
+  // 1. Workspace gate — cheap, cached
+  await ctx.authGate.assertWorkspaceMember(workspaceId);
+
+  // 2. Resolve project
+  const project = await ctx.db.project.findFirst({
     where: { workspaceId, key: normalizedSlug },
   });
+
+  if (!project) return null;
+
+  // 3. Project gate — workspace admins can see all projects without being members
+  const isAdmin = await ctx.authGate.isWorkspaceAdminOrAbove(workspaceId);
+  if (!isAdmin) {
+    await ctx.authGate.assertProjectMember(project.id);
+  }
+
+  return project;
 };
+

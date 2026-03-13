@@ -34,7 +34,7 @@ export const removeMember = async (
   ]);
 
   await guardLastOwner(workspaceId, targetMember, db);
-  await deleteMember(memberId, db);
+  await deleteMember(memberId, workspaceId, targetMember.userId, db);
 
   return { success: true, message: "Member removed", invitedCount: 0 };
 };
