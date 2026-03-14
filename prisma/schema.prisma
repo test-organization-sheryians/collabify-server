@@ -201,11 +201,18 @@ model Permission {
 }
 
 // ─── Authorization: Role ─────────────────────────────────────────────────────
-// Replaces CustomRole. System roles (OWNER/ADMIN/MEMBER/GUEST) are seeded with
-// isSystem=true and cannot be deleted. Custom roles are workspace-scoped.
+// System roles (OWNER/ADMIN/MEMBER/GUEST + MANAGER/CONTRIBUTOR/VIEWER) seeded
+// with isSystem=true. Custom roles created by admins.
+//
+// scopeType = WORKSPACE → assigned via WorkspaceMember.roleId
+// scopeType = PROJECT   → assigned via ProjectMember.projectRoleId
+//
+// projectId = null  → workspace-wide role template (applies to all projects)
+// projectId = set   → role specific to one project (never leaks to other projects)
 model Role {
   id          String        @id @default(cuid())
-  workspaceId String?       @map("workspace_id") // null = system-level template
+  workspaceId String        @map("workspace_id") // always required — every role belongs to a workspace
+  projectId   String?       @map("project_id")   // null = workspace-wide; set = project-specific
   name        String
   description String?
   scopeType   RoleScopeType @default(WORKSPACE) @map("scope_type")
@@ -216,15 +223,19 @@ model Role {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project?   @relation("ProjectScopedRoles", fields: [projectId], references: [id], onDelete: Cascade)
 
   permissions      RolePermission[]
   workspaceMembers WorkspaceMember[] @relation("WorkspaceMemberRole")
   projectMembers   ProjectMember[]   @relation("ProjectMemberRole")
 
-  @@unique([workspaceId, name])
-  @@unique([id, workspaceId])
+  // name is unique per (workspace + project) scope
+  // projectId=null means workspace-wide; projects share role name namespace per workspace
+  @@unique([workspaceId, projectId, name])
+  @@unique([id, workspaceId]) // compound FK anchor for ProjectMember cross-tenant guard
   @@index([workspaceId])
+  @@index([projectId])
   @@map("roles")
 }
 
@@ -278,6 +289,7 @@ model Project {
 
   workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   members   ProjectMember[]
+  roles     Role[]           @relation("ProjectScopedRoles")
 
   pages                    Page[]
   vaultFolders             VaultFolder[]

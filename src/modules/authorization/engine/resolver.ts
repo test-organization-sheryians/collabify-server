@@ -170,13 +170,26 @@ export class PermissionResolver {
     userId: string,
     scopeType: "workspace" | "project"
   ): Promise<string[]> {
-    // 1. Get user's role name at scope (cached)
-    let roleName = await getRoleAtScope(scopeId, userId, this.redis);
+    // 1. Get user's roleId + roleName at scope (cached as "roleId:roleName")
+    const cached = await getRoleAtScope(scopeId, userId, this.redis);
 
-    if (!roleName) {
-      let roleId: string | null = null;
-      let fetchedRoleName: string | null = null;
+    let roleId: string | null = null;
+    let roleName: string | null = null;
 
+    if (cached) {
+      // Cache format: "<roleId>:<roleName>" (colon separator, roleId is cuid so no colons)
+      const colonIdx = cached.indexOf(":");
+      if (colonIdx !== -1) {
+        roleId = cached.slice(0, colonIdx);
+        roleName = cached.slice(colonIdx + 1);
+      } else {
+        // Legacy cache entry (role name only) — treat as miss to refresh
+        roleId = null;
+        roleName = null;
+      }
+    }
+
+    if (!roleId || !roleName) {
       if (scopeType === "workspace") {
         const member = await this.db.workspaceMember.findUnique({
           where: { workspaceId_userId: { workspaceId: scopeId, userId } },
@@ -185,7 +198,7 @@ export class PermissionResolver {
             assignedRole: { select: { name: true } },
           },
         });
-        fetchedRoleName = member?.assignedRole.name ?? null;
+        roleName = member?.assignedRole?.name ?? null;
         roleId = member?.roleId ?? null;
       } else {
         const member = await this.db.projectMember.findUnique({
@@ -195,25 +208,21 @@ export class PermissionResolver {
             projectRole: { select: { name: true } },
           },
         });
-        fetchedRoleName = member?.projectRole?.name ?? null;
+        roleName = member?.projectRole?.name ?? null;
         roleId = member?.projectRoleId ?? null;
       }
 
-      if (!fetchedRoleName || !roleId) return [];
-      roleName = fetchedRoleName;
-      await setRoleAtScope(scopeId, userId, roleName, this.redis);
+      if (!roleName || !roleId) return [];
+      // Store as "roleId:roleName" so both are available on cache hit
+      await setRoleAtScope(scopeId, userId, `${roleId}:${roleName}`, this.redis);
     }
 
-    // 2. Get role's permission set (cached by roleKey)
-    const roleKey = `${scopeType}:${roleName}`;
-    let permSet = await getRolePerms(roleKey, this.redis);
+    // 2. Get role's permission set — keyed by roleId (workspace-specific, no name collisions)
+    let permSet = await getRolePerms(roleId, this.redis);
 
     if (!permSet) {
-      const roleRow = await this.db.role.findFirst({
-        where: {
-          name: roleName,
-          scopeType: scopeType === "workspace" ? "WORKSPACE" : "PROJECT",
-        },
+      const roleRow = await this.db.role.findUnique({
+        where: { id: roleId },
         select: {
           id: true,
           permissions: {
@@ -237,7 +246,7 @@ export class PermissionResolver {
         .map((p) => `${p.permission.resource}:${p.permission.action}`);
 
       permSet = { allowed, denied };
-      await setRolePerms(roleKey, permSet, this.redis);
+      await setRolePerms(roleId, permSet, this.redis);
     }
 
     // Denied in role overrides allowed

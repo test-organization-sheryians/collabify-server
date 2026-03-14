@@ -128,13 +128,13 @@ export class PermissionEngine {
     if (cached === "1") return true;
     if (cached === "0") return false;
 
-    // DB check — WorkspaceMember uses 'assignedRole' relation
+    // DB check — WorkspaceMember.assignedRole is the FK relation to the roles table
     const member = await this.db.workspaceMember.findUnique({
       where: { workspaceId_userId: { workspaceId, userId: this.userId } },
       select: { assignedRole: { select: { rank: true } } },
     });
 
-    const isOwner = (member?.assignedRole.rank ?? 0) >= 100;
+    const isOwner = (member?.assignedRole?.rank ?? 0) >= 100;
     await this.redis.set(
       cacheKey,
       isOwner ? "1" : "0",

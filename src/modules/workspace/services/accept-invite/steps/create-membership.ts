@@ -13,9 +13,11 @@ export async function createMembership(
   db: PrismaClient
 ) {
   return db.$transaction(async (tx) => {
-    // Resolve the Role row for this workspace by name
-    const role = await tx.role.findUnique({
-      where: { workspaceId_name: { workspaceId, name: roleName } },
+    // Resolve the Role row for this workspace by name.
+    // Using findFirst because Prisma compound unique keys don't support null
+    // in nullable fields — projectId: null means workspace-level role.
+    const role = await tx.role.findFirst({
+      where: { workspaceId, projectId: null, name: roleName },
     });
     if (!role) {
       throw new AppError(

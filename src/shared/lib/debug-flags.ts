@@ -1,324 +1,380 @@
 /**
  * HIERARCHICAL DEBUG FLAGS (Backend)
  *
- * Resolution Priority: FILE > GROUP > ALL
- * - Set to `true` to enable logging
- * - Set to `undefined` to inherit from parent
+ * Resolution Priority: FILE > FLOW_GROUP > GROUP > ALL
+ * - true      → always enabled
+ * - false     → always disabled
+ * - undefined → inherit from parent group / ALL
+ *
+ * All flags default to false (off). Flip individual flags or groups
+ * to turn on targeted logging without noise.
  */
 
 // ═══════════════════════════════════════════════════════════════
-// MASTER SWITCH
+// MASTER SWITCH — set true to enable every logger at once
 // ═══════════════════════════════════════════════════════════════
-export const ALL = false; // ❌ DISABLED - Using targeted flags only
+export const ALL = false; // ❌ Off
 
 // ═══════════════════════════════════════════════════════════════
-// GROUP FLAGS (enable entire feature/module)
+// GROUP FLAGS — enable an entire feature or module at once
 // ═══════════════════════════════════════════════════════════════
 export const GROUPS = {
-  // ═══════════════════════════════════════════════════════════════
-  // Module Groups (enable entire feature)
-  // ═══════════════════════════════════════════════════════════════
-  chat: false,
-  whiteboard: false,
-  notification: false,
-  user: false,
-  workspace: false,
-  project: false,
-  vault: false, // ❌ All vault module logs (queries, services, lib)
-  pages: true, // ✅ All pages module logs
+  // ─── Module groups ──────────────────────────────────────────
+  chat: false,           // all chat module logs
+  whiteboard: false,     // all whiteboard module logs
+  notification: false,   // all notification module logs
+  user: false,           // all user module logs
+  workspace: false,      // all workspace module logs
+  project: false,        // all project module logs
+  vault: false,          // all vault module logs
+  pages: false,          // all pages module logs
+  issues: false,         // all issues module logs
+  internal: false,       // all internal module logs
+  middleware: false,     // all middleware logs
 
-  // ═══════════════════════════════════════════════════════════════
-  // Infrastructure Groups
-  // ═══════════════════════════════════════════════════════════════
-  infra: false, // ❌ All infrastructure (db, redis, s3, ses, ws)
-  ws: false, // ❌ All WebSocket infrastructure (gateway, router, worker, registry)
-  db: false, // ❌ Database infrastructure
-  api: false, // ❌ API layer
-  services: false, // ❌ Core services (bullmq, clerk, providers)
+  // ─── Infrastructure groups ───────────────────────────────────
+  infra: false,          // all infrastructure (db, redis, s3, ses, ws)
+  ws: false,             // all WebSocket infra (gateway, router, worker, registry)
+  db: false,             // database infrastructure
+  api: false,            // API layer (graphql, middlewares, webhooks, server)
+  services: false,       // core services (bullmq, clerk, email-provider)
 
-  // ═══════════════════════════════════════════════════════════════
-  // Whiteboard Flow Groups (🎯 For Easy Debugging)
-  // ═══════════════════════════════════════════════════════════════
+  // ─── Whiteboard composite flows ─────────────────────────────
 
   /**
-   * Stream Worker Complete Flow
-   * Enables: worker init, loops, processor, cache, snapshot, board-init, health
-   * Use when: Debugging stream consumption, snapshot creation, cache updates
+   * Stream Worker end-to-end
+   * Enables: worker init, loops, processor, cache, snapshot, health
    */
-  "whiteboard-stream-worker": false, // ❌ Disabled — use pages flags for page debugging
+  "whiteboard-stream-worker": false,
 
   /**
-   * Board Update E2E Flow (Frontend → Backend → Stream)
-   * Enables: board-update WS handler + stream processor + cache
-   * Use when: Tracing board updates from client to Redis stream
+   * Board Update E2E (WebSocket → stream → cache)
+   * Enables: board-update WS handler + stream processor
    */
-  "whiteboard-board-update-flow": false, // ❌
+  "whiteboard-board-update-flow": false,
 
   /**
-   * Snapshot Flow (Triggers → S3 → Trim)
+   * Snapshot pipeline (triggers → S3 → trim)
    * Enables: snapshot manager, S3 client, stream worker
-   * Use when: Debugging snapshot creation, S3 uploads, stream trimming
    */
-  "whiteboard-snapshot-flow": false, // ❌
+  "whiteboard-snapshot-flow": false,
 
   /**
-   * Whiteboard WebSocket Flow
-   * Enables: All WS handlers (subscribe, board-update, cursor, selection)
-   * Use when: Debugging real-time collaboration events
+   * WebSocket real-time collaboration events
+   * Enables: subscribe, board-update, cursor, selection handlers
    */
-  "whiteboard-ws": false, // ❌
+  "whiteboard-ws": false,
 
   /**
-   * Cold Start & Initialization
+   * Cold start / board init from S3 + stream replay
    * Enables: board-init, S3 client, stream processor
-   * Use when: Debugging board loading from S3 + stream replay
    */
-  "whiteboard-cold-start": false, // ❌
+  "whiteboard-cold-start": false,
 
-  // ═══════════════════════════════════════════════════════════════
-  // Chat Flow Groups
-  // ═══════════════════════════════════════════════════════════════
+  // ─── Chat composite flows ────────────────────────────────────
 
   /**
-   * Message Persistence Flow
-   * Enables: send-message WS + persist jobs + outbox cleanup
-   * Use when: Debugging message delivery and persistence
+   * Message send → persist → outbox cleanup pipeline
    */
-  "chat-message-flow": false, // ❌
+  "chat-message-flow": false,
 
   /**
-   * Reactions Flow
-   * Enables: add/remove reaction WS + persist/reconcile jobs + domain helpers
-   * Use when: Debugging reactions system
+   * Reactions add/remove → persist → reconcile pipeline
    */
-  "chat-reactions": false, // ❌
+  "chat-reactions": false,
+
+  // ─── Vault composite flows ───────────────────────────────────
 
   /**
-   * Vault Upload E2E Flow
-   * Enables all request-upload + confirm-upload step logs + quota-guard
-   * Use when: debugging the full upload pipeline end-to-end
+   * Full upload pipeline: request-upload → S3 → confirm-upload
    */
-  "vault-upload-flow": true, // ❌ Vault upload pipeline (request → S3 → confirm)
+  "vault-upload-flow": false,
 
-  // ═══════════════════════════════════════════════════════════════
-  // Development & Testing
-  // ═══════════════════════════════════════════════════════════════
-  stream: false, // ❌ All stream-related logs (Redis streams)
-  auth: false, // ❌ Authentication & authorization
-  shared: false, // ❌ Shared utilities
-  modules: false, // ❌ All modules (chat, whiteboard, notification, etc.)
+  // ─── Development/Testing ─────────────────────────────────────
+  stream: false,         // all Redis stream logs
+  auth: false,           // authentication & authorization
+  shared: false,         // shared utilities
+  modules: false,        // all modules (catch-all)
 } as const;
 
 // ═══════════════════════════════════════════════════════════════
-// FILE FLAGS (granular per-file control)
+// FILE FLAGS — granular per-file control (highest priority)
 // ═══════════════════════════════════════════════════════════════
 export const FILES: Record<string, boolean | undefined> = {
-  // ─────────────────────────────────────
-  // Core Infrastructure
-  // ─────────────────────────────────────
-  "db:setup": false, // infra/db/setup.ts
-  "ws:connection": false, // infra/ws/connection.ts
-  "ws:events": false, // infra/ws/events.ts
-  "api:handler": false, // app/api/handler.ts
-  "app:server": false, // app/server.ts
-  "app:webhooks": false, // app/webhooks/
-  "app:middlewares": false, // app/middlewares/
-  "app:graphql": false, // app/graphql/
-  "infra:db": false, // infra/db/
-  "infra:redis": false, // infra/redis/
-  "infra:email": false, // infra/email/
-  "infra:streams": false, // infra/streams/
-  "infra:s3": false, // infra/aws/s3.ts
-  "infra:ses": false, // infra/aws/ses.ts
-  "infra:ws:gateway": false, // infra/ws/gateway.ts
-  "infra:ws:router": false, // infra/ws/router.ts
-  "infra:ws:worker": false, // infra/ws/worker.ts
-  "infra:ws:registry": false, // infra/ws/registry.ts
+  // ─────────────────────────────────────────────────────────────
+  // App / API
+  // ─────────────────────────────────────────────────────────────
+  "app:server": false,
+  "app:graphql": false,
+  "app:middlewares": false,
+  "app:webhooks": false,
 
-  // ─────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────
+  // Infrastructure
+  // ─────────────────────────────────────────────────────────────
+  "db:setup": false,
+  "infra:db": false,
+  "infra:redis": false,
+  "infra:email": false,        // infra/sendgrid.ts (legacy)
+  "infra:s3": false,
+  "infra:ses": false,
+  "infra:streams": false,
+  "infra:ws:gateway": false,
+  "infra:ws:router": false,
+  "infra:ws:worker": false,
+  "infra:ws:registry": false,
+
+  // ─────────────────────────────────────────────────────────────
+  // Core Services
+  // ─────────────────────────────────────────────────────────────
+  "services:bullmq": false,
+  "services:clerk": false,
+  "services:providers": false,              // legacy (ses/sendgrid adapters)
+  "services:email-provider:console": true, // console.adapter.ts
+  "services:email-provider:nodemailer": false, // nodemailer.adapter.ts
+
+  // ─────────────────────────────────────────────────────────────
+  // Middleware
+  // ─────────────────────────────────────────────────────────────
+  "middleware:rate-limit-guard": false,
+
+  // ─────────────────────────────────────────────────────────────
+  // Internal Module
+  // ─────────────────────────────────────────────────────────────
+  "internal:assign-workspace": false,
+  "internal:metrics": false,
+
+  // ─────────────────────────────────────────────────────────────
+  // User Module
+  // ─────────────────────────────────────────────────────────────
+  "user:services:sync-user": false,
+  "user:queries:me": false,
+
+  // ─────────────────────────────────────────────────────────────
+  // Workspace Module
+  // ─────────────────────────────────────────────────────────────
+  "workspace:services:create-workspace": false,
+  "workspace:services:create-onboarding-workspace": false,
+  "workspace:services:invite-to-workspace": false,
+  "workspace:services:check-slug-availability": false,
+
+  // ─────────────────────────────────────────────────────────────
+  // Project Module
+  // ─────────────────────────────────────────────────────────────
+  "project:services:create-project": false,
+
+  // ─────────────────────────────────────────────────────────────
+  // Issues Module
+  // ─────────────────────────────────────────────────────────────
+  // Queries
+  "issues:queries:get-issue": false,
+  "issues:queries:get-project-issues": false,
+  "issues:queries:get-issue-statuses": false,
+  "issues:queries:get-issue-labels": false,
+  "issues:queries:get-issue-description-url": false,
+  // Services
+  "issues:services:create-issue": false,
+  "issues:services:delete-issue": false,
+  "issues:services:update-issue": false,
+  "issues:services:reorder-issue": false,
+  "issues:services:create-issue-status": false,
+  "issues:services:delete-issue-status": false,
+  "issues:services:update-issue-status": false,
+  "issues:services:move-issue-status": false,
+  "issues:services:reorder-issue-status": false,
+  "issues:services:create-issue-label": false,
+  "issues:services:delete-issue-label": false,
+  "issues:services:update-issue-label": false,
+  "issues:services:request-description-upload": false,
+  "issues:services:confirm-description-upload": false,
+
+  // ─────────────────────────────────────────────────────────────
+  // Notification Module
+  // ─────────────────────────────────────────────────────────────
+  "notification:engine:bootstrap": false,
+  "notification:engine:poller": false,
+  "notification:engine:fan-out": false,
+  "notification:engine:decider": false,
+  "notification:engine:batch": false,
+  "notification:engine:recovery": false,
+  "notification:engine:cleanup": false,
+  "notification:channel:email": false,
+  "notification:channel:push": false,
+  "notification:channel:in-app": false,
+  "notification:channel:realtime": false,
+  "notification:lib": false,
+  "notification:services:read": false,
+
+  // ─────────────────────────────────────────────────────────────
   // Chat Module
-  // ─────────────────────────────────────
-  "chat:engine": false, // modules/chat/index.ts
-  "chat:jobs:index": false, // modules/chat/jobs/index.ts
-  "chat:jobs:persist-message": false, // modules/chat/jobs/persist-message.ts
-  "chat:jobs:persist-message-edit": false, // modules/chat/jobs/persist-message-edit.ts
-  "chat:jobs:persist-message-delete": false, // modules/chat/jobs/persist-message-delete.ts
-  "chat:jobs:cleanup-outbox": false, // modules/chat/jobs/cleanup-outbox.ts
-  "chat:jobs:recover-stuck-outbox": false, // modules/chat/jobs/recover-stuck-outbox.ts
-  "chat:jobs:persist-reactions": false, // modules/chat/jobs/persist-reactions.ts
-  "chat:jobs:reconcile-reactions": false, // modules/chat/jobs/reconcile-reactions.ts
-  "chat:jobs:batch-read-receipts": false, // modules/chat/jobs/batch-read-receipts.ts
-  "chat:jobs:reaction-jobs": false, // modules/chat/jobs/reaction-jobs.ts
-  "chat:ws:router": false, // modules/chat/ws/router.ts
-  "chat:ws:send-message": false, // modules/chat/ws/send-message-handler.ts
-  "chat:ws:edit-message": false, // modules/chat/ws/edit-message-handler.ts
-  "chat:ws:delete-message": false, // modules/chat/ws/delete-message-handler.ts
-  "chat:ws:subscribe": false, // modules/chat/ws/subscribe-handler.ts
-  "chat:ws:unsubscribe": false, // modules/chat/ws/unsubscribe-handler.ts
-  "chat:ws:add-reaction": false, // modules/chat/ws/add-reaction-handler.ts
-  "chat:ws:remove-reaction": false, // modules/chat/ws/remove-reaction-handler.ts
-  "chat:ws:mark-read": false, // modules/chat/ws/mark-read-handler.ts
-  "chat:ws:typing-start": false, // modules/chat/ws/typing-start-handler.ts
-  "chat:ws:typing-stop": false, // modules/chat/ws/typing-stop-handler.ts
-  "chat:ws:user-typing": false, // modules/chat/ws/user-typing-handler.ts
-  "chat:ws:user-stop-typing": false, // modules/chat/ws/user-stop-typing-handler.ts
-  "chat:services:create-channel": false, // modules/chat/services/create-channel/
-  "chat:queries:get-reactions": false, // modules/chat/queries/get-reactions/
-  "chat:domain:reactions:batch": false, // modules/chat/domain/reactions/batch.ts
-  "chat:domain:reactions:helpers": false, // modules/chat/domain/reactions/helpers.ts
-  "chat:domain:reactions:metrics": false, // modules/chat/domain/reactions/metrics.ts
+  // ─────────────────────────────────────────────────────────────
+  "chat:engine": false,
+  // WebSocket handlers
+  "chat:ws:subscribe": false,
+  "chat:ws:unsubscribe": false,
+  "chat:ws:send-message": false,
+  "chat:ws:edit-message": false,
+  "chat:ws:delete-message": false,
+  "chat:ws:add-reaction": false,
+  "chat:ws:remove-reaction": false,
+  "chat:ws:mark-read": false,
+  "chat:ws:typing-start": false,
+  "chat:ws:typing-stop": false,
+  "chat:ws:user-typing": false,
+  "chat:ws:user-stop-typing": false,
+  // Jobs
+  "chat:jobs:index": false,
+  "chat:jobs:persist-message": false,
+  "chat:jobs:persist-message-edit": false,
+  "chat:jobs:persist-message-delete": false,
+  "chat:jobs:cleanup-outbox": false,
+  "chat:jobs:recover-stuck-outbox": false,
+  "chat:jobs:persist-reactions": false,
+  "chat:jobs:reconcile-reactions": false,
+  "chat:jobs:batch-read-receipts": false,
+  "chat:jobs:reaction-jobs": false,
+  // Queries
+  "chat:queries:get-history": false,
+  "chat:queries:get-messages-delta": false,
+  "chat:queries:get-messages-after-cursor": false,
+  "chat:queries:get-missing-messages": false,
+  "chat:queries:get-message-by-id": false,
+  "chat:queries:get-thread-messages": false,
+  "chat:queries:get-user-conversations": false,
+  "chat:queries:get-conversation": false,
+  "chat:queries:get-dm-by-users": false,
+  "chat:queries:get-channel-members": false,
+  "chat:queries:get-unread-counts": false,
+  "chat:queries:get-read-receipts": false,
+  "chat:queries:get-last-read-message": false,
+  "chat:queries:get-reactions": false,
+  "chat:queries:get-message-reactions": false,
+  "chat:queries:get-reaction-users": false,
+  "chat:queries:get-users-by-ids": false,
+  // Services
+  "chat:services:create-channel": false,
+  // Domain
+  "chat:domain:reactions:batch": false,
+  "chat:domain:reactions:helpers": false,
+  "chat:domain:reactions:metrics": false,
 
-  // ─────────────────────────────────────
-  // Whiteboard Module (✅ STREAM WORKER V2 ONLY)
-  // ─────────────────────────────────────
-  "whiteboard:engine": false, // modules/whiteboard/index.ts - Worker startup
+  // ─────────────────────────────────────────────────────────────
+  // Whiteboard Module
+  // ─────────────────────────────────────────────────────────────
+  "whiteboard:engine": false,
+  // WebSocket handlers
   "whiteboard:ws:subscribe": false,
   "whiteboard:ws:unsubscribe": false,
   "whiteboard:ws:board-update": false,
   "whiteboard:ws:cursor": false,
   "whiteboard:ws:selection": false,
-
   // Stream Worker V2
   "whiteboard:stream-worker-v2": false,
   "whiteboard:stream-worker-v2:loops": false,
   "whiteboard:stream-worker-v2:processor": false,
   "whiteboard:stream-worker-v2:s3-sync": false,
-
+  // Other infra
   "whiteboard:stream-worker:lua": false,
   "whiteboard:threshold:registry": false,
   "whiteboard:threshold:stream-length": false,
   "whiteboard:infra:s3": false,
   "whiteboard:infra:loop-prevention": false,
+  // Jobs
   "whiteboard:jobs:snapshot": false,
   "whiteboard:jobs:cleanup": false,
+  // Services
   "whiteboard:services:create-board": false,
   "whiteboard:services:delete-board": false,
   "whiteboard:services:delete-board:cleanup": false,
+  // Queries
   "whiteboard:queries:get-snapshot": false,
 
-  // ─────────────────────────────────────
-  // Internal Module
-  // ─────────────────────────────────────
-  "internal:assign-workspace": false, // modules/internal/assign-workspace.ts
-  "internal:metrics": false, // modules/internal/metrics.ts
-
-  // ─────────────────────────────────────
-  // Notification Module
-  // ─────────────────────────────────────
-  "notification:engine:bootstrap": false, // modules/notification/engine/bootstrap.ts
-  "notification:engine:poller": false, // modules/notification/engine/poller.ts
-  "notification:engine:fan-out": false, // modules/notification/engine/fan-out.ts
-  "notification:engine:decider": false, // modules/notification/engine/decider.ts
-  "notification:engine:batch": false, // modules/notification/engine/batch.ts
-  "notification:engine:recovery": false, // modules/notification/engine/recovery.ts
-  "notification:engine:cleanup": false, // modules/notification/engine/cleanup.ts
-  "notification:channel:email": false, // modules/notification/channel/email.ts
-  "notification:channel:push": false, // modules/notification/channel/push.ts
-  "notification:channel:in-app": false, // modules/notification/channel/in-app.ts
-  "notification:channel:realtime": false, // modules/notification/channel/realtime.ts
-  "notification:lib": false, // modules/notification/lib/outbox.writer.ts
-  "notification:services:read": false, // modules/notification/services/read/
-
-  // ─────────────────────────────────────
-  // User Module
-  // ─────────────────────────────────────
-  "user:services:sync": false, // modules/user/services/sync/
-  "user:queries:me": false, // modules/user/queries/me/
-
-  // ─────────────────────────────────────
-  // Workspace Module
-  // ─────────────────────────────────────
-  "workspace:services:create": false, // modules/workspace/services/create/
-  "workspace:services:onboarding": false, // modules/workspace/services/onboarding/
-  "workspace:services:invite": false, // modules/workspace/services/invite/
-  "workspace:services:slug": false, // modules/workspace/services/slug/
-  "workspace:services:member": false, // modules/workspace/services/member/
-
-  // ─────────────────────────────────────
-  // Project Module
-  // ─────────────────────────────────────
-  "project:services:create": false,
-  "project:queries:get": false,
-
-  // ─────────────────────────────────────
-  // Quota Module
-  // ─────────────────────────────────────
-  "quota:enforce": false,
-
-  // ─────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────
   // Vault Module
-  // ─────────────────────────────────────
-  // request-upload
-  "vault:services:request-upload": true, // handler.ts — top-level entry/exit
-  "vault:services:request-upload:validate": true, // steps/validate-input.ts
-  "vault:services:request-upload:quota": true, // steps/check-quota.ts
-  "vault:services:request-upload:create": true, // steps/create-pending-file.ts
-  "vault:services:request-upload:presign": true, // steps/generate-presigned-url.ts
-  // confirm-upload
-  "vault:services:confirm-upload": true, // handler.ts — top-level entry/exit
-  "vault:services:confirm-upload:validate": true, // steps/validate-pending-file.ts
-  "vault:services:confirm-upload:verify-s3": true, // steps/verify-s3-object.ts
-  "vault:services:confirm-upload:activate": true, // steps/activate-file.ts
-  // shared lib
-  "vault:lib:quota-guard": true, // lib/quota-guard.ts (all 3 functions)
-
-  // ─────────────────────────────────────
-  // Infrastructure & Services (Core)
-  // ─────────────────────────────────────
-  "services:bullmq": false,
-  "services:clerk": false,
-  "services:providers": false,
-
-  // ─────────────────────────────────────
-  // Pages Module ✅ ENABLED
-  // ─────────────────────────────────────
-  // WS — subscribe-page
-  "pages:ws:subscribe-page": true,
-  "pages:ws:subscribe-page:auth-check": true,
-  "pages:ws:subscribe-page:fetch-collaborators": true,
-  "pages:ws:subscribe-page:replay-gap": true,
-  "pages:ws:subscribe-page:track-presence": true,
-  "pages:ws:subscribe-page:broadcast-join": true,
-  // WS — unsubscribe-page
-  "pages:ws:unsubscribe-page": true,
-  "pages:ws:unsubscribe-page:broadcast-left": true,
-  "pages:ws:unsubscribe-page:bump-epoch": true,
-  "pages:ws:unsubscribe-page:cleanup-presence": true,
-  "pages:ws:unsubscribe-page:clean-user-state": true,
-  "pages:ws:unsubscribe-page:deregister-socket": true,
-  // WS — page-update
-  "pages:ws:page-update": true,
-  "pages:ws:page-update:check-auth": true,
-  "pages:ws:page-update:append-to-stream": true,
-  "pages:ws:page-update:broadcast": true,
-  // WS — awareness
-  "pages:ws:awareness-update": true,
+  // ─────────────────────────────────────────────────────────────
+  "vault:intake": false,
+  "vault:infra:pending-cleanup": false,
   // Queries
-  "pages:queries:get-page-snapshot": true,
-  "pages:queries:get-page-snapshot:load-snapshot": true,
-  "pages:queries:get-page-snapshot:compute-diff": true,
+  "vault:queries:get-node": false,
+  "vault:queries:get-children": false,
+  "vault:queries:get-ancestors": false,
+  "vault:queries:get-sidebar": false,
+  "vault:queries:get-download-url": false,
+  "vault:queries:get-vault-usage": false,
+  // Services — request-upload pipeline
+  "vault:services:request-upload": false,
+  "vault:services:request-upload:validate": false,
+  "vault:services:request-upload:quota": false,
+  "vault:services:request-upload:create": false,
+  "vault:services:request-upload:presign": false,
+  // Services — confirm-upload pipeline
+  "vault:services:confirm-upload": false,
+  "vault:services:confirm-upload:validate": false,
+  "vault:services:confirm-upload:verify-s3": false,
+  "vault:services:confirm-upload:activate": false,
+  // Services — folder/file management
+  "vault:services:create-folder": false,
+  "vault:services:delete-folder": false,
+  "vault:services:rename-folder": false,
+  "vault:services:move-folder": false,
+  "vault:services:pin-folder": false,
+  "vault:services:unpin-folder": false,
+  "vault:services:delete-file": false,
+  "vault:services:rename-file": false,
+  "vault:services:move-file": false,
+  // Lib
+  "vault:lib:quota-guard": false,
+
+  // ─────────────────────────────────────────────────────────────
+  // Pages Module
+  // ─────────────────────────────────────────────────────────────
+  // WebSocket — subscribe-page
+  "pages:ws:subscribe-page": false,
+  "pages:ws:subscribe-page:auth-check": false,
+  "pages:ws:subscribe-page:fetch-collaborators": false,
+  "pages:ws:subscribe-page:replay-gap": false,
+  "pages:ws:subscribe-page:track-presence": false,
+  "pages:ws:subscribe-page:broadcast-join": false,
+  // WebSocket — unsubscribe-page
+  "pages:ws:unsubscribe-page": false,
+  "pages:ws:unsubscribe-page:broadcast-left": false,
+  "pages:ws:unsubscribe-page:bump-epoch": false,
+  "pages:ws:unsubscribe-page:cleanup-presence": false,
+  "pages:ws:unsubscribe-page:clean-user-state": false,
+  "pages:ws:unsubscribe-page:deregister-socket": false,
+  // WebSocket — page-update
+  "pages:ws:page-update": false,
+  "pages:ws:page-update:check-auth": false,
+  "pages:ws:page-update:append-to-stream": false,
+  "pages:ws:page-update:broadcast": false,
+  // WebSocket — awareness
+  "pages:ws:awareness-update": false,
+  // Queries
+  "pages:queries:get-page-snapshot": false,
+  "pages:queries:get-page-snapshot:load-snapshot": false,
+  "pages:queries:get-page-snapshot:compute-diff": false,
   "pages:queries:get-page": false,
   "pages:queries:get-project-pages": false,
   "pages:queries:get-page-collaborators": false,
   "pages:queries:get-active-page-collaborators": false,
   // Services
-  "pages:services:create-page": true,
-  "pages:services:delete-page": true,
-  "pages:services:rename-page": true,
-  "pages:services:lock-page": true,
-  "pages:services:unlock-page": true,
-  "pages:services:archive-page": true,
+  "pages:services:create-page": false,
+  "pages:services:delete-page": false,
+  "pages:services:rename-page": false,
+  "pages:services:lock-page": false,
+  "pages:services:unlock-page": false,
+  "pages:services:archive-page": false,
   "pages:services:unarchive-page": false,
   "pages:services:reorder-page": false,
   "pages:services:add-page-collaborators": false,
   "pages:services:remove-page-collaborator": false,
   // Stream Worker
-  "pages:stream-worker": true,
-  "pages:stream-worker:loops": true,
-  "pages:stream-worker:processor": true,
-  "pages:stream-worker:threshold-registry": true,
-  "pages:stream-worker:threshold:cooldown": true,
-  "pages:stream-worker:threshold:stream-length": true,
+  "pages:stream-worker": false,
+  "pages:stream-worker:loops": false,
+  "pages:stream-worker:processor": false,
+  "pages:stream-worker:threshold-registry": false,
+  "pages:stream-worker:threshold:cooldown": false,
+  "pages:stream-worker:threshold:stream-length": false,
 };
 
 export type GroupFlag = keyof typeof GROUPS;

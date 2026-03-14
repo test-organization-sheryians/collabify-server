@@ -57,18 +57,22 @@ const getGroup = (flag: string): GroupFlag | null => {
 
 /**
  * Flow-based group mappings
- * Maps file flags to their related flow groups
+ * Maps the exact flag string passed to createLogger() → which composite
+ * flow groups it belongs to. Enables turning on a named flow group and
+ * having all related files light up automatically.
+ *
+ * Keep these in sync with createLogger() call sites.
  */
 const FLOW_GROUPS: Record<string, GroupFlag[]> = {
-  // Whiteboard Stream Worker V2 Flow
-  "whiteboard:infra:stream-worker": ["whiteboard-stream-worker"],
-  "whiteboard:stream-worker:processor": [
+  // ── Whiteboard Stream Worker V2 ───────────────────────────────
+  "whiteboard:stream-worker-v2": ["whiteboard-stream-worker"],
+  "whiteboard:stream-worker-v2:loops": ["whiteboard-stream-worker"],
+  "whiteboard:stream-worker-v2:processor": [
     "whiteboard-stream-worker",
     "whiteboard-board-update-flow",
     "whiteboard-cold-start",
   ],
-  "whiteboard:stream-worker:loops": ["whiteboard-stream-worker"],
-  "whiteboard:stream-worker:s3-sync": [
+  "whiteboard:stream-worker-v2:s3-sync": [
     "whiteboard-stream-worker",
     "whiteboard-snapshot-flow",
   ],
@@ -76,20 +80,17 @@ const FLOW_GROUPS: Record<string, GroupFlag[]> = {
   "whiteboard:threshold:registry": ["whiteboard-stream-worker"],
   "whiteboard:threshold:stream-length": ["whiteboard-stream-worker"],
 
-  // Whiteboard WebSocket Flow
+  // ── Whiteboard WebSocket ──────────────────────────────────────
   "whiteboard:ws:subscribe": ["whiteboard-ws"],
   "whiteboard:ws:unsubscribe": ["whiteboard-ws"],
-  "whiteboard:ws:board-update": [
-    "whiteboard-ws",
-    "whiteboard-board-update-flow",
-  ],
+  "whiteboard:ws:board-update": ["whiteboard-ws", "whiteboard-board-update-flow"],
   "whiteboard:ws:cursor": ["whiteboard-ws"],
   "whiteboard:ws:selection": ["whiteboard-ws"],
 
-  // Whiteboard Snapshot Flow
+  // ── Whiteboard S3 / Snapshot ──────────────────────────────────
   "whiteboard:infra:s3": ["whiteboard-snapshot-flow", "whiteboard-cold-start"],
 
-  // Chat Message Flow
+  // ── Chat Message Pipeline ─────────────────────────────────────
   "chat:ws:send-message": ["chat-message-flow"],
   "chat:jobs:persist-message": ["chat-message-flow"],
   "chat:jobs:persist-message-edit": ["chat-message-flow"],
@@ -97,7 +98,7 @@ const FLOW_GROUPS: Record<string, GroupFlag[]> = {
   "chat:jobs:cleanup-outbox": ["chat-message-flow"],
   "chat:jobs:recover-stuck-outbox": ["chat-message-flow"],
 
-  // Chat Reactions Flow
+  // ── Chat Reactions Pipeline ───────────────────────────────────
   "chat:ws:add-reaction": ["chat-reactions"],
   "chat:ws:remove-reaction": ["chat-reactions"],
   "chat:jobs:persist-reactions": ["chat-reactions"],
@@ -106,7 +107,7 @@ const FLOW_GROUPS: Record<string, GroupFlag[]> = {
   "chat:domain:reactions:helpers": ["chat-reactions"],
   "chat:domain:reactions:metrics": ["chat-reactions"],
 
-  // Vault Upload E2E Flow
+  // ── Vault Upload Pipeline ─────────────────────────────────────
   "vault:services:request-upload": ["vault-upload-flow"],
   "vault:services:request-upload:validate": ["vault-upload-flow"],
   "vault:services:request-upload:quota": ["vault-upload-flow"],
@@ -118,6 +119,7 @@ const FLOW_GROUPS: Record<string, GroupFlag[]> = {
   "vault:services:confirm-upload:activate": ["vault-upload-flow"],
   "vault:lib:quota-guard": ["vault-upload-flow"],
 };
+
 
 /**
  * Check if logging is enabled for a given flag

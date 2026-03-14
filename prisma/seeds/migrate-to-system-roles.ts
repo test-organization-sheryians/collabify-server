@@ -1,3 +1,8 @@
+// @ts-nocheck
+// DEPRECATED one-off migration script — written for the old schema where
+// workspaceId could be null (global system roles). No longer applicable:
+// all roles now require workspaceId. Kept for historical reference only.
+// DO NOT RUN on the current schema.
 /**
  * migrate-to-system-roles.ts
  *

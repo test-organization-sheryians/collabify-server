@@ -47,13 +47,14 @@ export const acceptInvite = async (
       };
     }
 
-    // Step 4: resolve the Role row for this workspace by invite.role name
-    const role = await tx.role.findUnique({
+    // Step 4: resolve the Role row for this workspace by invite.role name.
+    // Using findFirst: Prisma's compound unique key input types don't accept
+    // null for nullable fields — projectId: null means workspace-level role.
+    const role = await tx.role.findFirst({
       where: {
-        workspaceId_name: {
-          workspaceId: invite.workspaceId,
-          name: invite.role, // invite.role is RoleType enum value e.g. "MEMBER"
-        },
+        workspaceId: invite.workspaceId,
+        projectId: null, // workspace-level role — never a project-specific role
+        name: invite.role,
       },
     });
     if (!role) {

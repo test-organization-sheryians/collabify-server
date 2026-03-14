@@ -1,3 +1,9 @@
+// @ts-nocheck
+// DEPRECATED — this script pre-dates the workspace-first role seeding model.
+// System roles (OWNER/ADMIN/MEMBER/GUEST + MANAGER/CONTRIBUTOR/VIEWER) are now
+// seeded per-workspace inside insert-workspace.ts. This script attempted to
+// create global system roles with workspaceId=null which is no longer allowed.
+// Kept for historical reference only. DO NOT RUN on the current schema.
 /**
  * seed-role-permissions.ts
  *

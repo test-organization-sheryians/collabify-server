@@ -12,6 +12,11 @@ import {
   removeMemberTypeDefs,
   updateMemberRoleTypeDefs,
   updateWorkspaceTypeDefs,
+  createWorkspaceRoleTypeDefs,
+  updateWorkspaceRoleTypeDefs,
+  deleteWorkspaceRoleTypeDefs,
+  assignRolePermissionTypeDefs,
+  removeRolePermissionTypeDefs,
 } from "../services";
 
 import {
@@ -22,6 +27,9 @@ import {
   getWorkspaceMembersTypeDefs,
   getWorkspaceByIdTypeDefs,
   getWorkspaceInvitesTypeDefs,
+  getWorkspaceRolesTypeDefs,
+  getRolePermissionsTypeDefs,
+  getWorkspaceOverviewTypeDefs,
 } from "../queries";
 
 const baseTypeDefs = `
@@ -34,11 +42,39 @@ const baseTypeDefs = `
     createdAt: String!
     updatedAt: String!
   }
+
+  type WorkspaceRole {
+    id: ID!
+    workspaceId: ID!
+    name: String!
+    description: String
+    scopeType: String!
+    isSystem: Boolean!
+    rank: Int!
+    createdAt: String!
+    updatedAt: String!
+  }
+
+  type Permission {
+    id: ID!
+    resource: String!
+    action: String!
+    description: String
+    module: String!
+  }
+
+  type RolePermission {
+    roleId: ID!
+    permissionId: ID!
+    effect: String!
+    conditions: String
+    permission: Permission!
+  }
 `;
 
 export const typeDefs = [
   baseTypeDefs,
-  // Features
+  // Services
   acceptInviteTypeDefs,
   checkSlugAvailabilityTypeDefs,
   createOnboardingWorkspaceTypeDefs,
@@ -52,6 +88,11 @@ export const typeDefs = [
   removeMemberTypeDefs,
   updateMemberRoleTypeDefs,
   updateWorkspaceTypeDefs,
+  createWorkspaceRoleTypeDefs,
+  updateWorkspaceRoleTypeDefs,
+  deleteWorkspaceRoleTypeDefs,
+  assignRolePermissionTypeDefs,
+  removeRolePermissionTypeDefs,
 
   // Queries
   getInviteInfoTypeDefs,
@@ -61,4 +102,7 @@ export const typeDefs = [
   getWorkspaceMembersTypeDefs,
   getWorkspaceByIdTypeDefs,
   getWorkspaceInvitesTypeDefs,
+  getWorkspaceRolesTypeDefs,
+  getRolePermissionsTypeDefs,
+  getWorkspaceOverviewTypeDefs,
 ];

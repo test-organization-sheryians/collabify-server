@@ -22,6 +22,12 @@ import {
   DeleteProjectSchema,
   leaveProject,
   LeaveProjectSchema,
+  createProjectRole,
+  CreateProjectRoleSchema,
+  updateProjectRole,
+  UpdateProjectRoleSchema,
+  deleteProjectRole,
+  DeleteProjectRoleSchema,
 } from "../services";
 import {
   getMyProjects,
@@ -32,6 +38,10 @@ import {
   GetProjectBySlugSchema,
   getProjectMembers,
   GetProjectMembersSchema,
+  getProjectRoles,
+  GetProjectRolesSchema,
+  getProjectOverview,
+  GetProjectOverviewSchema,
 } from "../queries";
 
 export const resolvers: Resolvers = {
@@ -69,6 +79,22 @@ export const resolvers: Resolvers = {
         actorUserId: ctx.auth.userId,
       });
       return getProjectMembers(data, ctx);
+    },
+
+    projectRoles: async (_, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = GetProjectRolesSchema.parse({
+        projectId: args.projectId,
+        workspaceId: args.workspaceId,
+        actorUserId: ctx.auth.userId,
+      });
+      return getProjectRoles(data, ctx);
+    },
+
+    projectOverview: async (_, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = GetProjectOverviewSchema.parse({ projectId: args.projectId });
+      return getProjectOverview(data, ctx);
     },
   },
   Mutation: {
@@ -169,6 +195,40 @@ export const resolvers: Resolvers = {
         actorUserId: ctx.auth.userId,
       });
       return leaveProject(data, ctx);
+    },
+
+    createProjectRole: async (_, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = CreateProjectRoleSchema.parse({
+        projectId: args.projectId,
+        workspaceId: args.workspaceId,
+        actorUserId: ctx.auth.userId,
+        ...args.input,
+      });
+      return createProjectRole(data, ctx);
+    },
+
+    updateProjectRole: async (_, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = UpdateProjectRoleSchema.parse({
+        roleId: args.roleId,
+        projectId: args.projectId,
+        workspaceId: args.workspaceId,
+        actorUserId: ctx.auth.userId,
+        ...args.input,
+      });
+      return updateProjectRole(data, ctx);
+    },
+
+    deleteProjectRole: async (_, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = DeleteProjectRoleSchema.parse({
+        roleId: args.roleId,
+        projectId: args.projectId,
+        workspaceId: args.workspaceId,
+        actorUserId: ctx.auth.userId,
+      });
+      return deleteProjectRole(data, ctx);
     },
   },
 };

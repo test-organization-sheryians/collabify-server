@@ -11,3 +11,9 @@ export * from "./transfer-workspace-ownership";
 export * from "./remove-member";
 export * from "./update-member-role";
 export * from "./update-workspace";
+export * from "./create-workspace-role";
+export * from "./update-workspace-role";
+export * from "./delete-workspace-role";
+export * from "./assign-role-permission";
+export * from "./remove-role-permission";
+

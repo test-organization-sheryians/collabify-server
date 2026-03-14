@@ -8,6 +8,9 @@ import { archiveProjectTypeDefs } from "./archive-project";
 import { unarchiveProjectTypeDefs } from "./unarchive-project";
 import { deleteProjectTypeDefs } from "./delete-project";
 import { leaveProjectTypeDefs } from "./leave-project";
+import { createProjectRoleTypeDefs } from "./create-project-role";
+import { updateProjectRoleTypeDefs } from "./update-project-role";
+import { deleteProjectRoleTypeDefs } from "./delete-project-role";
 
 export const typeDefs = [
   CreateProjectTypeDefs,
@@ -20,6 +23,9 @@ export const typeDefs = [
   unarchiveProjectTypeDefs,
   deleteProjectTypeDefs,
   leaveProjectTypeDefs,
+  createProjectRoleTypeDefs,
+  updateProjectRoleTypeDefs,
+  deleteProjectRoleTypeDefs,
 ].join("\n");
 
 export * from "./create-project";
@@ -32,3 +38,6 @@ export * from "./archive-project";
 export * from "./unarchive-project";
 export * from "./delete-project";
 export * from "./leave-project";
+export * from "./create-project-role";
+export * from "./update-project-role";
+export * from "./delete-project-role";

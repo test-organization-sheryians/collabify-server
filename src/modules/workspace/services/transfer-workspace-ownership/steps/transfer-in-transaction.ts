@@ -12,12 +12,12 @@ export async function transferInTransaction(
   db: PrismaClient
 ) {
   return db.$transaction(async (tx) => {
-    const ownerRole = await tx.role.findUnique({
-      where: { workspaceId_name: { workspaceId, name: "OWNER" } },
+    const ownerRole = await tx.role.findFirst({
+      where: { workspaceId, projectId: null, name: "OWNER" },
       select: { id: true },
     });
-    const adminRole = await tx.role.findUnique({
-      where: { workspaceId_name: { workspaceId, name: "ADMIN" } },
+    const adminRole = await tx.role.findFirst({
+      where: { workspaceId, projectId: null, name: "ADMIN" },
       select: { id: true },
     });
 

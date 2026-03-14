@@ -1,6 +1,6 @@
 import { createLogger } from "@/shared/lib/logger";
 
-const logger = createLogger("services:providers");
+const logger = createLogger("services:email-provider:console");
 
 export const sendToConsole = (
   to: string,

@@ -23,6 +23,19 @@ export const typeDefs = `
     members: [ProjectMember!]!
   }
 
+  type ProjectRole {
+    id: ID!
+    projectId: ID
+    workspaceId: ID!
+    name: String!
+    description: String
+    scopeType: String!
+    isSystem: Boolean!
+    rank: Int!
+    createdAt: String!
+    updatedAt: String!
+  }
+
   ${serviceTypeDefs}
   ${queryTypeDefs}
 `;

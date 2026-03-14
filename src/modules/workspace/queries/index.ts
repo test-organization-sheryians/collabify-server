@@ -5,3 +5,6 @@ export * from "./get-workspace-by-slug";
 export * from "./get-workspace-members";
 export * from "./get-workspace-by-id";
 export * from "./get-workspace-invites";
+export * from "./get-workspace-roles";
+export * from "./get-role-permissions";
+export * from "./get-workspace-overview";

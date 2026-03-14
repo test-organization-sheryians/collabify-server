@@ -30,6 +30,16 @@ import {
   DeleteWorkspaceSchema,
   transferWorkspaceOwnership,
   TransferWorkspaceOwnershipSchema,
+  createWorkspaceRole,
+  CreateWorkspaceRoleSchema,
+  updateWorkspaceRole,
+  UpdateWorkspaceRoleSchema,
+  deleteWorkspaceRole,
+  DeleteWorkspaceRoleSchema,
+  assignRolePermission,
+  AssignRolePermissionSchema,
+  removeRolePermission,
+  RemoveRolePermissionSchema,
 } from "../services";
 
 // Queries
@@ -48,6 +58,12 @@ import {
   GetWorkspaceByIdSchema,
   getWorkspaceInvites,
   GetWorkspaceInvitesSchema,
+  getWorkspaceRoles,
+  GetWorkspaceRolesSchema,
+  getRolePermissions,
+  GetRolePermissionsSchema,
+  getWorkspaceOverview,
+  GetWorkspaceOverviewSchema,
 } from "../queries";
 
 export const resolvers: Resolvers = {
@@ -117,6 +133,31 @@ export const resolvers: Resolvers = {
         actorUserId: ctx.auth.userId,
       });
       return getWorkspaceInvites(data, ctx);
+    },
+
+    workspaceRoles: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = GetWorkspaceRolesSchema.parse({
+        workspaceId: args.workspaceId,
+        actorUserId: ctx.auth.userId,
+      });
+      return getWorkspaceRoles(data, ctx);
+    },
+
+    rolePermissions: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = GetRolePermissionsSchema.parse({
+        roleId: args.roleId,
+        workspaceId: args.workspaceId,
+        actorUserId: ctx.auth.userId,
+      });
+      return getRolePermissions(data, ctx);
+    },
+
+    workspaceOverview: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = GetWorkspaceOverviewSchema.parse({ workspaceId: args.workspaceId });
+      return getWorkspaceOverview(data, ctx);
     },
   },
 
@@ -248,6 +289,61 @@ export const resolvers: Resolvers = {
         newOwnerId: args.newOwnerId,
       });
       return transferWorkspaceOwnership(data, ctx);
+    },
+
+    createWorkspaceRole: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = CreateWorkspaceRoleSchema.parse({
+        workspaceId: args.workspaceId,
+        actorUserId: ctx.auth.userId,
+        ...args.input,
+      });
+      return createWorkspaceRole(data, ctx);
+    },
+
+    updateWorkspaceRole: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = UpdateWorkspaceRoleSchema.parse({
+        roleId: args.roleId,
+        workspaceId: args.workspaceId,
+        actorUserId: ctx.auth.userId,
+        ...args.input,
+      });
+      return updateWorkspaceRole(data, ctx);
+    },
+
+    deleteWorkspaceRole: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = DeleteWorkspaceRoleSchema.parse({
+        roleId: args.roleId,
+        workspaceId: args.workspaceId,
+        actorUserId: ctx.auth.userId,
+      });
+      return deleteWorkspaceRole(data, ctx);
+    },
+
+    assignRolePermission: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = AssignRolePermissionSchema.parse({
+        roleId: args.roleId,
+        workspaceId: args.workspaceId,
+        permissionId: args.permissionId,
+        effect: args.effect,
+        conditions: args.conditions,
+        actorUserId: ctx.auth.userId,
+      });
+      return assignRolePermission(data, ctx);
+    },
+
+    removeRolePermission: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = RemoveRolePermissionSchema.parse({
+        roleId: args.roleId,
+        workspaceId: args.workspaceId,
+        permissionId: args.permissionId,
+        actorUserId: ctx.auth.userId,
+      });
+      return removeRolePermission(data, ctx);
     },
   },
 };

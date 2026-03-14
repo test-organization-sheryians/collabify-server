@@ -11,8 +11,8 @@ export async function updateRole(
   roleName: string,
   db: PrismaClient
 ) {
-  const role = await db.role.findUnique({
-    where: { workspaceId_name: { workspaceId, name: roleName } },
+  const role = await db.role.findFirst({
+    where: { workspaceId, projectId: null, name: roleName },
   });
 
   if (!role) {
