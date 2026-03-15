@@ -5,10 +5,10 @@ import { env } from "../shared/config/env";
 const logger = createLogger("infra:redis");
 const REDIS_URL = env.REDIS_URL || "redis://localhost:6379";
 
-const createClient = (name: string) => {
+const createClient = (name: string, enableReadyCheck = true) => {
   const client = new Redis(REDIS_URL, {
     maxRetriesPerRequest: null, // Required for BullMQ & blocking commands
-    enableReadyCheck: false,
+    enableReadyCheck,
     retryStrategy: (times) => Math.min(times * 50, 2000),
     connectionName: name,
   });
@@ -25,13 +25,16 @@ const createClient = (name: string) => {
 };
 
 // 1. General Application Redis (Caching, simple commands, non-blocking)
+// enableReadyCheck: true (default) — prevents auth cache commands before Redis is ready
 export const appRedis = createClient("bun-app-redis");
 
 // 2. Dedicated Subscriber (Pub/Sub listening only)
-export const subRedis = createClient("bun-sub-redis");
+// enableReadyCheck: false — required for blocking pub/sub subscribe calls
+export const subRedis = createClient("bun-sub-redis", false);
 
 // 3. Blocking Publisher / Stream Worker (XREADGROUP, XADD, etc)
-export const bpubRedis = createClient("bun-bpub-redis");
+// enableReadyCheck: false — required for BullMQ & stream blocking commands
+export const bpubRedis = createClient("bun-bpub-redis", false);
 
 // Compatibility Alias (keeps existing code working)
 export const redis = appRedis;

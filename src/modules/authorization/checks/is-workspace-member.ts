@@ -3,6 +3,9 @@ import type { PrismaClient } from "@prisma/client";
 import { keys } from "../cache/keys";
 import { getMembership, setMembership } from "../cache/membership-cache";
 import { MEMBERSHIP_TTL } from "../cache/ttl";
+import { createLogger } from "@/shared/lib/logger";
+
+const logger = createLogger("auth:workspace-member");
 
 /**
  * isWorkspaceMember — checks if userId is a member of workspaceId.
@@ -22,11 +25,15 @@ export async function isWorkspaceMember(
   const cached = await getMembership(cacheKey, redis);
   if (cached !== null) return cached;
 
+  // Cache miss — fetch from DB
   const member = await db.workspaceMember.findUnique({
     where: { workspaceId_userId: { workspaceId, userId } },
     select: { id: true },
   });
 
-  await setMembership(cacheKey, !!member, MEMBERSHIP_TTL, redis);
-  return !!member;
+  const result = !!member;
+  logger.debug("workspace member cache miss", { workspaceId, userId, result });
+
+  await setMembership(cacheKey, result, MEMBERSHIP_TTL, redis);
+  return result;
 }

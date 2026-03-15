@@ -6,7 +6,8 @@ export const AssignRolePermissionSchema = z.object({
   permissionId: z.string().cuid(),
   effect: z.enum(["ALLOW", "DENY"]).default("ALLOW"),
   conditions: z.string().optional(), // JSON string — parsed in the step
-  actorUserId: z.string().cuid(),
+  actorUserId: z.string().min(1),
+
 });
 
 export type AssignRolePermissionInput = z.infer<typeof AssignRolePermissionSchema>;

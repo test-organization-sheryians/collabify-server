@@ -1615,6 +1615,7 @@ export type PublicUser = {
 export type Query = {
   __typename?: 'Query';
   activeCollaborators: Array<ActiveCollaborator>;
+  allPermissions: Array<Permission>;
   boardCollaborators: Array<BoardCollaborator>;
   /** Live presence from Redis ZSET (not DB). Reflects current editing sessions. */
   getActivePageCollaborators: Array<PageCollaborator>;
@@ -1737,6 +1738,11 @@ export type Query = {
 
 export type QueryActiveCollaboratorsArgs = {
   boardId: Scalars['ID']['input'];
+};
+
+
+export type QueryAllPermissionsArgs = {
+  workspaceId: Scalars['ID']['input'];
 };
 
 
@@ -3722,6 +3728,7 @@ export type PublicUserResolvers<ContextType = ServiceContext, ParentType extends
 
 export type QueryResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Query'] = ResolversParentTypes['Query']> = ResolversObject<{
   activeCollaborators?: Resolver<Array<ResolversTypes['ActiveCollaborator']>, ParentType, ContextType, RequireFields<QueryActiveCollaboratorsArgs, 'boardId'>>;
+  allPermissions?: Resolver<Array<ResolversTypes['Permission']>, ParentType, ContextType, RequireFields<QueryAllPermissionsArgs, 'workspaceId'>>;
   boardCollaborators?: Resolver<Array<ResolversTypes['BoardCollaborator']>, ParentType, ContextType, RequireFields<QueryBoardCollaboratorsArgs, 'boardId'>>;
   getActivePageCollaborators?: Resolver<Array<ResolversTypes['PageCollaborator']>, ParentType, ContextType, RequireFields<QueryGetActivePageCollaboratorsArgs, 'pageId'>>;
   getBoard?: Resolver<Maybe<ResolversTypes['Whiteboard']>, ParentType, ContextType, RequireFields<QueryGetBoardArgs, 'boardId'>>;

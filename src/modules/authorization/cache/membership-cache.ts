@@ -22,6 +22,6 @@ export async function setMembership(
   ttl: number,
   redis: Redis
 ): Promise<void> {
-  // SET NX EX: first writer wins — safe under concurrent misses
-  await redis.set(cacheKey, value ? "1" : "0", "EX", ttl, "NX");
+  // Always overwrite with fresh DB truth — no NX to avoid negative cache poisoning
+  await redis.set(cacheKey, value ? "1" : "0", "EX", ttl);
 }

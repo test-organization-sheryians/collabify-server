@@ -142,6 +142,13 @@ const GRANTS: Array<{
   { resource: "channel.member", action: "read",   roles: ["OWNER", "ADMIN", "MEMBER", "GUEST"] },
   { resource: "channel.member", action: "add",    roles: ["OWNER", "ADMIN", "MEMBER"] },
   { resource: "channel.member", action: "remove", roles: ["OWNER", "ADMIN"] },
+  // Conversations (DMs, Groups)
+  { resource: "conversation",        action: "read",   roles: ["OWNER", "ADMIN", "MEMBER", "GUEST"] },
+  { resource: "conversation",        action: "create", roles: ["OWNER", "ADMIN", "MEMBER"] },
+  { resource: "conversation",        action: "delete", roles: ["OWNER", "ADMIN"] },
+  { resource: "conversation.member", action: "read",   roles: ["OWNER", "ADMIN", "MEMBER", "GUEST"] },
+  { resource: "conversation.member", action: "add",    roles: ["OWNER", "ADMIN", "MEMBER"] },
+  { resource: "conversation.member", action: "remove", roles: ["OWNER", "ADMIN"] },
   { resource: "message", action: "create", roles: ["OWNER", "ADMIN", "MEMBER"] },
   { resource: "message", action: "read",   roles: ["OWNER", "ADMIN", "MEMBER", "GUEST"] },
   { resource: "message", action: "update", roles: ["OWNER", "ADMIN", "MEMBER"] },

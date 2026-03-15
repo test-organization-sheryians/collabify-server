@@ -42,6 +42,8 @@ import {
   GetProjectRolesSchema,
   getProjectOverview,
   GetProjectOverviewSchema,
+  getAllPermissions,
+  GetAllPermissionsSchema,
 } from "../queries";
 
 export const resolvers: Resolvers = {
@@ -52,6 +54,12 @@ export const resolvers: Resolvers = {
       }
       return ctx.dataloaders.project.membersByProjectId.load(parent.id);
     },
+  },
+  ProjectMember: {
+    // Field resolver: converts the Prisma Date to an ISO string before it hits the wire.
+    // SDL declares joinedAt as String! — this is the correct place for Date→string serialization.
+    joinedAt: (parent) => (parent.joinedAt as unknown as Date).toISOString(),
+    role: (parent) => (parent as any).role ?? null,
   },
   Query: {
     myProjects: async (_, args, ctx) => {
@@ -78,7 +86,7 @@ export const resolvers: Resolvers = {
         projectId: args.projectId,
         actorUserId: ctx.auth.userId,
       });
-      return getProjectMembers(data, ctx);
+      return getProjectMembers(data, ctx) as any;
     },
 
     projectRoles: async (_, args, ctx) => {
@@ -95,6 +103,12 @@ export const resolvers: Resolvers = {
       if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
       const data = GetProjectOverviewSchema.parse({ projectId: args.projectId });
       return getProjectOverview(data, ctx);
+    },
+
+    allPermissions: async (_, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = GetAllPermissionsSchema.parse({ workspaceId: args.workspaceId });
+      return getAllPermissions(data, ctx);
     },
   },
   Mutation: {
