@@ -59,7 +59,7 @@ export const resolvers: Resolvers = {
     // Field resolver: converts the Prisma Date to an ISO string before it hits the wire.
     // SDL declares joinedAt as String! — this is the correct place for Date→string serialization.
     joinedAt: (parent) => (parent.joinedAt as unknown as Date).toISOString(),
-    role: (parent) => (parent as any).role ?? null,
+    role: (parent) => (parent as any).role ?? (parent as any).projectRole?.name ?? null,
   },
   Query: {
     myProjects: async (_, args, ctx) => {

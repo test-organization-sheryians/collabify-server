@@ -2012,6 +2012,7 @@ export type QueryUserArgs = {
 export type QueryUserBoardsArgs = {
   cursor?: InputMaybe<Scalars['ID']['input']>;
   limit?: InputMaybe<Scalars['Int']['input']>;
+  projectId?: InputMaybe<Scalars['ID']['input']>;
   workspaceId: Scalars['ID']['input'];
 };
 

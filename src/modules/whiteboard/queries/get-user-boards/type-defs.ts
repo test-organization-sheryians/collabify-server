@@ -5,6 +5,6 @@ export const typeDefs = /* GraphQL */ `
   }
 
   extend type Query {
-    userBoards(workspaceId: ID!, limit: Int, cursor: ID): BoardConnection!
+    userBoards(workspaceId: ID!, projectId: ID, limit: Int, cursor: ID): BoardConnection!
   }
 `;

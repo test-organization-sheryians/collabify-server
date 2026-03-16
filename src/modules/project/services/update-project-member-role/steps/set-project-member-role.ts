@@ -24,6 +24,9 @@ export async function setProjectMemberRole(
   return db.projectMember.update({
     where: { projectId_userId: { projectId, userId: targetUserId } },
     data: { projectRoleId: roleId },
-    include: { user: true },
+    include: {
+      user: true,
+      projectRole: { select: { name: true } },
+    },
   });
 }

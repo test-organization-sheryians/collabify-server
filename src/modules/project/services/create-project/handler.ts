@@ -19,6 +19,7 @@ import { normalizeAndValidateSlug } from "./steps/normalize-and-validate-slug";
 import { verifySlugReservation } from "./steps/verify-slug-reservation";
 import { insertProject } from "./steps/insert-project";
 import { finalizeProjectLock } from "./steps/finalize-project-lock";
+import { seedProjectDefaults } from "./steps/seed-project-defaults";
 
 const logger = createLogger("project:services:create-project");
 
@@ -61,6 +62,15 @@ export const createProject = async (
     sanitizedInput,
     db
   );
+
+  // Seed default resources (channel, whiteboard, issue columns, vault folders).
+  // Fire-and-forget — seeding failure must never block project creation.
+  seedProjectDefaults(project.id, workspaceId, userId, db).catch((err) => {
+    logger.warn("Failed to seed project defaults — resources can be created manually", {
+      err,
+      projectId: project.id,
+    });
+  });
 
   await finalizeProjectLock(workspaceId, slug, lockKey, userId, redis);
 

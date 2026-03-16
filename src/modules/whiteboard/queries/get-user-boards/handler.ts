@@ -17,19 +17,24 @@ export const handler = async (
   if (!userId) throw AppError.unauthorized("User not authenticated");
   if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
-  const { workspaceId, limit, cursor } = input;
+  const { workspaceId, projectId, limit, cursor } = input;
 
   try {
-    // Step 1 — workspace member gate (cache-backed)
-    const scope = { type: "workspace" as const, id: workspaceId };
+    // Step 1 — auth gate (cache-backed)
+    // Use project scope when projectId provided for correct RBAC
+    const scope = projectId
+      ? { type: "project" as const, id: projectId, workspaceId }
+      : { type: "workspace" as const, id: workspaceId };
     await Promise.all([
       ctx.authGate.assertWorkspaceMember(workspaceId),
       ctx.permissions.assert("board:read", scope),
     ]);
 
     // Step 2 — fetch user's boards (creator or collaborator)
+    // When projectId is given, scope to that project only
     const where = {
       workspaceId,
+      ...(projectId && { projectId }),
       ...(cursor && { id: { lt: cursor } }),
       OR: [{ createdBy: userId }, { collaborators: { some: { userId } } }],
       deletedAt: null,
