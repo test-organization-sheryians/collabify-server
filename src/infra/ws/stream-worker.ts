@@ -27,7 +27,7 @@ const BLOCK_MS = 2000;
 const publishSafe = async (
   topic: string,
   message: string,
-  timeoutMs: number = 50
+  timeoutMs: number = 200  // Increased from 50ms — safer under load
 ) => {
   try {
     const timeout = new Promise((_, reject) =>
@@ -83,6 +83,8 @@ export const streamWorker = {
    * Reads NEW messages (>) with Blocking.
    */
   async consumptionLoop() {
+    let emptyLoopCount = 0  // Self-healing: detect stalled worker after Redis flush
+
     while (this.isRunning) {
       try {
         // 1. Fetch Assignments
@@ -91,9 +93,23 @@ export const streamWorker = {
         );
 
         if (streams.length === 0) {
+          emptyLoopCount++
+
+          // Self-heal: if no assignments for ~10s, bump epoch to trigger rebalance
+          // This recovers automatically after a Redis FLUSHDB without requiring a restart
+          if (emptyLoopCount % 10 === 0) {
+            logger.warn("Worker idle — no stream assignments. Triggering coordinator rebalance.", {
+              emptyLoopCount,
+              consumer: CONSUMER_NAME,
+            })
+            await appRedis.incr(KeyFactory.EpochConversations).catch(() => {})
+          }
+
           await new Promise((r) => setTimeout(r, 1000));
           continue;
         }
+
+        emptyLoopCount = 0  // Reset counter when we have assignments
 
         // Optimization: Ensure groups exist (Cached)
         // FIX: Map ID -> Stream Key
@@ -295,6 +311,7 @@ export const streamWorker = {
       // 1. Fan-out to subscribed clients
       const downstreamMsg = JSON.stringify({
         type,
+        success: true,  // Required by client ServerMessage protocol
         data: rawPayload,
       });
       await publishSafe(topic, downstreamMsg);
@@ -326,6 +343,7 @@ export const streamWorker = {
       // 1. Fan-out to subscribed clients
       const downstreamMsg = JSON.stringify({
         type,
+        success: true,  // Required by client ServerMessage protocol
         data: rawPayload,
       });
       await publishSafe(topic, downstreamMsg);
@@ -365,6 +383,7 @@ export const streamWorker = {
       // Broadcast to subscribers (fan-out)
       const downstreamMsg = JSON.stringify({
         type,
+        success: true,  // Required by client ServerMessage protocol
         data: rawPayload,
       });
       await publishSafe(topic, downstreamMsg);
@@ -390,6 +409,7 @@ export const streamWorker = {
 
     const downstreamMsg = JSON.stringify({
       type,
+      success: true,  // Required by client ServerMessage protocol
       data: downstreamData,
     });
 

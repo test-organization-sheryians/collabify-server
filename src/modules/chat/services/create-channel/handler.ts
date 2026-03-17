@@ -89,6 +89,25 @@ export const handler = async (
 
     // 4. Create Channel
     const channel = await ctx.db.$transaction(async (tx) => {
+      // Resolve which users to add as MEMBER (excluding creator who is always OWNER)
+      let memberIdsToAdd: string[] =
+        input.memberUserIds?.filter((id) => id !== userId) ?? []
+
+      if (input.projectId) {
+        // Auto-add every current project member when channel is project-scoped
+        const projectMembers = await tx.projectMember.findMany({
+          where: { projectId: input.projectId },
+          select: { userId: true },
+        })
+
+        const projectMemberIds = projectMembers
+          .map((m) => m.userId)
+          .filter((id) => id !== userId)
+
+        // Union of project members + any additional explicit invitees, deduplicated
+        memberIdsToAdd = [...new Set([...projectMemberIds, ...memberIdsToAdd])]
+      }
+
       const ch = await tx.chatConversation.create({
         data: {
           workspaceId: input.workspaceId,
@@ -99,22 +118,20 @@ export const handler = async (
           members: {
             createMany: {
               data: [
-                // Always add the creator as OWNER
+                // Creator is always OWNER
                 { userId, role: "OWNER" },
-                // Add other invited members as MEMBER
-                ...(input.memberUserIds
-                  ?.filter((id) => id !== userId)
-                  .map((id) => ({
-                    userId: id,
-                    role: "MEMBER",
-                  })) || []),
+                // All project members + explicit invitees as MEMBER
+                ...memberIdsToAdd.map((id) => ({
+                  userId: id,
+                  role: "MEMBER" as const,
+                })),
               ],
             },
           },
         },
-      });
-      return ch;
-    });
+      })
+      return ch
+    })
 
     // 5. Finalize Lock (if applicable)
     if (lockKey && keys) {
