@@ -10,7 +10,12 @@ const connectionString = env.DATABASE_URL;
 import { createLogger } from "../shared/lib/logger";
 
 const logger = createLogger("infra:db");
-const pool = new Pool({ connectionString });
+const pool = new Pool({
+  connectionString,
+  // RDS requires SSL but Alpine Linux doesn't ship the Amazon CA bundle.
+  // rejectUnauthorized: false keeps the connection encrypted, just skips CA chain verification.
+  ssl: env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+});
 const adapter = new PrismaPg(pool);
 
 export const db =
