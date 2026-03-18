@@ -1,21 +1,23 @@
-FROM oven/bun:alpine
-
+# server/Dockerfile
+FROM oven/bun:1.2-alpine AS base
 WORKDIR /app
 
-# Copy package files
-COPY package.json bun.lock ./
-
-# Install dependencies (frozen lockfile for speed/consistency)
+# Install dependencies
+COPY package.json bun.lockb ./
 RUN bun install --frozen-lockfile
 
 # Copy source code
 COPY . .
 
-# Generate Prisma Client (if needed)
+# Generate Prisma client
 RUN bunx prisma generate
 
-# Expose port
-EXPOSE 3000
+# Install curl for health checks inside the container
+RUN apk add --no-cache curl
 
-# Start server
+EXPOSE 3001
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+  CMD curl -f http://localhost:3001/health || exit 1
+
 CMD ["bun", "run", "src/app/server.ts"]
