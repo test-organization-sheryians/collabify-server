@@ -60,7 +60,7 @@ jobs:
 
             cd /opt/collabify
             BACKEND_TAG=${{ github.sha }} docker compose pull backend
-            BACKEND_TAG=${{ github.sha }} docker compose up -d --no-deps backend
+            BACKEND_TAG=${{ github.sha }} docker compose up -d --no-deps --force-recreate backend
 
             sleep 20
             curl -sf http://localhost:3001/ || \
