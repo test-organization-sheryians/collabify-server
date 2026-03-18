@@ -1,0 +1,72 @@
+name: Deploy Backend to Production
+
+on:
+  push:
+    branches: [main]
+
+env:
+  IMAGE: ghcr.io/official-collabify/collabify-server
+
+jobs:
+  deploy:
+    name: Build, Migrate & Deploy Backend
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        run: |
+          echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io \
+            -u ${{ github.actor }} --password-stdin
+
+      - name: Build & Push Backend Image
+        run: |
+          docker build \
+            -f Dockerfile \
+            -t ${{ env.IMAGE }}:${{ github.sha }} \
+            -t ${{ env.IMAGE }}:latest \
+            .
+          docker push ${{ env.IMAGE }}:${{ github.sha }}
+          docker push ${{ env.IMAGE }}:latest
+
+      - name: Run DB Migrations
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: deploy
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io \
+              -u ${{ github.actor }} --password-stdin
+            docker run --rm \
+              --env-file /opt/collabify/.env.production \
+              ${{ env.IMAGE }}:${{ github.sha }} \
+              bunx prisma migrate deploy
+
+      - name: Deploy Backend
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: deploy
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            cp /opt/collabify/.image-tags /opt/collabify/.image-tags.prev 2>/dev/null || true
+            # Update only backend tag; preserve existing frontend tag
+            PREV_FRONTEND=$(grep FRONTEND_TAG /opt/collabify/.image-tags 2>/dev/null | cut -d= -f2 || echo latest)
+            echo "BACKEND_TAG=${{ github.sha }}" > /opt/collabify/.image-tags
+            echo "FRONTEND_TAG=$PREV_FRONTEND" >> /opt/collabify/.image-tags
+
+            cd /opt/collabify
+            BACKEND_TAG=${{ github.sha }} docker compose pull backend
+            BACKEND_TAG=${{ github.sha }} docker compose up -d --no-deps backend
+
+            sleep 20
+            curl -sf http://localhost:3001/ || \
+              (source /opt/collabify/.image-tags.prev && \
+               docker compose up -d --no-deps backend && \
+               echo "\u274c Backend rollback done" && exit 1)
+
+            docker image prune -f
+            echo "\u2705 Backend deploy: ${{ github.sha }}"
