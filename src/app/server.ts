@@ -1,6 +1,7 @@
 import { Context, Hono } from "hono";
 import { registerGlobalMiddleware } from "../app/middlewares/index";
-import { checkConnection } from "../infra/db";
+import { checkConnection, db } from "../infra/db";
+import { redis } from "../infra/redis";
 import { createWSGateway } from "../infra/ws/gateway";
 import { registerGlobalWSRoutes } from "../infra/ws/ws-routes";
 import { internalRoutes } from "../modules/internal/internal.controller";
@@ -41,8 +42,19 @@ registerGlobalWSRoutes();
 
 // 3. Routes
 app.get("/", (c: Context) => c.text("Collabify Server is running!"));
+app.get("/health", async (c: Context) => {
+  try {
+    await db.$queryRaw`SELECT 1`;
+    await redis.ping();
+    return c.json({ status: "ok", db: "ok", redis: "ok" });
+  } catch (err) {
+    logger.error("Health check failed", { err });
+    return c.json({ status: "error" }, 503);
+  }
+});
 app.route("/", webhookRoutes);
 app.route("/internal", internalRoutes);
+
 
 // 4. GraphQL
 const yoga = createGraphQLApp();
