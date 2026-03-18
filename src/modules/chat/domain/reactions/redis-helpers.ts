@@ -1,5 +1,5 @@
 import { Redis } from "ioredis";
-import { addReactionScript, removeReactionScript } from "./scripts";
+import { addReactionScript, removeReactionScript } from "./lua-scripts";
 import { createLogger } from "@/shared/lib/logger";
 
 const logger = createLogger("chat:domain:reactions:helpers");
