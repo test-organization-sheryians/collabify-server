@@ -12,10 +12,13 @@ import { createLogger } from "../shared/lib/logger";
 const logger = createLogger("infra:db");
 const pool = new Pool({
   connectionString,
-  // RDS requires SSL but Alpine Linux doesn't ship the Amazon CA bundle.
-  // rejectUnauthorized: false keeps the connection encrypted, just skips CA chain verification.
-  ssl: env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+  // RDS requires SSL. Alpine Linux doesn't ship the Amazon CA bundle so we
+  // skip CA chain verification (connection is still encrypted).
+  // Do NOT put sslmode=require in DATABASE_URL — pg treats it as verify-full
+  // and overrides this setting.
+  ssl: env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined,
 });
+
 const adapter = new PrismaPg(pool);
 
 export const db =
