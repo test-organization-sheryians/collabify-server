@@ -6,6 +6,7 @@ import { idempotencyMiddleware } from "./idempotency";
 import { rateLimitGuard, RATE_LIMITS } from "@/modules/authorization/middleware/rate-limit-guard";
 import { env } from "@/shared/config/env";
 import { createLogger } from "@/shared/lib/logger";
+import { httpMetricsMiddleware } from "./http-metrics";
 
 const logger = createLogger("app:middlewares");
 
@@ -67,4 +68,7 @@ export const registerGlobalMiddleware = (app: Hono) => {
       },
     })(c, next);
   });
+
+  // 6. HTTP Metrics (last — status codes are settled by this point)
+  app.use("*", httpMetricsMiddleware);
 };

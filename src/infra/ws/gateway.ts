@@ -6,6 +6,7 @@ import { WSSocketData } from "./types";
 import { wsRegistry } from "./subscription-registry";
 import { wsRouter } from "./router";
 import { db } from "../db";
+import { wsConnections, wsMessagesTotal, wsErrorsTotal } from "../../app/metrics";
 
 /**
  * Validates the connection request (Clerk Token)
@@ -85,6 +86,7 @@ export const createWSGateway = () => {
       open(ws: ServerWebSocket<WSSocketData>) {
         const { workspaceId, userId, socketId } = ws.data;
         logger.info("WS Connected", { workspaceId, userId, socketId });
+        wsConnections.inc();
 
         // Register Session
         wsRegistry.startSession(ws);
@@ -93,6 +95,7 @@ export const createWSGateway = () => {
       message(ws: ServerWebSocket<WSSocketData>, message: string | Buffer) {
         // Keep Registry Alive
         wsRegistry.touch(ws.data.socketId);
+        wsMessagesTotal.inc({ direction: "inbound" });
 
         // Mock Context with DB Injection
         wsRouter.handleMessage({ db } as unknown as Context, ws, message);
@@ -101,13 +104,20 @@ export const createWSGateway = () => {
       close(ws: ServerWebSocket<WSSocketData>) {
         const { socketId } = ws.data;
         logger.info("WS Closed", { socketId });
+        wsConnections.dec();
 
         // Cleanup
         wsRegistry.endSession(socketId);
       },
 
-      drain(ws: ServerWebSocket<WSSocketData>) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      drain(_ws: ServerWebSocket<WSSocketData>) {
         // Optional: Handle backpressure
+      },
+
+      error(ws: ServerWebSocket<WSSocketData>, err: Error) {
+        logger.error("WS Error", { socketId: ws.data.socketId, err });
+        wsErrorsTotal.inc();
       },
     },
   };

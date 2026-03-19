@@ -13,6 +13,7 @@ import webhookRoutes from "./routes/webhooks";
 import { ChatModule } from "../modules/chat";
 import { WhiteboardModule } from "../modules/whiteboard";
 import { wsRegistry } from "../infra/ws/subscription-registry";
+import { registry } from "./metrics";
 
 const logger = createLogger("app:server");
 const app = new Hono();
@@ -52,9 +53,12 @@ app.get("/health", async (c: Context) => {
     return c.json({ status: "error" }, 503);
   }
 });
+app.get("/metrics", async (c: Context) => {
+  const metrics = await registry.metrics();
+  return c.text(metrics, 200, { "Content-Type": registry.contentType });
+});
 app.route("/", webhookRoutes);
 app.route("/internal", internalRoutes);
-
 
 // 4. GraphQL
 const yoga = createGraphQLApp();
