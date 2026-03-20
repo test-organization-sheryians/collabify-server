@@ -1,7 +1,7 @@
 import { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
 import { WhiteboardKeys, WhiteboardTTLs } from "../../infra/whiteboard-keys";
-import { downloadSnapshot } from "../../infra/s3-client";
+import { getLatestSnapshot } from "../../infra/s3-client";
 import type { GetBoardSnapshotInput, BoardSnapshot } from "./types";
 import { Y } from "@/shared/yjs";
 import { createLogger } from "@/shared/lib/logger";
@@ -185,64 +185,77 @@ export const handler = async (
     }
 
     if (!redisHit) {
-      // ❌ REDIS MISS - S3 fallback (~100ms)
-      logger.warn("❌ Redis MISS - loading from S3", { boardId });
+      // ❌ REDIS MISS — try canonical S3 key (boards/{boardId}/latest.yjs)
+      // NOTE: We always check latest.yjs regardless of board.s3Key in DB.
+      // board.s3Key is only set at creation and is never updated by the stream
+      // worker. The worker always writes to boards/{boardId}/latest.yjs.
+      // Using board.s3Key would return the initial empty snapshot after Redis TTL.
+      logger.warn("❌ Redis MISS - loading from S3 (latest.yjs)", { boardId });
 
-      if (!board.s3Key) {
-        // New board - return empty Y.Doc
-        logger.info("ℹ️  New board - starting empty", { boardId });
-        const emptyDoc = new Y.Doc();
-        const emptySnapshot = Y.encodeStateAsUpdate(emptyDoc);
+      const latestFromS3 = await getLatestSnapshot(boardId);
+
+      if (!latestFromS3) {
+        // No snapshot in S3 yet (new board, seeded board, or sub-threshold board).
+        // DO NOT return early — the stream may have real updates we must apply.
+        // Use empty Y.Doc as base and let step 3 (stream delta apply) handle the rest.
+        logger.info("ℹ️  No S3 snapshot — using empty base, will apply stream delta", {
+          boardId,
+          s3KeyInDb: board.s3Key || "(empty)",
+        });
+        const emptyDoc = new Y.Doc({ guid: boardId });
+        snapshotBinary = Y.encodeStateAsUpdate(emptyDoc);
+        snapshotStreamId = "0-0"; // stream delta will apply everything from the beginning
         emptyDoc.destroy();
+      } else {
+        snapshotBinary = latestFromS3.data;
+        // Stream ID comes from S3 object metadata — more accurate than stale DB field
+        snapshotStreamId = latestFromS3.streamId || "0-0";
 
-        return {
+        logger.info("✅ S3 snapshot loaded (latest.yjs)", {
           boardId,
-          snapshot: Buffer.from(emptySnapshot).toString("base64"),
-          lastStreamId: "0-0",
-          snapshotTimestamp: null,
-        };
-      }
-
-      try {
-        // Download from S3 with timeout
-        const s3Binary = await Promise.race([
-          downloadSnapshot(board.s3Key),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("S3 timeout")), 10000)
-          ),
-        ]);
-
-        snapshotBinary = s3Binary;
-        snapshotStreamId = board.lastSnapshotStreamId || "0-0";
-
-        logger.info("✅ S3 snapshot loaded", {
-          boardId,
-          size: s3Binary.length,
+          size: latestFromS3.data.length,
           streamId: snapshotStreamId,
         });
 
-        // Warm Redis cache for next query
-        await ctx.redis.setex(
-          snapshotKey,
-          WhiteboardTTLs.SNAPSHOT_LATEST,
-          JSON.stringify({
-            snapshot: Buffer.from(snapshotBinary).toString("base64"),
-            streamId: snapshotStreamId,
-            version: Date.now(),
-            updatedAt: Date.now(),
-          })
-        );
-
-        logger.info("✅ Redis cache warmed", { boardId });
-      } catch (s3Error) {
-        logger.error("❌ S3 download failed", {
-          boardId,
-          s3Key: board.s3Key,
-          error: s3Error,
-        });
-
-        throw new AppError("Failed to load board snapshot. Please try again.");
+        // Self-heal: keep DB s3Key and lastSnapshotStreamId in sync with reality.
+        // board.s3Key may be stale (empty for seeded boards, or pointing to the
+        // initial timestamped snapshot for create-board). Update it to the canonical
+        // latest.yjs key so future features (exports, admin tools) can find the file.
+        // Fire-and-forget — non-blocking, failure here must never break the query.
+        const canonicalS3Key = WhiteboardKeys.S3SnapshotLatest(boardId);
+        if (board.s3Key !== canonicalS3Key) {
+          ctx.db.whiteboard
+            .update({
+              where: { id: boardId },
+              data: {
+                s3Key: canonicalS3Key,
+                lastSnapshotStreamId: snapshotStreamId,
+                lastSnapshotAt: new Date(),
+              },
+            })
+            .catch((err) =>
+              logger.warn("⚠️ Failed to self-heal board s3Key in DB (non-fatal)", {
+                boardId,
+                err,
+              })
+            );
+        }
       }
+
+      // Warm Redis with the base snapshot so next request hits Redis
+      // (step 3 below will apply stream delta on top for the current request)
+      await ctx.redis.setex(
+        snapshotKey,
+        WhiteboardTTLs.SNAPSHOT_LATEST,
+        JSON.stringify({
+          snapshot: Buffer.from(snapshotBinary).toString("base64"),
+          streamId: snapshotStreamId,
+          version: Date.now(),
+          updatedAt: Date.now(),
+        })
+      );
+
+      logger.info("✅ Redis cache warmed", { boardId });
     }
 
     // 3. Apply delta from stream (handle worker lag)

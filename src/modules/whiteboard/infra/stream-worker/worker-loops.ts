@@ -61,6 +61,9 @@ export async function startConsumptionLoop(state: WorkerState): Promise<void> {
         keys: allStreamKeys,
       });
 
+      // Track whether anything was consumed this iteration to avoid tight loop
+      let processedThisIteration = 0;
+
       // Process each board stream
       for (const streamKey of allStreamKeys) {
         await ensureConsumerGroup(streamKey, state.knownGroups);
@@ -95,6 +98,8 @@ export async function startConsumptionLoop(state: WorkerState): Promise<void> {
           }
 
           if (updates.length === 0) continue;
+
+          processedThisIteration += updates.length;
 
           // Group by boardId and process
           const byBoard = new Map<string, StreamUpdate[]>();
@@ -151,6 +156,12 @@ export async function startConsumptionLoop(state: WorkerState): Promise<void> {
             });
           }
         }
+      }
+
+      // Idle backoff: when streams exist but none had new messages,
+      // avoid a tight loop that spams logs and wastes Redis RTTs.
+      if (processedThisIteration === 0) {
+        await new Promise((r) => setTimeout(r, 500));
       }
     } catch (err: any) {
       if (err?.message?.includes("NOGROUP")) {

@@ -3,7 +3,6 @@ import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
 import { CreateBoardInput } from "./types";
 import { uploadSnapshot } from "../../infra/s3-client";
-import { WhiteboardKeys } from "../../infra/whiteboard-keys";
 
 const logger = createLogger("whiteboard:services:create-board");
 
@@ -152,33 +151,6 @@ export const handler = async (input: CreateBoardInput, ctx: ServiceContext) => {
       where: { id: result.board.id },
       data: { s3Key, lastSnapshotStreamId: "0-0", lastSnapshotAt: new Date() },
     });
-
-    // Step 5 — create Redis stream + consumer group
-    const streamKey = WhiteboardKeys.BoardStream(result.board.id);
-    const sequenceKey = WhiteboardKeys.BoardSequence(result.board.id);
-    try {
-      await ctx.redis.xgroup(
-        "CREATE",
-        streamKey,
-        "whiteboard-workers",
-        "0",
-        "MKSTREAM"
-      );
-      await ctx.redis.set(sequenceKey, 0);
-      logger.info("Redis stream initialized", {
-        boardId: result.board.id,
-        streamKey,
-      });
-    } catch (error) {
-      const err = error as Error;
-      if (!err.message?.includes("BUSYGROUP")) {
-        logger.error("Failed to create Redis stream", {
-          err: error,
-          boardId: result.board.id,
-        });
-        throw error;
-      }
-    }
 
     logger.info("Board created successfully", {
       boardId: result.board.id,

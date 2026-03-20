@@ -126,6 +126,9 @@ const FLOW_GROUPS: Record<string, GroupFlag[]> = {
  * Resolution: FILE > FLOW_GROUP > MODULE_GROUP > ALL
  */
 const isEnabled = (flag: string): boolean => {
+  // 0. ALL overrides everything when true (master switch)
+  if (ALL) return true;
+
   // 1. File-level override (highest priority)
   const fileFlag = FILES[flag];
   if (fileFlag !== undefined) return fileFlag;

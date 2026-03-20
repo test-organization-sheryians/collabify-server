@@ -91,6 +91,19 @@ export async function processBoardBatch(
     // Track snapshot creation
     state.metrics.snapshotsCreated++;
 
+    // 3. ACK the xreadgroup-delivered messages to clean the PEL.
+    // rebuildSnapshotFromStream trims the stream via XTRIM (Lua), but
+    // XTRIM does NOT auto-ACK messages still in PEL. Those orphaned PEL
+    // entries would trigger spurious XAUTOCLAIM attempts every 60s.
+    // XACK of a trimmed ID is a safe no-op in Redis.
+    for (const { id } of updates) {
+      await appRedis.xack(
+        WhiteboardKeys.BoardStream(boardId),
+        WORKER_GROUP_NAME,
+        id
+      ).catch(() => {}); // safe — trimmed entries can't be ACKd, that's fine
+    }
+
     logger.info("✅ Batch processed successfully", {
       boardId,
       latencyMs: Date.now() - startTime,

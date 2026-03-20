@@ -10,9 +10,10 @@ export interface EmailProvider {
 
 export const emailProvider: EmailProvider = {
   send: async (to, subject, html) => {
-    if (env.EMAIL_PROVIDER === "ses") return sendWithSES(to, subject, html);
-    if (env.EMAIL_PROVIDER === "sendgrid") return sendWithSendGrid(to, subject, html);
-    if (env.EMAIL_PROVIDER === "nodemailer") return sendWithNodemailer(to, subject, html);
-    return sendToConsole(to, subject, html);
+    // if (env.EMAIL_PROVIDER === "ses") 
+      return sendWithSES(to, subject, html);
+    // if (env.EMAIL_PROVIDER === "sendgrid") return sendWithSendGrid(to, subject, html);
+    // if (env.EMAIL_PROVIDER === "nodemailer") return sendWithNodemailer(to, subject, html);
+    // return sendToConsole(to, subject, html);
   },
 };
