@@ -25,11 +25,14 @@ const envSchema = z.object({
   // Email
   EMAIL_FROM: z.string().email(),
   EMAIL_PROVIDER: z
-    .enum(["ses", "console", "sendgrid", "nodemailer"])
+    .enum(["ses", "console", "sendgrid", "nodemailer", "resend"])
     .default("console"),
 
   // SendGrid
   SENDGRID_API_KEY: z.string().optional(),
+
+  // Resend
+  RESEND_API_KEY: z.string().optional(),
 
   // SMTP (Nodemailer adapter — works with any SMTP server or Ethereal for local dev)
   SMTP_HOST: z.string().optional(),

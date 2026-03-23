@@ -196,14 +196,32 @@ export async function insertWorkspace(
 
       // 5. Assign role-permissions for all workspace system roles
       const rolePermData: { roleId: string; permissionId: string; effect: "ALLOW" }[] = [];
+      const missingPerms: string[] = [];
       for (const grant of GRANTS) {
         const permId = permMap.get(`${grant.resource}:${grant.action}`);
-        if (!permId) continue; // permission row missing — skip; don't fail workspace creation
+        if (!permId) {
+          // Permission row missing from DB — run seed-permissions.ts first.
+          // Collect missing permissions for the warning log below.
+          missingPerms.push(`${grant.resource}:${grant.action}`);
+          continue;
+        }
         for (const roleName of grant.roles) {
           const roleId = roleMap.get(roleName);
           if (!roleId) continue;
           rolePermData.push({ roleId, permissionId: permId, effect: "ALLOW" });
         }
+      }
+
+      if (missingPerms.length > 0) {
+        // Log to TX context — visible in server logs immediately.
+        // Run `bun run prisma/seeds/seed-permissions.ts` then
+        // `bun run prisma/seeds/repair-role-permissions.ts` to fix.
+        console.warn(
+          `⚠️  insertWorkspace: ${missingPerms.length} permissions missing from DB — ` +
+          `these will NOT be assigned to system roles for workspace ${workspace.id}. ` +
+          `Missing: ${missingPerms.join(", ")}. ` +
+          `Run seed-permissions.ts + repair-role-permissions.ts to fix.`
+        );
       }
 
       if (rolePermData.length > 0) {
