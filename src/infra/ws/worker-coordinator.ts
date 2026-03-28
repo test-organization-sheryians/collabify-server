@@ -216,8 +216,8 @@ export const workerCoordinator = {
 
     // 6. Apply Board Assignments with Durable Diffing (NEW)
     for (const [workerId, boards] of Object.entries(boardAssignments)) {
-      const boardsKey = `worker:${workerId}:boards`;
-      const hashKey = `worker:${workerId}:boards_hash`;
+      const boardsKey = KeyFactory.BoardAssignment(workerId);
+      const hashKey = KeyFactory.BoardAssignmentHash(workerId);
 
       boards.sort();
       const newHash = createHash("md5")

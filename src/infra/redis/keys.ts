@@ -79,4 +79,31 @@ export const KeyFactory = {
    */
   ConversationSequence: (conversationId: string) =>
     `chat:${conversationId}:seq`,
+
+  // --- Whiteboard Worker Coordination ---
+
+  /**
+   * Set of board IDs assigned to a specific whiteboard worker.
+   * Written by the coordinator's performRebalance() on every rebalance tick.
+   * Read by the Whiteboard stream-worker's consumption and recovery loops.
+   * Format: sys:worker:{workerId}:boards
+   */
+  BoardAssignment: (workerId: string) => `sys:worker:${workerId}:boards`,
+
+  /**
+   * MD5 hash of the current board assignment for a worker.
+   * Used by the coordinator to diff assignments before rewriting (avoids
+   * unnecessary SMEMBERS rewrites when nothing changed).
+   * Format: sys:worker:{workerId}:boards_hash
+   */
+  BoardAssignmentHash: (workerId: string) =>
+    `sys:worker:${workerId}:boards_hash`,
+
+  /**
+   * ZSET tracking alive Whiteboard workers (score = Unix timestamp ms).
+   * Written by the Whiteboard worker's heartbeat loop.
+   * Pruned by the Whiteboard worker's recovery loop (removes scores older than WORKER_TTL_MS).
+   * Format: sys:whiteboard-workers:registry
+   */
+  WhiteboardWorkerRegistry: "sys:whiteboard-workers:registry",
 };

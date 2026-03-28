@@ -1,4 +1,5 @@
 import { appRedis } from "@/infra/redis";
+import { KeyFactory } from "@/infra/redis/keys";
 import { createLogger } from "@/shared/lib/logger";
 import { WhiteboardKeys } from "../whiteboard-keys";
 import type { WorkerState, StreamUpdate } from "./types";
@@ -8,6 +9,8 @@ import {
   BATCH_COUNT,
   BLOCK_MS,
   RECOVERY_INTERVAL_MS,
+  HEARTBEAT_INTERVAL_MS,
+  WORKER_TTL_MS,
 } from "./config";
 import {
   processBoardBatch,
@@ -25,41 +28,37 @@ const logger = createLogger("whiteboard:stream-worker-v2:loops");
 
 /**
  * Main consumption loop: Poll streams and process batches
+ *
+ * FIX B: Replaced O(N) SCAN with coordinator-assigned SMEMBERS.
+ * The coordinator's performRebalance() writes board IDs to
+ * KeyFactory.BoardAssignment(CONSUMER_NAME) via rendezvous hash.
+ * This worker reads only its assigned slice — no cross-instance contention.
  */
 export async function startConsumptionLoop(state: WorkerState): Promise<void> {
-  logger.info("🔄 Consumption loop started (V2 stateless)");
+  logger.info("🔄 Consumption loop started (coordinator-assigned)");
 
   while (state.isRunning) {
     try {
-      // SCAN all board streams with proper cursor iteration
-      const allStreamKeys: string[] = [];
-      let cursor = "0";
-      const pattern = WhiteboardKeys.BoardStreamPattern();
+      // Read boards assigned to this worker by the coordinator
+      const assignedBoardIds = await appRedis.smembers(
+        KeyFactory.BoardAssignment(CONSUMER_NAME)
+      );
 
-      do {
-        const scanResult = await appRedis.scan(
-          cursor,
-          "MATCH",
-          pattern,
-          "COUNT",
-          100
-        );
-
-        cursor = scanResult[0] as string;
-        const keys = (scanResult[1] || []) as string[];
-        allStreamKeys.push(...keys);
-      } while (cursor !== "0");
-
-      if (allStreamKeys.length === 0) {
-        // No active boards - wait before next poll
-        await new Promise((r) => setTimeout(r, BLOCK_MS * 10)); // 1s
+      if (assignedBoardIds.length === 0) {
+        // No boards assigned yet — coordinator may be initializing or no active boards.
+        // Wait before retrying to avoid a tight Redis RTT loop.
+        await new Promise((r) => setTimeout(r, BLOCK_MS * 10)); // 1s idle wait
         continue;
       }
 
-      logger.debug("📡 Found streams to process", {
-        count: allStreamKeys.length,
-        keys: allStreamKeys,
+      logger.debug("📡 Processing coordinator-assigned boards", {
+        count: assignedBoardIds.length,
       });
+
+      // Map board IDs → full stream key names
+      const allStreamKeys = assignedBoardIds.map((id) =>
+        WhiteboardKeys.BoardStream(id)
+      );
 
       // Track whether anything was consumed this iteration to avoid tight loop
       let processedThisIteration = 0;
@@ -125,7 +124,6 @@ export async function startConsumptionLoop(state: WorkerState): Promise<void> {
               state.metrics.avgProcessingTimeMs * 0.9 + duration * 0.1 ||
               duration;
 
-            // Log metrics immediately after processing
             logger.debug("📊 Metrics updated", {
               boardsProcessed: state.metrics.boardsProcessed,
               updatesProcessed: state.metrics.updatesProcessed,
@@ -181,6 +179,11 @@ export async function startConsumptionLoop(state: WorkerState): Promise<void> {
 
 /**
  * Recovery loop: Claim pending updates from dead workers
+ *
+ * FIX B: Uses coordinator-assigned boards (not SCAN) to find streams.
+ * FIX C: Prunes ghost consumers from WhiteboardWorkerRegistry before claiming.
+ * FIX D: Full cursor-paginated XAUTOCLAIM — drains complete PEL per stream,
+ *        not just the first 10 entries. Mirrors the Pages worker pattern exactly.
  */
 export async function startRecoveryLoop(state: WorkerState): Promise<void> {
   logger.info("♻️ Recovery loop started");
@@ -189,60 +192,86 @@ export async function startRecoveryLoop(state: WorkerState): Promise<void> {
     try {
       await new Promise((r) => setTimeout(r, RECOVERY_INTERVAL_MS));
 
-      // Get all board streams
-      const pattern = WhiteboardKeys.BoardStreamPattern();
-      const scanResult = await appRedis.scan(
-        "0",
-        "MATCH",
-        pattern,
-        "COUNT",
-        100
+      // FIX C: Prune ghost consumers — workers that missed > WORKER_TTL_MS of heartbeats
+      const cutoff = Date.now() - WORKER_TTL_MS;
+      await appRedis.zremrangebyscore(
+        KeyFactory.WhiteboardWorkerRegistry,
+        "-inf",
+        cutoff
       );
-      const streamKeys = (scanResult[1] || []) as string[];
+      logger.debug("🧹 Pruned dead whiteboard workers", {
+        olderThanMs: WORKER_TTL_MS,
+      });
+
+      // FIX B: Read assigned boards from coordinator (not SCAN)
+      const assignedBoardIds = await appRedis.smembers(
+        KeyFactory.BoardAssignment(CONSUMER_NAME)
+      );
+
+      if (assignedBoardIds.length === 0) {
+        logger.debug("♻️ No assigned boards for recovery — skipping");
+        continue;
+      }
+
+      const streamKeys = assignedBoardIds.map((id) =>
+        WhiteboardKeys.BoardStream(id)
+      );
 
       for (const streamKey of streamKeys) {
         try {
-          // Claim messages pending >60s
-          const claimed = (await appRedis.xautoclaim(
-            streamKey,
-            WORKER_GROUP_NAME,
-            CONSUMER_NAME,
-            60_000, // 60s idle threshold
-            "0-0",
-            "COUNT",
-            10
-          )) as any;
+          // FIX D: Cursor-paginated XAUTOCLAIM — drains the ENTIRE PEL, not just 10 entries.
+          // A crashed worker with 500 pending updates will have all 500 claimed in one tick.
+          let pelCursor = "0-0";
 
-          if (!claimed || !claimed[1] || claimed[1].length === 0) continue;
+          while (true) {
+            const claimed = (await appRedis.xautoclaim(
+              streamKey,
+              WORKER_GROUP_NAME,
+              CONSUMER_NAME,
+              60_000, // 60s idle threshold — only claim truly stale entries
+              pelCursor,
+              "COUNT",
+              100 // 100 per page — safe given processBoardBatch handles each atomically
+            )) as any;
 
-          logger.info("♻️ Claimed pending updates", {
-            streamKey,
-            count: claimed[1].length,
-          });
+            // Redis 7.0+: [nextCursor, [[id,fields],...], [deletedIds]]
+            // Redis 6.2:  [nextCursor, [[id,fields],...]]
+            const [nextCursor, claimedEntries] = claimed;
 
-          // Parse and process claimed updates
-          const updates: StreamUpdate[] = [];
+            if (claimedEntries && claimedEntries.length > 0) {
+              logger.info("♻️ Claimed pending updates", {
+                streamKey,
+                count: claimedEntries.length,
+                cursor: pelCursor,
+              });
 
-          for (const [id, fields] of claimed[1]) {
-            const update = parseStreamEntry(streamKey, id, fields as string[]);
-            if (update) {
-              updates.push(update);
+              // Parse and group by board, then process
+              const updates: StreamUpdate[] = [];
+              for (const [id, fields] of claimedEntries) {
+                const update = parseStreamEntry(
+                  streamKey,
+                  id,
+                  fields as string[]
+                );
+                if (update) updates.push(update);
+              }
+
+              if (updates.length > 0) {
+                const byBoard = new Map<string, StreamUpdate[]>();
+                for (const update of updates) {
+                  const existing = byBoard.get(update.boardId) || [];
+                  existing.push(update);
+                  byBoard.set(update.boardId, existing);
+                }
+                for (const [boardId, boardUpdates] of byBoard) {
+                  await processBoardBatch(state, boardId, boardUpdates);
+                }
+              }
             }
-          }
 
-          if (updates.length === 0) continue;
-
-          // Group by board and process
-          const byBoard = new Map<string, StreamUpdate[]>();
-
-          for (const update of updates) {
-            const existing = byBoard.get(update.boardId) || [];
-            existing.push(update);
-            byBoard.set(update.boardId, existing);
-          }
-
-          for (const [boardId, boardUpdates] of byBoard) {
-            await processBoardBatch(state, boardId, boardUpdates);
+            // Drain complete when Redis wraps cursor back to 0-0
+            if (nextCursor === "0-0") break;
+            pelCursor = nextCursor;
           }
         } catch (claimError) {
           logger.error("❌ Recovery claim failed", {
@@ -257,6 +286,38 @@ export async function startRecoveryLoop(state: WorkerState): Promise<void> {
   }
 
   logger.info("🛑 Recovery loop stopped");
+}
+
+/**
+ * Heartbeat loop: Publish liveness to WhiteboardWorkerRegistry ZSET
+ *
+ * FIX C: Writes CONSUMER_NAME with current timestamp score every HEARTBEAT_INTERVAL_MS.
+ * The recovery loop uses this ZSET to prune ghost consumers (dead workers whose
+ * XREADGROUP Consumer Group entries would block PEL recovery indefinitely).
+ *
+ * Non-fatal: heartbeat write failures are logged and retried — they do not
+ * stop the worker from processing boards.
+ */
+export async function startHeartbeatLoop(state: WorkerState): Promise<void> {
+  logger.info("💓 Heartbeat loop started");
+
+  while (state.isRunning) {
+    try {
+      await appRedis.zadd(
+        KeyFactory.WhiteboardWorkerRegistry,
+        Date.now(),
+        CONSUMER_NAME
+      );
+    } catch (err) {
+      // Non-fatal: worker keeps processing even if Redis heartbeat write fails.
+      // After WORKER_TTL_MS of missed heartbeats, the recovery loop will prune
+      // this consumer — but the worker itself continues running.
+      logger.error("❌ Heartbeat write failed", { err });
+    }
+    await new Promise((r) => setTimeout(r, HEARTBEAT_INTERVAL_MS));
+  }
+
+  logger.info("🛑 Heartbeat loop stopped");
 }
 
 /**

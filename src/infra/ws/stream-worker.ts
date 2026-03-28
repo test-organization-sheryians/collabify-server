@@ -160,12 +160,16 @@ export const streamWorker = {
   /**
    * Recovery Loop (The Janitor)
    * Claims pending messages (PEL) from dead/crashed workers.
+   *
+   * FIX D: Full cursor-paginated XAUTOCLAIM — drains the ENTIRE PEL per stream,
+   * not just the first 10 entries. A worker that crashes with 500 un-ACKed messages
+   * will have all 500 reclaimed in one tick. Mirrors the Pages worker pattern.
    */
   async recoveryLoop() {
     while (this.isRunning) {
       try {
         // Run every 60s
-        await new Promise((r) => setTimeout(r, 60000)); // TODO: Extract to config
+        await new Promise((r) => setTimeout(r, 60000));
 
         const streams = await appRedis.smembers(
           KeyFactory.WorkerAssignment(CONSUMER_NAME)
@@ -173,28 +177,40 @@ export const streamWorker = {
 
         for (const rawId of streams) {
           const stream = KeyFactory.ConversationStream(rawId);
-          // XAUTOCLAIM: Stream, Group, Consumer, MinIdleTime(60s), StartId(0-0), Count
-          const result = (await appRedis.xautoclaim(
-            stream,
-            WORKER_GROUP_NAME,
-            CONSUMER_NAME,
-            "60000",
-            "0-0",
-            "COUNT",
-            "10"
-          )) as any;
 
-          // Result: [NextId, [Messages], [DeletedIds]] (Redis 6.2+)
-          const messages = result[1];
+          // Cursor-paginated drain — claims ALL stale PEL entries, not just 10 per pass.
+          // Each page is processed atomically: XAUTOCLAIM → safeProcessMessage → XACK.
+          let cursor = "0-0";
 
-          if (messages && messages.length > 0) {
-            logger.warn("Janitor: Claimed Stale Messages", {
+          while (true) {
+            const result = (await appRedis.xautoclaim(
               stream,
-              count: messages.length,
-            });
-            for (const [id, fields] of messages) {
-              await this.safeProcessMessage(stream, id, fields);
+              WORKER_GROUP_NAME,
+              CONSUMER_NAME,
+              "60000",  // 60s idle threshold
+              cursor,
+              "COUNT",
+              "100"     // 100 per page — safe given safeProcessMessage handles XACK individually
+            )) as any;
+
+            // Redis 7.0+: [nextCursor, [[id,fields],...], [deletedIds]]
+            // Redis 6.2:  [nextCursor, [[id,fields],...]]
+            const [nextCursor, messages] = result;
+
+            if (messages && messages.length > 0) {
+              logger.warn("Janitor: Claimed Stale Messages", {
+                stream,
+                count: messages.length,
+                cursor,
+              });
+              for (const [id, fields] of messages) {
+                await this.safeProcessMessage(stream, id, fields);
+              }
             }
+
+            // Drain complete when Redis wraps cursor back to 0-0
+            if (nextCursor === "0-0") break;
+            cursor = nextCursor;
           }
         }
       } catch (err) {
@@ -202,6 +218,7 @@ export const streamWorker = {
       }
     }
   },
+
 
   async ensureGroups(streams: string[]) {
     // 2. Cap Cache Size (Memory Leak Fix)
@@ -371,7 +388,7 @@ export const streamWorker = {
     // HANDLE: chat:reaction-added & chat:reaction-removed
     // ═══════════════════════════════════════════════════════════
     if (type === "chat:reaction-added" || type === "chat:reaction-removed") {
-      // Queue for batch persistence
+      // Batch-persist to Postgres via BullMQ — this is the sole purpose of the stream path.
       await queueReactionPersistence({
         type: type as "chat:reaction-added" | "chat:reaction-removed",
         messageId: rawPayload.messageId,
@@ -380,16 +397,17 @@ export const streamWorker = {
         timestamp: rawPayload.timestamp,
       });
 
-      // Broadcast to subscribers (fan-out)
-      const downstreamMsg = JSON.stringify({
-        type,
-        success: true,  // Required by client ServerMessage protocol
-        data: rawPayload,
-      });
-      await publishSafe(topic, downstreamMsg);
+      // FIX F: publishSafe() removed — fan-out was already handled by add-reaction/handler.ts
+      // which calls redis.publish(ConversationTopic) directly after the Lua script (fast path).
+      // Publishing here was the second broadcast, causing every client to receive each
+      // reaction event twice. The stream path is persistence-only.
+      //
+      // IMPORTANT: If add-reaction/handler.ts is ever changed to not publish directly,
+      // the publishSafe() call must be restored here to maintain fan-out.
 
       return; // Early return after handling reaction
     }
+
 
     // ═══════════════════════════════════════════════════════════
     // HANDLE: chat:new-message (existing logic)
