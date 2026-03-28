@@ -41,14 +41,17 @@ export const persistMessageEditWorker = async (
 
     // Transaction: Update message + outbox
     await db.$transaction(async (tx) => {
-      // Update message
+      // Update message — wrap content in the same Json shape used by persist-message.ts:
+      // { text: string, schemaVersion: number }
+      // ChatMessage.content is a Prisma Json field; storing a raw string would break
+      // the client's getSafeContent() which reads content.text.
       await tx.chatMessage.update({
         where: {
           id: messageId,
           deletedAt: null, // Safety: don't update if message was deleted
         },
         data: {
-          content,
+          content: { text: content, schemaVersion: 1 },
           isEdited: true,
           editedAt: new Date(editedAt),
         },

@@ -4,7 +4,7 @@ import { createLogger } from "../../shared/lib/logger";
 const logger = createLogger("infra:ws:worker");
 import * as os from "os";
 import { KeyFactory } from "../redis/keys";
-import { persistenceQueue } from "@/modules/chat/jobs/queues";
+import { persistenceQueue, messageEditQueue, messageDeleteQueue } from "@/modules/chat/jobs/queues";
 import {
   queueReactionPersistence,
   periodicFlush,
@@ -325,16 +325,21 @@ export const streamWorker = {
     // HANDLE: chat:message-edited
     // ═══════════════════════════════════════════════════════════
     if (type === "chat:message-edited") {
-      // 1. Fan-out to subscribed clients
+      // 1. Fan-out to subscribed clients.
+      // Shape MUST match ServerMessage: { type, success, data }
+      // connection-manager.isValidServerMessage() requires success:boolean.
+      // event-router bridges data → event.payload for EventBus handlers.
       const downstreamMsg = JSON.stringify({
         type,
-        success: true,  // Required by client ServerMessage protocol
+        success: true,
         data: rawPayload,
       });
       await publishSafe(topic, downstreamMsg);
 
-      // 2. Enqueue persistence job
-      await persistenceQueue.add(
+      // Enqueue to the dedicated edit queue — NOT persistenceQueue (chat-persistence).
+      // persistenceQueue is consumed by persistMessageHandler which expects BigInt outbox IDs.
+      // persistMessageEditWorker listens on "persist-message-edit" and expects CUID outbox IDs.
+      await messageEditQueue.add(
         "persist-message-edit",
         {
           outboxId,
@@ -353,20 +358,22 @@ export const streamWorker = {
       return; // Early return after handling edit
     }
 
+
     // ═══════════════════════════════════════════════════════════
     // HANDLE: chat:message-deleted
     // ═══════════════════════════════════════════════════════════
     if (type === "chat:message-deleted") {
-      // 1. Fan-out to subscribed clients
+      // 1. Fan-out to subscribed clients.
+      // Shape MUST match ServerMessage: { type, success, data }
       const downstreamMsg = JSON.stringify({
         type,
-        success: true,  // Required by client ServerMessage protocol
+        success: true,
         data: rawPayload,
       });
       await publishSafe(topic, downstreamMsg);
 
-      // 2. Enqueue persistence job
-      await persistenceQueue.add(
+      // Enqueue to the dedicated delete queue — NOT persistenceQueue.
+      await messageDeleteQueue.add(
         "persist-message-delete",
         {
           outboxId,
@@ -383,6 +390,7 @@ export const streamWorker = {
 
       return; // Early return after handling delete
     }
+
 
     // ═══════════════════════════════════════════════════════════
     // HANDLE: chat:reaction-added & chat:reaction-removed

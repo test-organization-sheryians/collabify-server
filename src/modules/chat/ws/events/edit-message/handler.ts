@@ -59,9 +59,16 @@ export const editMessageHandler = async (
     const message = validation.message!;
 
     // 2️⃣ IDEMPOTENCY CHECK (Content Hash)
+    // NOTE: ChatMessage.content is a Prisma Json field — it returns a JS object,
+    // not a string. We must stringify it before hashing. The incoming `content`
+    // from the client is already a plain string so it's hashed directly.
     const contentHash = createHash("sha256").update(content).digest("hex");
     const previousHash = createHash("sha256")
-      .update(message.content as string)
+      .update(
+        typeof message.content === "string"
+          ? message.content
+          : JSON.stringify(message.content)
+      )
       .digest("hex");
 
     if (contentHash === previousHash) {

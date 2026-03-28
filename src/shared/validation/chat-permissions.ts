@@ -71,7 +71,12 @@ export function validateMessageOwnership(
 }
 
 /**
- * Validate edit time window (default 5 minutes)
+ * Validate edit time window.
+ *
+ * @deprecated Not enforced — Collabify does not impose a time-gated edit
+ * window. Authors may edit their messages at any time. Retained here in case
+ * the product requirement changes in a future sprint. If so, re-add the call
+ * to validateEditMessage() with an explicit windowMinutes argument.
  */
 export function validateEditWindow(
   message: { createdAt: Date },
@@ -139,14 +144,6 @@ export async function validateEditMessage(
     return {
       valid: false,
       error: { code: "FORBIDDEN", message: "Not the message author" },
-    };
-  }
-
-  // Check edit window
-  if (!validateEditWindow(message)) {
-    return {
-      valid: false,
-      error: { code: "FORBIDDEN", message: "Edit window expired (5 min)" },
     };
   }
 
