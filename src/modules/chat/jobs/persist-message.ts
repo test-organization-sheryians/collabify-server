@@ -146,6 +146,14 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
         },
       });
 
+      // Increment parent's reply count for inline replies (atomic in Postgres)
+      if (parentMessageId) {
+        await tx.chatMessage.update({
+          where: { id: parentMessageId },
+          data: { replyCount: { increment: 1 } },
+        });
+      }
+
       // 2.5 Update Conversation Last Sequence (Consistency Catch-up)
       // ARCHITECTURE: Dual-Write for Stability.
       // We rely on Redis for real-time ordering but must sync the "Committed Truth" to Postgres
