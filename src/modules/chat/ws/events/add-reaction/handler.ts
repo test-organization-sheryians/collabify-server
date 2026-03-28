@@ -29,7 +29,7 @@ export const addReactionHandler = async (
     // 1. Verify message exists and get conversationId
     const message = await ctx.db.chatMessage.findUnique({
       where: { id: messageId },
-      select: { id: true, conversationId: true },
+      select: { id: true, conversationId: true, deletedAt: true },
     });
 
     if (!message) {
@@ -44,7 +44,20 @@ export const addReactionHandler = async (
       return;
     }
 
-    // 1b. Gate access by conversation membership (cache-backed)
+    // 1b. Block reactions on deleted messages
+    if (message.deletedAt) {
+      socket.send(
+        createErrorFrame(
+          tempId || messageId,
+          "chat:add-reaction",
+          "MESSAGE_DELETED",
+          "Cannot react to a deleted message"
+        )
+      );
+      return;
+    }
+
+    // 1c. Gate access by conversation membership (cache-backed)
     await ctx.authGate.assertChannelMember(message.conversationId);
 
     // 3. Add reaction to Redis (Lua script - atomic)
