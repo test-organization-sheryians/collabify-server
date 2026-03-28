@@ -139,8 +139,13 @@ export async function validateEditMessage(
     };
   }
 
-  // Check ownership
-  if (!validateMessageOwnership(message, userId)) {
+  // Allow: message author OR conversation admin/owner (moderation delete).
+  // membership.role is already fetched above — no extra DB round-trip needed.
+  // deleterUserId in MessageDeleteOutbox records who acted for the audit trail.
+  const isAuthor = validateMessageOwnership(message, userId);
+  const isModerator = membership.role === 'ADMIN' || membership.role === 'OWNER';
+
+  if (!isAuthor && !isModerator) {
     return {
       valid: false,
       error: { code: "FORBIDDEN", message: "Not the message author" },

@@ -925,6 +925,8 @@ model ChatMessage {
   @@unique([conversationId, sequence]) // DUAL SEQUENCING CONSTRAINT
   @@index([conversationId, createdAt(sort: Desc)])
   @@index([parentMessageId, createdAt(sort: Asc)])
+  @@index([conversationId, deletedAt]) // mutation delta: deleted messages since lastOpenedAt
+  @@index([conversationId, editedAt])  // mutation delta: edited messages since lastOpenedAt
   @@map("chat_messages")
 }
 
