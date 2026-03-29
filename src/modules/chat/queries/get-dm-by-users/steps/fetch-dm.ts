@@ -33,35 +33,27 @@ export type DmRow = Prisma.ChatConversationGetPayload<{
 export type DmMemberRow = DmRow["members"][number];
 
 /**
- * fetchDm — finds an existing DM conversation between two users in a project.
+ * fetchDm — finds an existing 1:1 DM by its deterministic dmHash.
  *
- * Returns null if no DM exists — this is not an error, it simply means no prior
- * DM between these users in this project. The caller decides what to do (e.g.,
- * prompt the user to start a new DM).
+ * Uses findUnique( dmHash ) instead of findFirst( AND[member, member] ).
+ * This is an O(1) unique-index lookup vs. two nested subquery scans.
  *
- * The AND filter ensures BOTH users are members of the same DM conversation.
- * Scoped to the workspace + project + DM type so other conversation types
- * (channels, groups) are excluded.
+ * The hash formula matches create-dm exactly:
+ *   "proj_{projectId}_{min(userId, otherUserId)}_{max(userId, otherUserId)}"
  *
- * Soft-deleted DMs (deletedAt != null) are excluded — they behave as if they
- * don't exist and a new DM would be created if needed.
+ * Returns null when no DM exists — valid non-error response meaning the
+ * caller may create a new DM.
  */
 export async function fetchDm(
   input: GetDmByUsersInput,
   userId: string,
   ctx: ServiceContext
 ): Promise<DmRow | null> {
-  return ctx.db.chatConversation.findFirst({
-    where: {
-      workspaceId: input.workspaceId,
-      projectId: input.projectId,
-      type: "DM",
-      AND: [
-        { members: { some: { userId } } },
-        { members: { some: { userId: input.otherUserId } } },
-      ],
-      deletedAt: null,
-    },
+  const [u1, u2] = [userId, input.otherUserId].sort();
+  const dmHash = `proj_${input.projectId}_${u1}_${u2}`;
+
+  return ctx.db.chatConversation.findUnique({
+    where: { dmHash },
     select: dmSelect,
   });
 }

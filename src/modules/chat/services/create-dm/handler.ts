@@ -1,20 +1,29 @@
 import { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
-import { LockingService } from "@/services/locking";
-import { createLockKeys } from "@/services/locking/keys";
+import { createLogger } from "@/shared/lib/logger";
 import { CreateDmInput, CreateDmOutput } from "./types";
 
+const log = createLogger("chat:services:create-dm");
+
 /**
- * Create DM Service (Robust Version)
- * Creates a 1-on-1 direct message conversation between two users.
+ * createDm — creates or returns an existing 1:1 DM conversation.
  *
- * NEW: Project-scoped, distributed locking, transaction-based
+ * Strategy: optimistic create with P2002 catch (lock-free, crash-safe).
+ *   1. Compute a deterministic dmHash from sorted user IDs + projectId.
+ *   2. Attempt chatConversation.create inside a transaction that also validates
+ *      both users are active project members.
+ *   3. On Prisma P2002 (unique constraint violation = DM already exists):
+ *      fall back to findUnique(dmHash) and return the existing conversation.
  *
- * Features:
- * - Idempotent: Returns existing DM if already exists
- * - Race-condition safe: Uses distributed locks
- * - Project-scoped: DMs are unique per project, not workspace
- * - Transaction-based: Atomic creation with validation
+ * This replaces the previous LockingService approach which:
+ *   - Could return AppError.conflict to the user on a race
+ *   - Left locks held for 10 s on server crash
+ *   - Did a full junction-table scan instead of an O(1) unique index lookup
+ *
+ * @throws AppError 401  if not authenticated
+ * @throws AppError 400  if userId === recipientUserId (self-DM)
+ * @throws AppError 400  if project deleted or archived
+ * @throws AppError 403  if either user is not a project member
  */
 export const handler = async (
   input: CreateDmInput,
@@ -26,12 +35,12 @@ export const handler = async (
 
   const { workspaceId, projectId, recipientUserId } = input;
 
-  // Validate: Cannot DM yourself
+  // Guard: cannot DM yourself
   if (userId === recipientUserId) {
     throw AppError.badRequest("Cannot create DM with yourself");
   }
 
-  // Step 0 — project member gate (cache-backed)
+  // Auth: caller must be a project member with conversation:create
   const proj = await ctx.authGate.getProject(projectId);
   const scope = {
     type: "project" as const,
@@ -43,71 +52,28 @@ export const handler = async (
     ctx.permissions.assert("conversation:create", scope),
   ]);
 
-  // 1. Verify project exists and is not archived/deleted
+  // Validate project is active
   const project = await ctx.db.project.findUnique({
     where: { id: projectId },
     select: { id: true, isArchived: true, deletedAt: true, workspaceId: true },
   });
 
-  if (!project) {
-    throw AppError.notFound("Project not found");
-  }
-
-  if (project.deletedAt) {
-    throw AppError.badRequest("Cannot create DM in deleted project");
-  }
-
-  if (project.isArchived) {
-    throw AppError.badRequest("Cannot create DM in archived project");
-  }
-
+  if (!project) throw AppError.notFound("Project not found");
+  if (project.deletedAt) throw AppError.badRequest("Cannot create DM in deleted project");
+  if (project.isArchived) throw AppError.badRequest("Cannot create DM in archived project");
   if (project.workspaceId !== workspaceId) {
     throw AppError.badRequest("Project does not belong to this workspace");
   }
 
-  // 2. Distributed Lock Setup (Project-Scoped)
-  // Sort users to ensure deterministic lock key
-  const [user1, user2] = [userId, recipientUserId].sort();
-
-  const lockKeys = createLockKeys("dm", { type: "project", id: projectId });
-  const lockKey = lockKeys.resource(`${user1}:${user2}`);
-
-  // Try to acquire lock (10-second TTL)
-  const lockAcquired = await LockingService.acquire(lockKey, userId, 10);
-
-  if (!lockAcquired) {
-    throw AppError.conflict(
-      "DM creation already in progress for these users. Please wait and try again."
-    );
-  }
+  // Deterministic hash — sorted so A↔B and B↔A produce the same key
+  const [u1, u2] = [userId, recipientUserId].sort();
+  const dmHash = `proj_${projectId}_${u1}_${u2}`;
 
   try {
-    // 3. Idempotent Check: Find existing DM (PROJECT-SCOPED)
-    const existingDm = await ctx.db.chatConversation.findFirst({
-      where: {
-        workspaceId,
-        projectId,
-        type: "DM",
-        AND: [
-          { members: { some: { userId: user1 } } },
-          { members: { some: { userId: user2 } } },
-        ],
-      },
-    });
-
-    if (existingDm) {
-      // DM already exists, return it
-      return existingDm;
-    }
-
-    // 4. Create DM in Transaction (with fresh validation)
     const dm = await ctx.db.$transaction(async (tx) => {
-      // Re-validate: Both users must be PROJECT members (not just workspace)
+      // Re-validate inside transaction: both users must be active project members
       const projectMembers = await tx.projectMember.findMany({
-        where: {
-          projectId,
-          userId: { in: [user1, user2] },
-        },
+        where: { projectId, userId: { in: [u1, u2] } },
         select: { userId: true },
       });
 
@@ -117,27 +83,30 @@ export const handler = async (
         );
       }
 
-      // Create DM Conversation
-      const newDm = await tx.chatConversation.create({
+      return tx.chatConversation.create({
         data: {
           workspaceId,
           projectId,
           type: "DM",
-          // DMs have no name
+          dmHash,
           members: {
-            createMany: {
-              data: [{ userId: user1 }, { userId: user2 }],
-            },
+            createMany: { data: [{ userId: u1 }, { userId: u2 }] },
           },
         },
       });
-
-      return newDm;
     });
 
+    log.info("Created new DM conversation", { dmHash, conversationId: dm.id });
     return dm;
-  } finally {
-    // Always release lock
-    await LockingService.release(lockKey, userId);
+  } catch (err: any) {
+    // P2002 = unique constraint violation: DM already exists (race condition resolved)
+    if (err?.code === "P2002") {
+      log.debug("Race resolved: DM already exists, returning existing", { dmHash });
+      const existing = await ctx.db.chatConversation.findUnique({
+        where: { dmHash },
+      });
+      if (existing) return existing;
+    }
+    throw err;
   }
 };

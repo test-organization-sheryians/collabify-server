@@ -464,6 +464,14 @@ export type DmMember = {
   userId: Scalars['ID']['output'];
 };
 
+export type DmUserProfile = {
+  __typename?: 'DmUserProfile';
+  avatarUrl?: Maybe<Scalars['String']['output']>;
+  email?: Maybe<Scalars['String']['output']>;
+  fullName: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+};
+
 /** Returned by getPageSnapshot — everything the client needs to initialise the Y.Doc */
 export type GetPageSnapshotResult = {
   __typename?: 'GetPageSnapshotResult';
@@ -1569,6 +1577,18 @@ export type Project = {
   workspaceId: Scalars['String']['output'];
 };
 
+/**
+ * A 1:1 DM conversation with the other participant's profile resolved.
+ * The caller's own userId must be used to identify 'otherUser' on the client.
+ */
+export type ProjectDmItem = {
+  __typename?: 'ProjectDmItem';
+  id: Scalars['ID']['output'];
+  otherUser: DmUserProfile;
+  unreadCount: Scalars['Int']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+};
+
 export type ProjectMember = {
   __typename?: 'ProjectMember';
   id: Scalars['ID']['output'];
@@ -1658,6 +1678,7 @@ export type Query = {
    *   3. Open WS: page:subscribe-page { pageId, lastStreamId }  ← gap-fill
    */
   getPageSnapshot: PageSnapshot;
+  getProjectDms: Array<ProjectDmItem>;
   /**
    * Returns all issues for a project, sorted by priority (URGENT first)
    * then by position within each column.
@@ -1842,6 +1863,12 @@ export type QueryGetPageCollaboratorsArgs = {
 
 export type QueryGetPageSnapshotArgs = {
   pageId: Scalars['ID']['input'];
+};
+
+
+export type QueryGetProjectDmsArgs = {
+  projectId: Scalars['ID']['input'];
+  workspaceId: Scalars['ID']['input'];
 };
 
 
@@ -2753,6 +2780,7 @@ export type ResolversTypes = ResolversObject<{
   DeleteVaultFolderInput: DeleteVaultFolderInput;
   DmConversation: ResolverTypeWrapper<DmConversation>;
   DmMember: ResolverTypeWrapper<DmMember>;
+  DmUserProfile: ResolverTypeWrapper<DmUserProfile>;
   Float: ResolverTypeWrapper<Scalars['Float']['output']>;
   GetPageSnapshotResult: ResolverTypeWrapper<GetPageSnapshotResult>;
   GroupMemberInfo: ResolverTypeWrapper<GroupMemberInfo>;
@@ -2801,6 +2829,7 @@ export type ResolversTypes = ResolversObject<{
   PinVaultFolderInput: PinVaultFolderInput;
   PresenceStatus: PresenceStatus;
   Project: ResolverTypeWrapper<PrismaProject>;
+  ProjectDmItem: ResolverTypeWrapper<ProjectDmItem>;
   ProjectMember: ResolverTypeWrapper<PrismaProjectMember>;
   ProjectOverview: ResolverTypeWrapper<ProjectOverview>;
   ProjectRole: ResolverTypeWrapper<ProjectRole>;
@@ -2952,6 +2981,7 @@ export type ResolversParentTypes = ResolversObject<{
   DeleteVaultFolderInput: DeleteVaultFolderInput;
   DmConversation: DmConversation;
   DmMember: DmMember;
+  DmUserProfile: DmUserProfile;
   Float: Scalars['Float']['output'];
   GetPageSnapshotResult: GetPageSnapshotResult;
   GroupMemberInfo: GroupMemberInfo;
@@ -2997,6 +3027,7 @@ export type ResolversParentTypes = ResolversObject<{
   PinFolderResult: Omit<PinFolderResult, 'folder'> & { folder: ResolversParentTypes['VaultFolder'] };
   PinVaultFolderInput: PinVaultFolderInput;
   Project: PrismaProject;
+  ProjectDmItem: ProjectDmItem;
   ProjectMember: PrismaProjectMember;
   ProjectOverview: ProjectOverview;
   ProjectRole: ProjectRole;
@@ -3314,6 +3345,13 @@ export type DmConversationResolvers<ContextType = ServiceContext, ParentType ext
 export type DmMemberResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['DmMember'] = ResolversParentTypes['DmMember']> = ResolversObject<{
   user?: Resolver<ResolversTypes['UserBasic'], ParentType, ContextType>;
   userId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+}>;
+
+export type DmUserProfileResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['DmUserProfile'] = ResolversParentTypes['DmUserProfile']> = ResolversObject<{
+  avatarUrl?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  email?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  fullName?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
 }>;
 
 export type GetPageSnapshotResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['GetPageSnapshotResult'] = ResolversParentTypes['GetPageSnapshotResult']> = ResolversObject<{
@@ -3688,6 +3726,13 @@ export type ProjectResolvers<ContextType = ServiceContext, ParentType extends Re
   workspaceId?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 }>;
 
+export type ProjectDmItemResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ProjectDmItem'] = ResolversParentTypes['ProjectDmItem']> = ResolversObject<{
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  otherUser?: Resolver<ResolversTypes['DmUserProfile'], ParentType, ContextType>;
+  unreadCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+}>;
+
 export type ProjectMemberResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ProjectMember'] = ResolversParentTypes['ProjectMember']> = ResolversObject<{
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   joinedAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
@@ -3748,6 +3793,7 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   getPage?: Resolver<ResolversTypes['Page'], ParentType, ContextType, RequireFields<QueryGetPageArgs, 'pageId'>>;
   getPageCollaborators?: Resolver<Array<ResolversTypes['PageCollaborator']>, ParentType, ContextType, RequireFields<QueryGetPageCollaboratorsArgs, 'pageId'>>;
   getPageSnapshot?: Resolver<ResolversTypes['PageSnapshot'], ParentType, ContextType, RequireFields<QueryGetPageSnapshotArgs, 'pageId'>>;
+  getProjectDms?: Resolver<Array<ResolversTypes['ProjectDmItem']>, ParentType, ContextType, RequireFields<QueryGetProjectDmsArgs, 'projectId' | 'workspaceId'>>;
   getProjectIssues?: Resolver<Array<ResolversTypes['Issue']>, ParentType, ContextType, RequireFields<QueryGetProjectIssuesArgs, 'projectId'>>;
   getProjectPages?: Resolver<Array<ResolversTypes['Page']>, ParentType, ContextType, RequireFields<QueryGetProjectPagesArgs, 'projectId'>>;
   getReadReceipts?: Resolver<ResolversTypes['ReadReceiptsResponse'], ParentType, ContextType, RequireFields<QueryGetReadReceiptsArgs, 'messageId'>>;
@@ -4184,6 +4230,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   DeleteThreadResult?: DeleteThreadResultResolvers<ContextType>;
   DmConversation?: DmConversationResolvers<ContextType>;
   DmMember?: DmMemberResolvers<ContextType>;
+  DmUserProfile?: DmUserProfileResolvers<ContextType>;
   GetPageSnapshotResult?: GetPageSnapshotResultResolvers<ContextType>;
   GroupMemberInfo?: GroupMemberInfoResolvers<ContextType>;
   HistoryPayload?: HistoryPayloadResolvers<ContextType>;
@@ -4219,6 +4266,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   Permission?: PermissionResolvers<ContextType>;
   PinFolderResult?: PinFolderResultResolvers<ContextType>;
   Project?: ProjectResolvers<ContextType>;
+  ProjectDmItem?: ProjectDmItemResolvers<ContextType>;
   ProjectMember?: ProjectMemberResolvers<ContextType>;
   ProjectOverview?: ProjectOverviewResolvers<ContextType>;
   ProjectRole?: ProjectRoleResolvers<ContextType>;

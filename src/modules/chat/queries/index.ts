@@ -11,6 +11,7 @@ export * as getLastReadMessage from "./get-last-read-message";
 export * as getUserConversations from "./get-user-conversations"; // ⭐ NEW (Phase 1)
 export * as getConversation from "./get-conversation"; // ⭐ NEW (Phase 1)
 export * as getDmByUsers from "./get-dm-by-users"; // ⭐ NEW (Phase 1)
+export * as getProjectDms from "./get-project-dms"; // ⭐ NEW (Phase 2)
 export * as getUsersByIds from "./get-users-by-ids"; // ⭐ NEW (Avatar Support)
 
 // Member & Metadata Queries

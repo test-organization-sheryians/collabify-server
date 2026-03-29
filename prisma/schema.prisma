@@ -833,6 +833,10 @@ model ChatConversation {
   workspaceId  String           @map("workspace_id")
   projectId    String?          @map("project_id")
   type         ConversationType @default(CHANNEL)
+  // Deterministic dedup key for 1:1 and group DMs.
+  // Format (1:1): "proj_{projectId}_{minUserId}_{maxUserId}"
+  // NULL for channels and threads. @@unique eliminates race conditions lock-free.
+  dmHash       String?          @unique @map("dm_hash")
   name         String?
   topic        String?
   isArchived   Boolean          @default(false) @map("is_archived")

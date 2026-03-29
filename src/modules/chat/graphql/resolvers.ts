@@ -98,6 +98,11 @@ export const resolvers: Resolvers = {
       const input = queries.getDmByUsers.getDmByUsersSchema.parse(args);
       return queries.getDmByUsers.handler(input, ctx);
     },
+    getProjectDms: async (_, args, ctx) => {
+      await requireUser(ctx);
+      const input = queries.getProjectDms.getProjectDmsSchema.parse(args);
+      return queries.getProjectDms.handler(input, ctx);
+    },
     getUsersByIds: async (_, args, ctx) => {
       await requireUser(ctx);
       const input = queries.getUsersByIds.getUsersByIdsSchema.parse(args);
