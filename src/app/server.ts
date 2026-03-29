@@ -12,6 +12,7 @@ import { createGraphQLApp } from "./graphql/yoga";
 import webhookRoutes from "./routes/webhooks";
 import { ChatModule } from "../modules/chat";
 import { WhiteboardModule } from "../modules/whiteboard";
+import { startVaultJobs } from "../modules/vault";
 import { wsRegistry } from "../infra/ws/subscription-registry";
 import { registry } from "./metrics";
 
@@ -30,6 +31,10 @@ ChatModule.startEngine().catch((err: Error) => {
 
 WhiteboardModule.startEngine().catch((err: Error) => {
   logger.error("Failed to start Whiteboard Engine", { err });
+});
+
+startVaultJobs(db).catch((err: Error) => {
+  logger.error("Failed to start Vault Jobs", { err });
 });
 
 // Start Subscription Janitor

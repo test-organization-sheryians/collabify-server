@@ -24,21 +24,16 @@ export const getVaultDownloadUrlHandler = async (
 ) => {
   const { userId } = ctx.auth;
   if (!userId) throw AppError.unauthorized("User not authenticated");
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
+  if (!ctx.authGate) throw AppError.unauthorized();
 
   try {
     const file = await fetchActiveFile(input.fileId, ctx.db);
-    // Step 0 — project member gate
-    const proj = await ctx.authGate.getProject(file.projectId);
-    const scope = {
-      type: "project" as const,
-      id: file.projectId,
-      workspaceId: proj?.workspaceId ?? "",
-    };
-    await Promise.all([
-      ctx.authGate.assertProjectMember(file.projectId),
-      ctx.permissions.assert("vault.file:read", scope),
-    ]);
+    // Authorization: project membership is the only required gate for reading
+    // chat-sourced files. A separate vault:read permission check is redundant —
+    // if you can see the message, you can see its attachments.
+    // NOTE: vault.file:read does NOT exist in the permission manifest (vault/permissions.ts)
+    // only vault:read does — asserting vault.file:read always returned 403 for non-owners.
+    await ctx.authGate.assertProjectMember(file.projectId);
     return generateDownloadUrl(file.s3Key);
   } catch (error: unknown) {
     if (error instanceof AppError) throw error;

@@ -48,7 +48,7 @@ export const requestVaultUploadHandler = async (
   };
   await Promise.all([
     ctx.authGate.assertProjectMember(input.projectId),
-    ctx.permissions.assert("vault.file:create", scope),
+    ctx.permissions.assert("vault:upload", scope),
   ]);
 
   validateUploadInput(input);

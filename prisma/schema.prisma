@@ -453,6 +453,7 @@ model VaultFolder {
 
   @@index([projectId, parentFolderId]) // getVaultChildren: primary navigation query
   @@index([projectId, isSystem]) // getVaultSidebar: system folder lookup
+  @@unique([projectId, name]) // one folder per name per project (partial: only non-deleted enforced in migration)
   @@map("vault_folders")
 }
 

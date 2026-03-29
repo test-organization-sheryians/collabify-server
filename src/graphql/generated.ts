@@ -752,6 +752,17 @@ export type Mutation = {
   moveVaultFolder: MoveFolderResult;
   muteConversation: MuteConversationResult;
   pinVaultFolder: PinFolderResult;
+  /**
+   * Register a file upload initiated outside the standard Vault UI flow.
+   * Used by Chat (attachments), Pages/Issues (BlockNote uploadFile adapter),
+   * and Whiteboard (Excalidraw onAddFile).
+   *
+   * Enforces storage quota before issuing the presigned URL.
+   * Creates a PENDING VaultFile row. The caller must:
+   *   1. PUT bytes to presignedUrl
+   *   2. Call confirmVaultUpload(fileId) to activate
+   */
+  registerExternalFile: RegisterExternalFileResult;
   removeBoardCollaborator: RemoveBoardCollaboratorResult;
   removeChannelMember: RemoveChannelMemberResult;
   removeGroupMember: RemoveGroupMemberResult;
@@ -1136,6 +1147,11 @@ export type MutationMuteConversationArgs = {
 
 export type MutationPinVaultFolderArgs = {
   input: PinVaultFolderInput;
+};
+
+
+export type MutationRegisterExternalFileArgs = {
+  input: RegisterExternalFileInput;
 };
 
 
@@ -1639,6 +1655,14 @@ export type Query = {
   boardCollaborators: Array<BoardCollaborator>;
   /** Live presence from Redis ZSET (not DB). Reflects current editing sessions. */
   getActivePageCollaborators: Array<PageCollaborator>;
+  /**
+   * Batch-fetch presigned GET URLs for a list of fileIds.
+   * Returns one result entry per fileId in the same order as the input.
+   * Failed or deleted files return a non-null entry with status != ACTIVE.
+   *
+   * Max 50 fileIds per call.
+   */
+  getBatchDownloadUrls: Array<VaultBatchDownloadResult>;
   getBoard?: Maybe<Whiteboard>;
   getBoardSnapshot: BoardSnapshot;
   getChannelMembers: Array<ChatMemberRecord>;
@@ -1774,6 +1798,11 @@ export type QueryBoardCollaboratorsArgs = {
 
 export type QueryGetActivePageCollaboratorsArgs = {
   pageId: Scalars['ID']['input'];
+};
+
+
+export type QueryGetBatchDownloadUrlsArgs = {
+  fileIds: Array<Scalars['ID']['input']>;
 };
 
 
@@ -2107,6 +2136,35 @@ export type ReadReceiptsResponse = {
   totalReads: Scalars['Int']['output'];
 };
 
+export type RegisterExternalFileInput = {
+  /** Optional override folder. Defaults to the source module's system folder. */
+  folderId?: InputMaybe<Scalars['ID']['input']>;
+  mimeType: Scalars['String']['input'];
+  name: Scalars['String']['input'];
+  projectId: Scalars['ID']['input'];
+  /** File size in bytes. Use Float to stay JS-safe (no BigInt serialisation issues). */
+  sizeBytes: Scalars['Float']['input'];
+  /** Which module is uploading the file. Determines the system folder it lands in. */
+  source: VaultFileSource;
+  /**
+   * ID of the originating entity (conversationId, pageId, boardId, issueId).
+   * Nullable — may not yet exist when uploading before the entity is created.
+   */
+  sourceId?: InputMaybe<Scalars['ID']['input']>;
+  workspaceId: Scalars['ID']['input'];
+};
+
+/**
+ * Returned by registerExternalFile and requestVaultUpload.
+ * The client must PUT the file bytes to presignedUrl, then call confirmVaultUpload.
+ */
+export type RegisterExternalFileResult = {
+  __typename?: 'RegisterExternalFileResult';
+  expiresAt: Scalars['DateTime']['output'];
+  fileId: Scalars['ID']['output'];
+  presignedUrl: Scalars['String']['output'];
+};
+
 export type RemoveBoardCollaboratorResult = {
   __typename?: 'RemoveBoardCollaboratorResult';
   success: Scalars['Boolean']['output'];
@@ -2418,6 +2476,27 @@ export type UserPresence = {
   lastActiveAt?: Maybe<Scalars['DateTime']['output']>;
   status: PresenceStatus;
   userId: Scalars['ID']['output'];
+};
+
+/**
+ * Result entry for a single file in a batch download URL request.
+ * Clients must check status before using the url.
+ */
+export type VaultBatchDownloadResult = {
+  __typename?: 'VaultBatchDownloadResult';
+  fileId: Scalars['ID']['output'];
+  mimeType: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  sizeBytes: Scalars['Float']['output'];
+  /**
+   * ACTIVE    — url is valid, render normally
+   * DELETED   — file was removed; render tombstone ("Attachment deleted")
+   * PENDING   — upload not yet confirmed; render placeholder
+   * FORBIDDEN — caller is not a member of this file's project
+   */
+  status: Scalars['String']['output'];
+  /** Presigned GET URL valid for 1 hour. Null when status != ACTIVE. */
+  url?: Maybe<Scalars['String']['output']>;
 };
 
 export type VaultChildrenResult = {
@@ -2838,6 +2917,8 @@ export type ResolversTypes = ResolversObject<{
   ReactionUsersConnection: ResolverTypeWrapper<Omit<ReactionUsersConnection, 'users'> & { users: Array<ResolversTypes['User']> }>;
   ReadReceiptUser: ResolverTypeWrapper<ReadReceiptUser>;
   ReadReceiptsResponse: ResolverTypeWrapper<ReadReceiptsResponse>;
+  RegisterExternalFileInput: RegisterExternalFileInput;
+  RegisterExternalFileResult: ResolverTypeWrapper<RegisterExternalFileResult>;
   RemoveBoardCollaboratorResult: ResolverTypeWrapper<RemoveBoardCollaboratorResult>;
   RemoveChannelMemberResult: ResolverTypeWrapper<RemoveChannelMemberResult>;
   RemoveGroupMemberResult: ResolverTypeWrapper<RemoveGroupMemberResult>;
@@ -2891,6 +2972,7 @@ export type ResolversTypes = ResolversObject<{
   User: ResolverTypeWrapper<PrismaUser>;
   UserBasic: ResolverTypeWrapper<UserBasic>;
   UserPresence: ResolverTypeWrapper<UserPresence>;
+  VaultBatchDownloadResult: ResolverTypeWrapper<VaultBatchDownloadResult>;
   VaultChildrenResult: ResolverTypeWrapper<Omit<VaultChildrenResult, 'files' | 'folders'> & { files: Array<ResolversTypes['VaultFile']>, folders: Array<ResolversTypes['VaultFolder']> }>;
   VaultDownloadUrl: ResolverTypeWrapper<VaultDownloadUrl>;
   VaultFile: ResolverTypeWrapper<GraphQLVaultFile>;
@@ -3036,6 +3118,8 @@ export type ResolversParentTypes = ResolversObject<{
   ReactionUsersConnection: Omit<ReactionUsersConnection, 'users'> & { users: Array<ResolversParentTypes['User']> };
   ReadReceiptUser: ReadReceiptUser;
   ReadReceiptsResponse: ReadReceiptsResponse;
+  RegisterExternalFileInput: RegisterExternalFileInput;
+  RegisterExternalFileResult: RegisterExternalFileResult;
   RemoveBoardCollaboratorResult: RemoveBoardCollaboratorResult;
   RemoveChannelMemberResult: RemoveChannelMemberResult;
   RemoveGroupMemberResult: RemoveGroupMemberResult;
@@ -3088,6 +3172,7 @@ export type ResolversParentTypes = ResolversObject<{
   User: PrismaUser;
   UserBasic: UserBasic;
   UserPresence: UserPresence;
+  VaultBatchDownloadResult: VaultBatchDownloadResult;
   VaultChildrenResult: Omit<VaultChildrenResult, 'files' | 'folders'> & { files: Array<ResolversParentTypes['VaultFile']>, folders: Array<ResolversParentTypes['VaultFolder']> };
   VaultDownloadUrl: VaultDownloadUrl;
   VaultFile: GraphQLVaultFile;
@@ -3551,6 +3636,7 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   moveVaultFolder?: Resolver<ResolversTypes['MoveFolderResult'], ParentType, ContextType, RequireFields<MutationMoveVaultFolderArgs, 'input'>>;
   muteConversation?: Resolver<ResolversTypes['MuteConversationResult'], ParentType, ContextType, RequireFields<MutationMuteConversationArgs, 'conversationId' | 'isMuted'>>;
   pinVaultFolder?: Resolver<ResolversTypes['PinFolderResult'], ParentType, ContextType, RequireFields<MutationPinVaultFolderArgs, 'input'>>;
+  registerExternalFile?: Resolver<ResolversTypes['RegisterExternalFileResult'], ParentType, ContextType, RequireFields<MutationRegisterExternalFileArgs, 'input'>>;
   removeBoardCollaborator?: Resolver<ResolversTypes['RemoveBoardCollaboratorResult'], ParentType, ContextType, RequireFields<MutationRemoveBoardCollaboratorArgs, 'boardId' | 'userId'>>;
   removeChannelMember?: Resolver<ResolversTypes['RemoveChannelMemberResult'], ParentType, ContextType, RequireFields<MutationRemoveChannelMemberArgs, 'channelId' | 'userId' | 'workspaceId'>>;
   removeGroupMember?: Resolver<ResolversTypes['RemoveGroupMemberResult'], ParentType, ContextType, RequireFields<MutationRemoveGroupMemberArgs, 'groupId' | 'userId' | 'workspaceId'>>;
@@ -3777,6 +3863,7 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   allPermissions?: Resolver<Array<ResolversTypes['Permission']>, ParentType, ContextType, RequireFields<QueryAllPermissionsArgs, 'workspaceId'>>;
   boardCollaborators?: Resolver<Array<ResolversTypes['BoardCollaborator']>, ParentType, ContextType, RequireFields<QueryBoardCollaboratorsArgs, 'boardId'>>;
   getActivePageCollaborators?: Resolver<Array<ResolversTypes['PageCollaborator']>, ParentType, ContextType, RequireFields<QueryGetActivePageCollaboratorsArgs, 'pageId'>>;
+  getBatchDownloadUrls?: Resolver<Array<ResolversTypes['VaultBatchDownloadResult']>, ParentType, ContextType, RequireFields<QueryGetBatchDownloadUrlsArgs, 'fileIds'>>;
   getBoard?: Resolver<Maybe<ResolversTypes['Whiteboard']>, ParentType, ContextType, RequireFields<QueryGetBoardArgs, 'boardId'>>;
   getBoardSnapshot?: Resolver<ResolversTypes['BoardSnapshot'], ParentType, ContextType, RequireFields<QueryGetBoardSnapshotArgs, 'boardId'>>;
   getChannelMembers?: Resolver<Array<ResolversTypes['ChatMemberRecord']>, ParentType, ContextType, RequireFields<QueryGetChannelMembersArgs, 'channelId'>>;
@@ -3852,6 +3939,12 @@ export type ReadReceiptsResponseResolvers<ContextType = ServiceContext, ParentTy
   readBy?: Resolver<Array<ResolversTypes['ReadReceiptUser']>, ParentType, ContextType>;
   totalMembers?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   totalReads?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+}>;
+
+export type RegisterExternalFileResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['RegisterExternalFileResult'] = ResolversParentTypes['RegisterExternalFileResult']> = ResolversObject<{
+  expiresAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  fileId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  presignedUrl?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 }>;
 
 export type RemoveBoardCollaboratorResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['RemoveBoardCollaboratorResult'] = ResolversParentTypes['RemoveBoardCollaboratorResult']> = ResolversObject<{
@@ -4010,6 +4103,15 @@ export type UserPresenceResolvers<ContextType = ServiceContext, ParentType exten
   lastActiveAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
   status?: Resolver<ResolversTypes['PresenceStatus'], ParentType, ContextType>;
   userId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+}>;
+
+export type VaultBatchDownloadResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['VaultBatchDownloadResult'] = ResolversParentTypes['VaultBatchDownloadResult']> = ResolversObject<{
+  fileId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  mimeType?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  sizeBytes?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+  status?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  url?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
 }>;
 
 export type VaultChildrenResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['VaultChildrenResult'] = ResolversParentTypes['VaultChildrenResult']> = ResolversObject<{
@@ -4275,6 +4377,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   ReactionUsersConnection?: ReactionUsersConnectionResolvers<ContextType>;
   ReadReceiptUser?: ReadReceiptUserResolvers<ContextType>;
   ReadReceiptsResponse?: ReadReceiptsResponseResolvers<ContextType>;
+  RegisterExternalFileResult?: RegisterExternalFileResultResolvers<ContextType>;
   RemoveBoardCollaboratorResult?: RemoveBoardCollaboratorResultResolvers<ContextType>;
   RemoveChannelMemberResult?: RemoveChannelMemberResultResolvers<ContextType>;
   RemoveGroupMemberResult?: RemoveGroupMemberResultResolvers<ContextType>;
@@ -4305,6 +4408,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   User?: UserResolvers<ContextType>;
   UserBasic?: UserBasicResolvers<ContextType>;
   UserPresence?: UserPresenceResolvers<ContextType>;
+  VaultBatchDownloadResult?: VaultBatchDownloadResultResolvers<ContextType>;
   VaultChildrenResult?: VaultChildrenResultResolvers<ContextType>;
   VaultDownloadUrl?: VaultDownloadUrlResolvers<ContextType>;
   VaultFile?: VaultFileResolvers<ContextType>;
