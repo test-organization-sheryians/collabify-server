@@ -13,7 +13,7 @@
 // ═══════════════════════════════════════════════════════════════
 // MASTER SWITCH — set true to enable every logger at once
 // ═══════════════════════════════════════════════════════════════
-export const ALL = true; // ❌ Off
+export const ALL = false; // ❌ Off
 
 // ═══════════════════════════════════════════════════════════════
 // GROUP FLAGS — enable an entire feature or module at once
@@ -90,6 +90,13 @@ export const GROUPS = {
    */
   "vault-upload-flow": false,
 
+  /**
+   * Media delete lifecycle: mark-unreferenced → cleanup job → S3 delete
+   * Enables: mark-unreferenced service, unreferenced-cleanup job, is-file-referenced lib
+   * Toggle this to trace the full delete → unref → S3 removal pipeline.
+   */
+  "vault-media-lifecycle": true, // ✅ Enable for lifecycle testing — set false in prod
+
   // ─── Development/Testing ─────────────────────────────────────
   stream: false,         // all Redis stream logs
   auth: false,           // authentication & authorization
@@ -108,6 +115,11 @@ export const FILES: Record<string, boolean | undefined> = {
   "app:graphql": false,
   "app:middlewares": false,
   "app:webhooks": false,
+
+  // ─────────────────────────────────────────────────────────────
+  // Auth
+  // ─────────────────────────────────────────────────────────────
+  "auth:workspace-member": false,
 
   // ─────────────────────────────────────────────────────────────
   // Infrastructure
@@ -162,6 +174,7 @@ export const FILES: Record<string, boolean | undefined> = {
   // Project Module
   // ─────────────────────────────────────────────────────────────
   "project:services:create-project": false,
+  "project:services:seed-project-defaults": false,
 
   // ─────────────────────────────────────────────────────────────
   // Issues Module
@@ -243,6 +256,7 @@ export const FILES: Record<string, boolean | undefined> = {
   "chat:queries:get-user-conversations": false,
   "chat:queries:get-conversation": false,
   "chat:queries:get-dm-by-users": false,
+  "chat:queries:get-project-dms": false,
   "chat:queries:get-channel-members": false,
   "chat:queries:get-unread-counts": false,
   "chat:queries:get-read-receipts": false,
@@ -253,6 +267,7 @@ export const FILES: Record<string, boolean | undefined> = {
   "chat:queries:get-users-by-ids": false,
   // Services
   "chat:services:create-channel": false,
+  "chat:services:create-dm": false,
   // Domain
   "chat:domain:reactions:batch": false,
   "chat:domain:reactions:helpers": false,
@@ -294,12 +309,18 @@ export const FILES: Record<string, boolean | undefined> = {
   // ─────────────────────────────────────────────────────────────
   "vault:intake": false,
   "vault:infra:pending-cleanup": false,
+  // Jobs
+  // vault:jobs:index and cleanup-pending are always on so startup + sweep logs are visible
+  "vault:jobs:index": true,               // [VAULT_JOBS_STARTED] always visible
+  "vault:jobs:cleanup-pending": true,      // pending upload sweep always visible
+  "vault:jobs:entity-purge": false,
   // Queries
   "vault:queries:get-node": false,
   "vault:queries:get-children": false,
   "vault:queries:get-ancestors": false,
   "vault:queries:get-sidebar": false,
   "vault:queries:get-download-url": false,
+  "vault:queries:get-batch-download-urls": false,
   "vault:queries:get-vault-usage": false,
   // Services — request-upload pipeline
   "vault:services:request-upload": false,
@@ -322,8 +343,16 @@ export const FILES: Record<string, boolean | undefined> = {
   "vault:services:delete-file": false,
   "vault:services:rename-file": false,
   "vault:services:move-file": false,
+  "vault:services:register-external-file": false,
   // Lib
   "vault:lib:quota-guard": false,
+  // Media lifecycle pipeline (mark → cleanup → S3 delete)
+  // Set to undefined so vault-media-lifecycle FLOW_GROUP controls them.
+  // With vault-media-lifecycle: true in GROUPS, these will log automatically.
+  // Set to true here for explicit per-file override regardless of GROUPS.
+  "vault:services:mark-unreferenced": true, // → vault-media-lifecycle group
+  "vault:jobs:unreferenced-cleanup": true,  // → vault-media-lifecycle group
+  "vault:lib:is-file-referenced": true,     // → vault-media-lifecycle group
 
   // ─────────────────────────────────────────────────────────────
   // Pages Module
@@ -353,6 +382,8 @@ export const FILES: Record<string, boolean | undefined> = {
   "pages:queries:get-page-snapshot": false,
   "pages:queries:get-page-snapshot:load-snapshot": false,
   "pages:queries:get-page-snapshot:compute-diff": false,
+  "pages:queries:get-page-snapshot:apply-stream-delta": false,   // apply-stream-delta.ts
+  "pages:queries:get-page-snapshot:bidirectional-sync": false,   // bidirectional-sync.ts
   "pages:queries:get-page": false,
   "pages:queries:get-project-pages": false,
   "pages:queries:get-page-collaborators": false,

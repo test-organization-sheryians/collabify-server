@@ -25,6 +25,7 @@ import * as renameVaultFile from "../services/rename-file";
 import * as deleteVaultFile from "../services/delete-file";
 import * as pinVaultFolder from "../services/pin-folder";
 import * as unpinVaultFolder from "../services/unpin-folder";
+import * as markFilesUnreferenced from "../services/mark-unreferenced";
 
 const sharedTypeDefs = /* GraphQL */ `
   enum VaultNodeType {
@@ -152,4 +153,5 @@ export const vaultTypeDefs = [
   deleteVaultFile.typeDefs,
   pinVaultFolder.typeDefs,
   unpinVaultFolder.typeDefs,
+  markFilesUnreferenced.typeDefs,
 ];

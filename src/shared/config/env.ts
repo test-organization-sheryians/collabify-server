@@ -48,6 +48,12 @@ const envSchema = z.object({
   S3_WHITEBOARD_BUCKET: z.string().min(1).default("collabify-dev-whiteboards"),
   S3_VAULT_BUCKET: z.string().min(1).default("collabify-dev-vault"),
 
+  // Vault Lifecycle — dev/test overrides (ignored in production)
+  // VAULT_FAST_CLEANUP_MS: override the 30-min unreferenced grace period (e.g. 10000 = 10s)
+  // VAULT_CLEANUP_INTERVAL_MS: override the 30-min job run cadence (e.g. 15000 = 15s)
+  VAULT_FAST_CLEANUP_MS: z.coerce.number().optional(),
+  VAULT_CLEANUP_INTERVAL_MS: z.coerce.number().optional(),
+
   // Chat Debug / Chaos
   DEBUG_CHAT: z.enum(["true", "false"]).default("false"),
   DEBUG_CHAT_DROP_RATE: z.string().optional(),

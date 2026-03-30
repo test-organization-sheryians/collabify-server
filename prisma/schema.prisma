@@ -478,6 +478,14 @@ model VaultFile {
   source   VaultFileSource @default(VAULT) @map("source")
   sourceId String?         @map("source_id") // pageId | conversationId | boardId | taskId
 
+  // Unreferenced tracking — set by the editor on save when a file is removed from content.
+  // The cleanup job uses this to soft-delete files that are no longer in the saved document
+  // after a grace period (default 30 min), giving in-session undo a safe recovery window.
+  // All three fields are nullable: null = file is still actively referenced.
+  unrefAt         DateTime?       @map("unref_at")          // when the editor first marked this file unreferenced
+  unrefEntityId   String?         @map("unref_entity_id")   // the entityId whose save triggered the mark
+  unrefEntityType VaultFileSource? @map("unref_entity_type") // PAGE or TASK
+
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
@@ -491,6 +499,7 @@ model VaultFile {
   @@index([projectId, source]) // filter files by source (e.g. From Chat)
   @@index([status, createdAt]) // cleanup job: find orphaned PENDING files
   @@index([workspaceId, status]) // workspace-wide ACTIVE file count
+  @@index([status, unrefAt]) // unreferenced-cleanup job: find ACTIVE files past grace period
   @@map("vault_files")
 }
 

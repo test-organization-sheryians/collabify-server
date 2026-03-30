@@ -611,6 +611,21 @@ export type LockPageResult = {
   page: Page;
 };
 
+export type MarkFilesUnreferencedInput = {
+  /** The entity (page or issue) whose save triggered this mark. */
+  entityId: Scalars['ID']['input'];
+  /** The entity type — PAGE or TASK. */
+  entityType: VaultFileSource;
+  /** File IDs that are no longer present in the saved document content. */
+  fileIds: Array<Scalars['ID']['input']>;
+};
+
+export type MarkFilesUnreferencedResult = {
+  __typename?: 'MarkFilesUnreferencedResult';
+  /** Number of files successfully marked unreferenced. */
+  markedCount: Scalars['Int']['output'];
+};
+
 export type MessageReaction = {
   __typename?: 'MessageReaction';
   count: Scalars['Int']['output'];
@@ -745,6 +760,14 @@ export type Mutation = {
   lockPage: LockPageResult;
   /** Mark all notifications as read. */
   markAllNotificationsRead: Scalars['Boolean']['output'];
+  /**
+   * Called by the editor on save when one or more vault://fileId references
+   * have been removed from the document content since the last save.
+   *
+   * Does NOT delete files immediately — sets unrefAt for the cleanup job to
+   * process after a grace period (default 30 min), preserving in-session undo.
+   */
+  markFilesUnreferenced: MarkFilesUnreferencedResult;
   /** Mark specific notifications as read. */
   markNotificationRead: Scalars['Boolean']['output'];
   moveIssueStatus: MoveIssueStatusResult;
@@ -1116,6 +1139,11 @@ export type MutationLockBoardArgs = {
 
 export type MutationLockPageArgs = {
   input: LockPageInput;
+};
+
+
+export type MutationMarkFilesUnreferencedArgs = {
+  input: MarkFilesUnreferencedInput;
 };
 
 
@@ -2881,6 +2909,8 @@ export type ResolversTypes = ResolversObject<{
   LeaveGroupResult: ResolverTypeWrapper<LeaveGroupResult>;
   LockPageInput: LockPageInput;
   LockPageResult: ResolverTypeWrapper<Omit<LockPageResult, 'page'> & { page: ResolversTypes['Page'] }>;
+  MarkFilesUnreferencedInput: MarkFilesUnreferencedInput;
+  MarkFilesUnreferencedResult: ResolverTypeWrapper<MarkFilesUnreferencedResult>;
   MessageReaction: ResolverTypeWrapper<Omit<MessageReaction, 'recentUsers'> & { recentUsers: Array<ResolversTypes['User']> }>;
   MessagesDelta: ResolverTypeWrapper<Omit<MessagesDelta, 'messages'> & { messages: Array<ResolversTypes['ChatMessage']> }>;
   MoveFileResult: ResolverTypeWrapper<Omit<MoveFileResult, 'file'> & { file: ResolversTypes['VaultFile'] }>;
@@ -3084,6 +3114,8 @@ export type ResolversParentTypes = ResolversObject<{
   LeaveGroupResult: LeaveGroupResult;
   LockPageInput: LockPageInput;
   LockPageResult: Omit<LockPageResult, 'page'> & { page: ResolversParentTypes['Page'] };
+  MarkFilesUnreferencedInput: MarkFilesUnreferencedInput;
+  MarkFilesUnreferencedResult: MarkFilesUnreferencedResult;
   MessageReaction: Omit<MessageReaction, 'recentUsers'> & { recentUsers: Array<ResolversParentTypes['User']> };
   MessagesDelta: Omit<MessagesDelta, 'messages'> & { messages: Array<ResolversParentTypes['ChatMessage']> };
   MoveFileResult: Omit<MoveFileResult, 'file'> & { file: ResolversParentTypes['VaultFile'] };
@@ -3547,6 +3579,10 @@ export type LockPageResultResolvers<ContextType = ServiceContext, ParentType ext
   page?: Resolver<ResolversTypes['Page'], ParentType, ContextType>;
 }>;
 
+export type MarkFilesUnreferencedResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['MarkFilesUnreferencedResult'] = ResolversParentTypes['MarkFilesUnreferencedResult']> = ResolversObject<{
+  markedCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+}>;
+
 export type MessageReactionResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['MessageReaction'] = ResolversParentTypes['MessageReaction']> = ResolversObject<{
   count?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   emoji?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
@@ -3630,6 +3666,7 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   lockBoard?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType, RequireFields<MutationLockBoardArgs, 'boardId'>>;
   lockPage?: Resolver<ResolversTypes['LockPageResult'], ParentType, ContextType, RequireFields<MutationLockPageArgs, 'input'>>;
   markAllNotificationsRead?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  markFilesUnreferenced?: Resolver<ResolversTypes['MarkFilesUnreferencedResult'], ParentType, ContextType, RequireFields<MutationMarkFilesUnreferencedArgs, 'input'>>;
   markNotificationRead?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationMarkNotificationReadArgs, 'ids'>>;
   moveIssueStatus?: Resolver<ResolversTypes['MoveIssueStatusResult'], ParentType, ContextType, RequireFields<MutationMoveIssueStatusArgs, 'input'>>;
   moveVaultFile?: Resolver<ResolversTypes['MoveFileResult'], ParentType, ContextType, RequireFields<MutationMoveVaultFileArgs, 'input'>>;
@@ -4348,6 +4385,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   LastMessagePreview?: LastMessagePreviewResolvers<ContextType>;
   LeaveGroupResult?: LeaveGroupResultResolvers<ContextType>;
   LockPageResult?: LockPageResultResolvers<ContextType>;
+  MarkFilesUnreferencedResult?: MarkFilesUnreferencedResultResolvers<ContextType>;
   MessageReaction?: MessageReactionResolvers<ContextType>;
   MessagesDelta?: MessagesDeltaResolvers<ContextType>;
   MoveFileResult?: MoveFileResultResolvers<ContextType>;

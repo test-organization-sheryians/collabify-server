@@ -118,6 +118,11 @@ const FLOW_GROUPS: Record<string, GroupFlag[]> = {
   "vault:services:confirm-upload:verify-s3": ["vault-upload-flow"],
   "vault:services:confirm-upload:activate": ["vault-upload-flow"],
   "vault:lib:quota-guard": ["vault-upload-flow"],
+
+  // ── Vault Media Delete Lifecycle ──────────────────────────────────────
+  "vault:services:mark-unreferenced": ["vault-media-lifecycle"],
+  "vault:jobs:unreferenced-cleanup":   ["vault-media-lifecycle"],
+  "vault:lib:is-file-referenced":      ["vault-media-lifecycle"],
 };
 
 
