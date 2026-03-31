@@ -20,6 +20,6 @@ export async function assertAccess(
   const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
   await Promise.all([
     ctx.authGate.assertChannelMember(channelId),
-    ctx.permissions.assert("conversation:read", scope),
+    ctx.permissions.assert("chat:channel:read", scope),
   ]);
 }

@@ -2,10 +2,9 @@
  * deleteWorkspaceRole — Service Handler (thin orchestrator)
  *
  * Auth:
- *   - assertWorkspaceAdminOrAbove
- *   - permissions.assert("workspace.role:delete")
+ *   - permissions.assert("workspace:role:delete") — ADMIN+ only (RBAC)
  * Steps:
- *   1. [auth] parallel
+ *   1. [auth] assert("workspace:role:delete")
  *   2. [pre-delete] invalidate role-member index: bulk-invalidate perm:* for all holders
  *   3. removeRole — guard isSystem + no active assignments, then delete
  * Cache Invalidation:
@@ -24,10 +23,7 @@ export const deleteWorkspaceRole = async (
   const { roleId, workspaceId } = input;
   if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
   const scope = { type: "workspace" as const, id: workspaceId };
-  await Promise.all([
-    ctx.authGate.assertWorkspaceAdminOrAbove(workspaceId),
-    ctx.permissions.assert("workspace.role:delete", scope),
-  ]);
+  await ctx.permissions.assert("workspace:role:delete", scope);
 
   // TODO: invalidate role-members:{roleId} perm cache once AuthGateInvalidator is wired to ServiceContext
 

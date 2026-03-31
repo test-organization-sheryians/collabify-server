@@ -7,7 +7,7 @@ import type { GetUserBoardsInput, BoardConnection } from "./types";
  *
  * Auth:
  *   - assertWorkspaceMember — cache-backed; FORBIDDEN if not a member
- *   - permissions.assert("board:read") — RBAC check
+ *   - permissions.assert("whiteboard:read") — RBAC check
  */
 export const handler = async (
   input: GetUserBoardsInput,
@@ -27,7 +27,7 @@ export const handler = async (
       : { type: "workspace" as const, id: workspaceId };
     await Promise.all([
       ctx.authGate.assertWorkspaceMember(workspaceId),
-      ctx.permissions.assert("board:read", scope),
+      ctx.permissions.assert("whiteboard:read", scope),
     ]);
 
     // Step 2 — fetch user's boards (creator or collaborator)

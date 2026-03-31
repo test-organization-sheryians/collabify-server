@@ -41,6 +41,23 @@ export type ActiveCollaborator = {
   userId: Scalars['ID']['output'];
 };
 
+export type ActiveFeatureFlag = {
+  __typename?: 'ActiveFeatureFlag';
+  enabled: Scalars['Boolean']['output'];
+  key: Scalars['String']['output'];
+};
+
+export type ActiveUserContext = {
+  __typename?: 'ActiveUserContext';
+  featureFlags: Array<ActiveFeatureFlag>;
+  grantedPermissions: Array<Scalars['String']['output']>;
+  projectId?: Maybe<Scalars['ID']['output']>;
+  projectRole?: Maybe<Scalars['String']['output']>;
+  userId: Scalars['ID']['output'];
+  workspaceId: Scalars['ID']['output'];
+  workspaceRole?: Maybe<Scalars['String']['output']>;
+};
+
 export type AddBoardCollaboratorsResult = {
   __typename?: 'AddBoardCollaboratorsResult';
   addedCount: Scalars['Int']['output'];
@@ -472,6 +489,30 @@ export type DmUserProfile = {
   id: Scalars['ID']['output'];
 };
 
+export type FeatureFlagRecord = {
+  __typename?: 'FeatureFlagRecord';
+  defaultEnabled: Scalars['Boolean']['output'];
+  description?: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  key: Scalars['String']['output'];
+  overrides: Array<FlagOverrideRecord>;
+};
+
+export enum FlagContextType {
+  Global = 'GLOBAL',
+  Project = 'PROJECT',
+  User = 'USER',
+  Workspace = 'WORKSPACE'
+}
+
+export type FlagOverrideRecord = {
+  __typename?: 'FlagOverrideRecord';
+  contextId?: Maybe<Scalars['ID']['output']>;
+  contextType: FlagContextType;
+  enabled: Scalars['Boolean']['output'];
+  id: Scalars['ID']['output'];
+};
+
 /** Returned by getPageSnapshot — everything the client needs to initialise the Y.Doc */
 export type GetPageSnapshotResult = {
   __typename?: 'GetPageSnapshotResult';
@@ -506,6 +547,7 @@ export type InviteResponse = {
 
 export type InviteToWorkspaceInput = {
   emails: Array<Scalars['String']['input']>;
+  roleId: Scalars['ID']['input'];
   workspaceId: Scalars['ID']['input'];
 };
 
@@ -820,6 +862,7 @@ export type Mutation = {
   resendWorkspaceInvite: Scalars['Boolean']['output'];
   subscribeThread: SubscribeThreadResult;
   syncUser: User;
+  toggleFeatureFlag: ToggleFlagResult;
   transferWorkspaceOwnership: WorkspaceMember;
   unarchiveBoard: Whiteboard;
   unarchiveChannel: UnarchiveChannelResult;
@@ -882,6 +925,7 @@ export type MutationAddPageCollaboratorsArgs = {
 
 export type MutationAddProjectMemberArgs = {
   projectId: Scalars['ID']['input'];
+  roleId: Scalars['ID']['input'];
   userId: Scalars['ID']['input'];
   workspaceId: Scalars['ID']['input'];
 };
@@ -1312,6 +1356,11 @@ export type MutationSyncUserArgs = {
 };
 
 
+export type MutationToggleFeatureFlagArgs = {
+  input: ToggleFeatureFlagInput;
+};
+
+
 export type MutationTransferWorkspaceOwnershipArgs = {
   newOwnerId: Scalars['ID']['input'];
   workspaceId: Scalars['ID']['input'];
@@ -1679,8 +1728,10 @@ export type PublicUser = {
 export type Query = {
   __typename?: 'Query';
   activeCollaborators: Array<ActiveCollaborator>;
+  activeContext: ActiveUserContext;
   allPermissions: Array<Permission>;
   boardCollaborators: Array<BoardCollaborator>;
+  featureFlags: Array<FeatureFlagRecord>;
   /** Live presence from Redis ZSET (not DB). Reflects current editing sessions. */
   getActivePageCollaborators: Array<PageCollaborator>;
   /**
@@ -1811,6 +1862,12 @@ export type Query = {
 
 export type QueryActiveCollaboratorsArgs = {
   boardId: Scalars['ID']['input'];
+};
+
+
+export type QueryActiveContextArgs = {
+  projectId?: InputMaybe<Scalars['ID']['input']>;
+  workspaceId: Scalars['ID']['input'];
 };
 
 
@@ -2359,6 +2416,20 @@ export type Task = {
   title: Scalars['String']['output'];
 };
 
+export type ToggleFeatureFlagInput = {
+  contextId?: InputMaybe<Scalars['ID']['input']>;
+  contextType: FlagContextType;
+  enabled: Scalars['Boolean']['input'];
+  flagKey: Scalars['String']['input'];
+};
+
+export type ToggleFlagResult = {
+  __typename?: 'ToggleFlagResult';
+  enabled: Scalars['Boolean']['output'];
+  flagKey: Scalars['String']['output'];
+  success: Scalars['Boolean']['output'];
+};
+
 export type UnarchiveChannelResult = {
   __typename?: 'UnarchiveChannelResult';
   channelId: Scalars['ID']['output'];
@@ -2823,6 +2894,8 @@ export type ResolversUnionTypes<_RefType extends Record<string, unknown>> = Reso
 export type ResolversTypes = ResolversObject<{
   AcceptInviteInput: AcceptInviteInput;
   ActiveCollaborator: ResolverTypeWrapper<ActiveCollaborator>;
+  ActiveFeatureFlag: ResolverTypeWrapper<ActiveFeatureFlag>;
+  ActiveUserContext: ResolverTypeWrapper<ActiveUserContext>;
   AddBoardCollaboratorsResult: ResolverTypeWrapper<AddBoardCollaboratorsResult>;
   AddChannelMembersResult: ResolverTypeWrapper<AddChannelMembersResult>;
   AddGroupMembersResult: ResolverTypeWrapper<AddGroupMembersResult>;
@@ -2888,6 +2961,9 @@ export type ResolversTypes = ResolversObject<{
   DmConversation: ResolverTypeWrapper<DmConversation>;
   DmMember: ResolverTypeWrapper<DmMember>;
   DmUserProfile: ResolverTypeWrapper<DmUserProfile>;
+  FeatureFlagRecord: ResolverTypeWrapper<FeatureFlagRecord>;
+  FlagContextType: FlagContextType;
+  FlagOverrideRecord: ResolverTypeWrapper<FlagOverrideRecord>;
   Float: ResolverTypeWrapper<Scalars['Float']['output']>;
   GetPageSnapshotResult: ResolverTypeWrapper<GetPageSnapshotResult>;
   GroupMemberInfo: ResolverTypeWrapper<GroupMemberInfo>;
@@ -2978,6 +3054,8 @@ export type ResolversTypes = ResolversObject<{
   String: ResolverTypeWrapper<Scalars['String']['output']>;
   SubscribeThreadResult: ResolverTypeWrapper<SubscribeThreadResult>;
   Task: ResolverTypeWrapper<Task>;
+  ToggleFeatureFlagInput: ToggleFeatureFlagInput;
+  ToggleFlagResult: ResolverTypeWrapper<ToggleFlagResult>;
   UnarchiveChannelResult: ResolverTypeWrapper<UnarchiveChannelResult>;
   UnarchivePageInput: UnarchivePageInput;
   UnarchivePageResult: ResolverTypeWrapper<Omit<UnarchivePageResult, 'page'> & { page: ResolversTypes['Page'] }>;
@@ -3030,6 +3108,8 @@ export type ResolversTypes = ResolversObject<{
 export type ResolversParentTypes = ResolversObject<{
   AcceptInviteInput: AcceptInviteInput;
   ActiveCollaborator: ActiveCollaborator;
+  ActiveFeatureFlag: ActiveFeatureFlag;
+  ActiveUserContext: ActiveUserContext;
   AddBoardCollaboratorsResult: AddBoardCollaboratorsResult;
   AddChannelMembersResult: AddChannelMembersResult;
   AddGroupMembersResult: AddGroupMembersResult;
@@ -3094,6 +3174,8 @@ export type ResolversParentTypes = ResolversObject<{
   DmConversation: DmConversation;
   DmMember: DmMember;
   DmUserProfile: DmUserProfile;
+  FeatureFlagRecord: FeatureFlagRecord;
+  FlagOverrideRecord: FlagOverrideRecord;
   Float: Scalars['Float']['output'];
   GetPageSnapshotResult: GetPageSnapshotResult;
   GroupMemberInfo: GroupMemberInfo;
@@ -3180,6 +3262,8 @@ export type ResolversParentTypes = ResolversObject<{
   String: Scalars['String']['output'];
   SubscribeThreadResult: SubscribeThreadResult;
   Task: Task;
+  ToggleFeatureFlagInput: ToggleFeatureFlagInput;
+  ToggleFlagResult: ToggleFlagResult;
   UnarchiveChannelResult: UnarchiveChannelResult;
   UnarchivePageInput: UnarchivePageInput;
   UnarchivePageResult: Omit<UnarchivePageResult, 'page'> & { page: ResolversParentTypes['Page'] };
@@ -3231,6 +3315,21 @@ export type ActiveCollaboratorResolvers<ContextType = ServiceContext, ParentType
   joinedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
   lastSeenAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
   userId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+}>;
+
+export type ActiveFeatureFlagResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ActiveFeatureFlag'] = ResolversParentTypes['ActiveFeatureFlag']> = ResolversObject<{
+  enabled?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  key?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+}>;
+
+export type ActiveUserContextResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ActiveUserContext'] = ResolversParentTypes['ActiveUserContext']> = ResolversObject<{
+  featureFlags?: Resolver<Array<ResolversTypes['ActiveFeatureFlag']>, ParentType, ContextType>;
+  grantedPermissions?: Resolver<Array<ResolversTypes['String']>, ParentType, ContextType>;
+  projectId?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
+  projectRole?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  userId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  workspaceId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  workspaceRole?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
 }>;
 
 export type AddBoardCollaboratorsResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['AddBoardCollaboratorsResult'] = ResolversParentTypes['AddBoardCollaboratorsResult']> = ResolversObject<{
@@ -3471,6 +3570,21 @@ export type DmUserProfileResolvers<ContextType = ServiceContext, ParentType exte
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
 }>;
 
+export type FeatureFlagRecordResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['FeatureFlagRecord'] = ResolversParentTypes['FeatureFlagRecord']> = ResolversObject<{
+  defaultEnabled?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  key?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  overrides?: Resolver<Array<ResolversTypes['FlagOverrideRecord']>, ParentType, ContextType>;
+}>;
+
+export type FlagOverrideRecordResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['FlagOverrideRecord'] = ResolversParentTypes['FlagOverrideRecord']> = ResolversObject<{
+  contextId?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
+  contextType?: Resolver<ResolversTypes['FlagContextType'], ParentType, ContextType>;
+  enabled?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+}>;
+
 export type GetPageSnapshotResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['GetPageSnapshotResult'] = ResolversParentTypes['GetPageSnapshotResult']> = ResolversObject<{
   lastStreamId?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   pageId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
@@ -3615,7 +3729,7 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   addChannelMembers?: Resolver<ResolversTypes['AddChannelMembersResult'], ParentType, ContextType, RequireFields<MutationAddChannelMembersArgs, 'channelId' | 'userIds' | 'workspaceId'>>;
   addGroupMembers?: Resolver<ResolversTypes['AddGroupMembersResult'], ParentType, ContextType, RequireFields<MutationAddGroupMembersArgs, 'groupId' | 'userIds' | 'workspaceId'>>;
   addPageCollaborators?: Resolver<ResolversTypes['AddPageCollaboratorsResult'], ParentType, ContextType, RequireFields<MutationAddPageCollaboratorsArgs, 'input'>>;
-  addProjectMember?: Resolver<ResolversTypes['ProjectMember'], ParentType, ContextType, RequireFields<MutationAddProjectMemberArgs, 'projectId' | 'userId' | 'workspaceId'>>;
+  addProjectMember?: Resolver<ResolversTypes['ProjectMember'], ParentType, ContextType, RequireFields<MutationAddProjectMemberArgs, 'projectId' | 'roleId' | 'userId' | 'workspaceId'>>;
   archiveBoard?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType, RequireFields<MutationArchiveBoardArgs, 'boardId'>>;
   archiveChannel?: Resolver<ResolversTypes['Conversation'], ParentType, ContextType, RequireFields<MutationArchiveChannelArgs, 'input'>>;
   archivePage?: Resolver<ResolversTypes['ArchivePageResult'], ParentType, ContextType, RequireFields<MutationArchivePageArgs, 'input'>>;
@@ -3696,6 +3810,7 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   resendWorkspaceInvite?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationResendWorkspaceInviteArgs, 'inviteId' | 'workspaceId'>>;
   subscribeThread?: Resolver<ResolversTypes['SubscribeThreadResult'], ParentType, ContextType, RequireFields<MutationSubscribeThreadArgs, 'threadId'>>;
   syncUser?: Resolver<ResolversTypes['User'], ParentType, ContextType, RequireFields<MutationSyncUserArgs, 'clerkId' | 'email'>>;
+  toggleFeatureFlag?: Resolver<ResolversTypes['ToggleFlagResult'], ParentType, ContextType, RequireFields<MutationToggleFeatureFlagArgs, 'input'>>;
   transferWorkspaceOwnership?: Resolver<ResolversTypes['WorkspaceMember'], ParentType, ContextType, RequireFields<MutationTransferWorkspaceOwnershipArgs, 'newOwnerId' | 'workspaceId'>>;
   unarchiveBoard?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType, RequireFields<MutationUnarchiveBoardArgs, 'boardId'>>;
   unarchiveChannel?: Resolver<ResolversTypes['UnarchiveChannelResult'], ParentType, ContextType, RequireFields<MutationUnarchiveChannelArgs, 'channelId' | 'workspaceId'>>;
@@ -3897,8 +4012,10 @@ export type PublicUserResolvers<ContextType = ServiceContext, ParentType extends
 
 export type QueryResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Query'] = ResolversParentTypes['Query']> = ResolversObject<{
   activeCollaborators?: Resolver<Array<ResolversTypes['ActiveCollaborator']>, ParentType, ContextType, RequireFields<QueryActiveCollaboratorsArgs, 'boardId'>>;
+  activeContext?: Resolver<ResolversTypes['ActiveUserContext'], ParentType, ContextType, RequireFields<QueryActiveContextArgs, 'workspaceId'>>;
   allPermissions?: Resolver<Array<ResolversTypes['Permission']>, ParentType, ContextType, RequireFields<QueryAllPermissionsArgs, 'workspaceId'>>;
   boardCollaborators?: Resolver<Array<ResolversTypes['BoardCollaborator']>, ParentType, ContextType, RequireFields<QueryBoardCollaboratorsArgs, 'boardId'>>;
+  featureFlags?: Resolver<Array<ResolversTypes['FeatureFlagRecord']>, ParentType, ContextType>;
   getActivePageCollaborators?: Resolver<Array<ResolversTypes['PageCollaborator']>, ParentType, ContextType, RequireFields<QueryGetActivePageCollaboratorsArgs, 'pageId'>>;
   getBatchDownloadUrls?: Resolver<Array<ResolversTypes['VaultBatchDownloadResult']>, ParentType, ContextType, RequireFields<QueryGetBatchDownloadUrlsArgs, 'fileIds'>>;
   getBoard?: Resolver<Maybe<ResolversTypes['Whiteboard']>, ParentType, ContextType, RequireFields<QueryGetBoardArgs, 'boardId'>>;
@@ -4069,6 +4186,12 @@ export type TaskResolvers<ContextType = ServiceContext, ParentType extends Resol
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   statusName?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+}>;
+
+export type ToggleFlagResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ToggleFlagResult'] = ResolversParentTypes['ToggleFlagResult']> = ResolversObject<{
+  enabled?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  flagKey?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  success?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
 }>;
 
 export type UnarchiveChannelResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['UnarchiveChannelResult'] = ResolversParentTypes['UnarchiveChannelResult']> = ResolversObject<{
@@ -4332,6 +4455,8 @@ export type WorkspaceRoleResolvers<ContextType = ServiceContext, ParentType exte
 
 export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   ActiveCollaborator?: ActiveCollaboratorResolvers<ContextType>;
+  ActiveFeatureFlag?: ActiveFeatureFlagResolvers<ContextType>;
+  ActiveUserContext?: ActiveUserContextResolvers<ContextType>;
   AddBoardCollaboratorsResult?: AddBoardCollaboratorsResultResolvers<ContextType>;
   AddChannelMembersResult?: AddChannelMembersResultResolvers<ContextType>;
   AddGroupMembersResult?: AddGroupMembersResultResolvers<ContextType>;
@@ -4370,6 +4495,8 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   DmConversation?: DmConversationResolvers<ContextType>;
   DmMember?: DmMemberResolvers<ContextType>;
   DmUserProfile?: DmUserProfileResolvers<ContextType>;
+  FeatureFlagRecord?: FeatureFlagRecordResolvers<ContextType>;
+  FlagOverrideRecord?: FlagOverrideRecordResolvers<ContextType>;
   GetPageSnapshotResult?: GetPageSnapshotResultResolvers<ContextType>;
   GroupMemberInfo?: GroupMemberInfoResolvers<ContextType>;
   HistoryPayload?: HistoryPayloadResolvers<ContextType>;
@@ -4433,6 +4560,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   RolePermission?: RolePermissionResolvers<ContextType>;
   SubscribeThreadResult?: SubscribeThreadResultResolvers<ContextType>;
   Task?: TaskResolvers<ContextType>;
+  ToggleFlagResult?: ToggleFlagResultResolvers<ContextType>;
   UnarchiveChannelResult?: UnarchiveChannelResultResolvers<ContextType>;
   UnarchivePageResult?: UnarchivePageResultResolvers<ContextType>;
   UnlockPageResult?: UnlockPageResultResolvers<ContextType>;

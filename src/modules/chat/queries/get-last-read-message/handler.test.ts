@@ -103,7 +103,7 @@ describe("getLastReadMessage", () => {
       const ctx = buildCtx({ permissions: { assert } as any });
       await handler(validInput, ctx);
       expect(assert).toHaveBeenCalledWith(
-        "conversation:read",
+        "chat:channel:read",
         { type: "workspace", id: WORKSPACE_ID }
       );
     });

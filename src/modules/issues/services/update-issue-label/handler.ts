@@ -41,7 +41,7 @@ export const updateIssueLabelHandler = async (
 
   await Promise.all([
     ctx.authGate.assertProjectMember(existing.projectId),
-    ctx.permissions.assert("issue.label:update", scope),
+    ctx.permissions.assert("issue:label:manage", scope),
   ]);
 
   const label = await patchLabel(input, ctx.db);

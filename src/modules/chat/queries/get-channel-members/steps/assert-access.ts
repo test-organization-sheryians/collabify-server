@@ -7,7 +7,7 @@ import { AppError } from "@/shared/errors";
  * Checks (in order, parallelised):
  *  1. ctx.authGate.getChannel       → Redis GET auth:chan:{id}  (DB fallback)
  *  2. ctx.authGate.assertChannelMember → Redis GET auth:chan:{id}:member:{userId} (DB fallback)
- *  3. ctx.permissions.assert("conversation.member:read") → Redis permission cache
+ *  3. ctx.permissions.assert("chat:channel:member:read") → Redis permission cache
  *
  * The DB fetch in step 2 only runs on a cold cache — all three checks
  * are sub-millisecond on a warm cache. Non-members are blocked here before
@@ -30,6 +30,6 @@ export async function assertAccess(
 
   await Promise.all([
     ctx.authGate.assertChannelMember(channelId),
-    ctx.permissions.assert("conversation.member:read", scope),
+    ctx.permissions.assert("chat:channel:member:read", scope),
   ]);
 }

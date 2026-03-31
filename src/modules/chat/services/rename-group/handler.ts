@@ -20,7 +20,7 @@ export const handler = async (
   const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
   await Promise.all([
     ctx.authGate.assertChannelMember(groupId),
-    ctx.permissions.assert("conversation:update", scope),
+    ctx.permissions.assert("chat:channel:update", scope),
   ]);
 
   // Verify group exists and user is member

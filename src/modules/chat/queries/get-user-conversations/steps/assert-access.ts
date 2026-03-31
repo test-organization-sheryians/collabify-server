@@ -3,7 +3,7 @@ import { AppError } from "@/shared/errors";
 
 /**
  * assertAccess for get-user-conversations.
- * Workspace-scoped: assertWorkspaceMember + permissions.assert("conversation:read").
+ * Workspace-scoped: assertWorkspaceMember + permissions.assert("chat:channel:read").
  * If projectId is provided, additional project-scoped assertion is made.
  *
  * Note: The original handler had a bug where it would use user-supplied workspaceId
@@ -20,7 +20,7 @@ export async function assertAccess(
   if (projectId) {
     await Promise.all([
       ctx.authGate.assertProjectMember(projectId),
-      ctx.permissions.assert("conversation:read", {
+      ctx.permissions.assert("chat:channel:read", {
         type: "project",
         id: projectId,
         workspaceId,
@@ -29,7 +29,7 @@ export async function assertAccess(
   } else {
     await Promise.all([
       ctx.authGate.assertWorkspaceMember(workspaceId),
-      ctx.permissions.assert("conversation:read", {
+      ctx.permissions.assert("chat:channel:read", {
         type: "workspace",
         id: workspaceId,
       }),

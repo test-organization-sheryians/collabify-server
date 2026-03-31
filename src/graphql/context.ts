@@ -30,6 +30,7 @@ export const createContext = (c: Context): ApplicationContext => {
     },
     authGate: authContext?.auth ?? null,
     permissions: authContext?.permissions ?? null,
+    flags: authContext?.flags ?? null,
     db,
     redis,
     s3: s3Client,

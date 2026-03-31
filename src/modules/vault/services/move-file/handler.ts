@@ -38,7 +38,7 @@ export const moveVaultFileHandler = async (
     };
     await Promise.all([
       ctx.authGate.assertProjectMember(file.projectId),
-      ctx.permissions.assert("vault.file:update", scope),
+      ctx.permissions.assert("vault:file:rename", scope),
     ]);
     await validateTargetFolder(input.targetFolderId, file.projectId, ctx.db);
     const updated = await updateFileFolder(

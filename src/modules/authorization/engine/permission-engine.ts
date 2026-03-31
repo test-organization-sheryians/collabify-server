@@ -1,6 +1,7 @@
 import type { Redis } from "ioredis";
 import type { PrismaClient } from "@prisma/client";
 import type { PermissionScope } from "../types/permission-types";
+import type { AppPermission } from "../types/app-permissions";
 import { AppError } from "@/shared/errors";
 import { PermissionResolver } from "./resolver";
 import { keys } from "../cache/keys";
@@ -35,7 +36,7 @@ export class PermissionEngine {
    * assert — throws AppError.forbidden() if user does not have permission.
    */
   async assert(
-    permission: `${string}:${string}`,
+    permission: AppPermission,
     scope: PermissionScope
   ): Promise<void> {
     const allowed = await this.can(permission, scope);
@@ -48,7 +49,7 @@ export class PermissionEngine {
    * can — returns boolean. Use when you want a soft check without throwing.
    */
   async can(
-    permission: `${string}:${string}`,
+    permission: AppPermission,
     scope: PermissionScope
   ): Promise<boolean> {
     const [resource, action] = permission.split(":") as [string, string];
@@ -106,7 +107,7 @@ export class PermissionEngine {
    */
   async filter<T extends { id: string }>(
     items: T[],
-    permission: `${string}:${string}`,
+    permission: AppPermission,
     getScope: (item: T) => PermissionScope
   ): Promise<T[]> {
     const results = await Promise.all(
@@ -150,5 +151,90 @@ export class PermissionEngine {
     if (scope.type === "project") return scope.workspaceId;
     if (scope.type === "resource") return scope.workspaceId;
     return null;
+  }
+
+  /**
+   * getAllGrantedPermissions — returns the full list of permission strings
+   * the user is allowed at a given scope. Used by getActiveContext query.
+   *
+   * Cache: `granted-perms:{userId}:{scopeId}` SET, 5-minute TTL.
+   * Invalidation: existing PermissionInvalidator.invalidateUser covers this.
+   */
+  async getAllGrantedPermissions(scope: PermissionScope): Promise<string[]> {
+    const scopeId =
+      scope.type === "workspace" ? scope.id :
+      scope.type === "project"   ? scope.id :
+      scope.id;
+
+    const cacheKey = `granted-perms:${this.userId}:${scopeId}`;
+    const cached = await this.redis.smembers(cacheKey);
+    if (cached.length > 0) return cached;
+
+    const workspaceId = this.deriveWorkspaceId(scope);
+    if (!workspaceId) return [];
+
+    // Owner bypass → grant all permissions
+    if (await this.checkOwnerBypass(workspaceId)) {
+      const allPerms = await this.db.permission.findMany({
+        select: { resource: true, action: true },
+      });
+      const permStrings = allPerms.map((p) => `${p.resource}:${p.action}`);
+      if (permStrings.length > 0) {
+        const pipeline = this.redis.pipeline();
+        pipeline.sadd(cacheKey, ...permStrings);
+        pipeline.expire(cacheKey, 300); // 5 min
+        await pipeline.exec();
+      }
+      return permStrings;
+    }
+
+    // Load workspace role permissions
+    const member = await this.db.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId, userId: this.userId } },
+      select: {
+        assignedRole: {
+          select: {
+            permissions: {
+              where: { effect: "ALLOW" },
+              select: { permission: { select: { resource: true, action: true } } },
+            },
+          },
+        },
+      },
+    });
+
+    let permStrings = (member?.assignedRole?.permissions ?? []).map(
+      (rp) => `${rp.permission.resource}:${rp.permission.action}`
+    );
+
+    // If project scope, also include project role permissions
+    if (scope.type === "project") {
+      const projectMember = await this.db.projectMember.findUnique({
+        where: { projectId_userId: { projectId: scope.id, userId: this.userId } },
+        select: {
+          projectRole: {
+            select: {
+              permissions: {
+                where: { effect: "ALLOW" },
+                select: { permission: { select: { resource: true, action: true } } },
+              },
+            },
+          },
+        },
+      });
+      const projPerms = (projectMember?.projectRole?.permissions ?? []).map(
+        (rp) => `${rp.permission.resource}:${rp.permission.action}`
+      );
+      permStrings = [...new Set([...permStrings, ...projPerms])];
+    }
+
+    if (permStrings.length > 0) {
+      const pipeline = this.redis.pipeline();
+      pipeline.sadd(cacheKey, ...permStrings);
+      pipeline.expire(cacheKey, 300); // 5 min
+      await pipeline.exec();
+    }
+
+    return permStrings;
   }
 }

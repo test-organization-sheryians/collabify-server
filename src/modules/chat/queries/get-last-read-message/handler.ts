@@ -11,7 +11,7 @@ const log = createLogger("chat:queries:get-last-read-message");
  * getLastReadMessage — returns the last-read message ID for the calling user in a channel.
  *
  * Steps:
- *  1. assertAccess   — authGate + assertChannelMember + permissions.assert("conversation:read")
+ *  1. assertAccess   — authGate + assertChannelMember + permissions.assert("chat:channel:read")
  *  2. fetchLastRead  — DB chatMember.findUnique → lastReadMsgId scalar
  *
  * Returns null when the user has no read state yet (valid response, not an error).

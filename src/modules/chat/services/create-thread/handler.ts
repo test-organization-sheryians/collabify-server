@@ -36,7 +36,7 @@ export const handler = async (
   await Promise.all([
     ctx.authGate.assertProjectMember(projectId),
     ctx.authGate.assertChannelMember(conversationId),
-    ctx.permissions.assert("conversation:create", scope),
+    ctx.permissions.assert("chat:dm:create", scope),
   ]);
 
   // 3. Validate parent message exists and belongs to conversation

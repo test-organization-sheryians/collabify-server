@@ -2,10 +2,9 @@
  * resendWorkspaceInvite — Service Handler (thin orchestrator)
  *
  * Auth:
- *   - assertWorkspaceAdminOrAbove — FORBIDDEN if rank < ADMIN
- *   - permissions.assert("workspace.member:invite") — RBAC check
+ *   - permissions.assert("workspace:invite:resend") — ADMIN+ only (RBAC)
  * Steps:
- *   1. [auth] assertWorkspaceAdminOrAbove + assert("workspace.member:invite") — parallel
+ *   1. [auth] assert("workspace:invite:resend")
  *   2. refreshInviteExpiry — extend expiry +7d; NOT_FOUND if missing
  */
 import { AppError } from "@/shared/errors";
@@ -22,10 +21,7 @@ export const resendWorkspaceInvite = async (
 
   if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
   const scope = { type: "workspace" as const, id: workspaceId };
-  await Promise.all([
-    ctx.authGate.assertWorkspaceAdminOrAbove(workspaceId),
-    ctx.permissions.assert("workspace.member:invite", scope),
-  ]);
+  await ctx.permissions.assert("workspace:invite:resend", scope);
 
   await refreshInviteExpiry(inviteId, workspaceId, db);
   return true;

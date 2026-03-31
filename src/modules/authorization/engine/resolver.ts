@@ -1,6 +1,6 @@
 import type { Redis } from "ioredis";
 import type { PrismaClient } from "@prisma/client";
-import type { PermissionScope } from "../types/permission-types";
+import type { ConditionBlock, PermissionScope } from "../types/permission-types";
 import {
   getPermission,
   setPermission,
@@ -8,12 +8,14 @@ import {
   buildResourcePermKey,
 } from "../cache/permission-cache";
 import {
+  type ConditionalPerm,
   getRoleAtScope,
   setRoleAtScope,
   getRolePerms,
   setRolePerms,
 } from "../cache/role-cache";
 import { deriveScopeId, deriveScopeType } from "./scope-traversal";
+import { evaluateConditions } from "./condition-evaluator";
 
 /**
  * PermissionResolver — multi-step DB resolution pipeline.
@@ -73,16 +75,22 @@ export class PermissionResolver {
           ? scope.workspaceId
           : scope.workspaceId;
 
-    const [wsAllowed] = await Promise.all([
-      this.loadRolePermissions(workspaceId, userId, "workspace"),
-    ]);
+    const { allowed: wsAllowed, conditional: wsConditional } = await this.loadRolePermissions(
+      workspaceId,
+      userId,
+      "workspace"
+    );
 
     let projAllowed: string[] = [];
+    let projConditional: ConditionalPerm[] = [];
     if (scope.type !== "workspace") {
-      projAllowed = await this.loadRolePermissions(scopeId, userId, "project");
+      const proj = await this.loadRolePermissions(scopeId, userId, "project");
+      projAllowed = proj.allowed;
+      projConditional = proj.conditional;
     }
 
     const allAllowed = new Set([...wsAllowed, ...projAllowed]);
+    const allConditional = [...wsConditional, ...projConditional];
 
     // Load resource-level policies
     let resourceDeny = false;
@@ -143,13 +151,34 @@ export class PermissionResolver {
 
     // ── Condition evaluation ──────────────────────────────────────────────
     if (hasConditions && resourceContext) {
-      // For now, conditions are evaluated by the caller (assertWithContext)
-      // using the resourceContext passed in. Engine cache at resource level.
+      // 1. If the permission is unconditionally granted → pass immediately.
+      if (allAllowed.has(permString)) {
+        await this.cacheResult(true, userId, resource, action, scopeType, scopeId, scope, true);
+        return true;
+      }
+
+      // 2. Evaluate each matching conditional perm — all conditions are AND-ed.
+      const matching = allConditional.filter((c) => c.permString === permString);
+      for (const cp of matching) {
+        const passed = evaluateConditions(
+          cp.conditions as ConditionBlock,
+          { userId, resource: resourceContext }
+        );
+        if (passed) {
+          if (scope.type === "resource") {
+            const key = buildResourcePermKey(userId, resource, action, scope.id);
+            await setPermission(key, true, userId, true, this.redis);
+          }
+          return true;
+        }
+      }
+
+      // 3. No condition block passed → deny.
       if (scope.type === "resource") {
         const key = buildResourcePermKey(userId, resource, action, scope.id);
-        await setPermission(key, true, userId, true, this.redis);
+        await setPermission(key, false, userId, true, this.redis);
       }
-      return true;
+      return false;
     }
 
     await this.cacheResult(
@@ -169,7 +198,7 @@ export class PermissionResolver {
     scopeId: string,
     userId: string,
     scopeType: "workspace" | "project"
-  ): Promise<string[]> {
+  ): Promise<{ allowed: string[]; conditional: ConditionalPerm[] }> {
     // 1. Get user's roleId + roleName at scope (cached as "roleId:roleName")
     const cached = await getRoleAtScope(scopeId, userId, this.redis);
 
@@ -212,7 +241,7 @@ export class PermissionResolver {
         roleId = member?.projectRoleId ?? null;
       }
 
-      if (!roleName || !roleId) return [];
+      if (!roleName || !roleId) return { allowed: [], conditional: [] };
       // Store as "roleId:roleName" so both are available on cache hit
       await setRoleAtScope(scopeId, userId, `${roleId}:${roleName}`, this.redis);
     }
@@ -228,29 +257,37 @@ export class PermissionResolver {
           permissions: {
             select: {
               effect: true,
+              conditions: true,           // ABAC condition block (Json?)
               permission: {
-                select: { resource: true, action: true },
+                select: { resource: true, action: true, hasConditions: true },
               },
             },
           },
         },
       });
 
-      if (!roleRow) return [];
+      if (!roleRow) return { allowed: [], conditional: [] };
 
       const allowed = roleRow.permissions
-        .filter((p) => p.effect === "ALLOW")
+        .filter((p) => p.effect === "ALLOW" && !p.permission.hasConditions)
         .map((p) => `${p.permission.resource}:${p.permission.action}`);
       const denied = roleRow.permissions
         .filter((p) => p.effect === "DENY")
         .map((p) => `${p.permission.resource}:${p.permission.action}`);
+      const conditional: ConditionalPerm[] = roleRow.permissions
+        .filter((p) => p.effect === "ALLOW" && p.permission.hasConditions && p.conditions)
+        .map((p) => ({
+          permString: `${p.permission.resource}:${p.permission.action}`,
+          conditions: p.conditions as Record<string, unknown>,
+        }));
 
-      permSet = { allowed, denied };
+      permSet = { allowed, denied, conditional };
       await setRolePerms(roleId, permSet, this.redis);
     }
 
-    // Denied in role overrides allowed
-    return permSet.allowed.filter((p) => !permSet!.denied.includes(p));
+    // Denied in role overrides allowed (conditional perms are never denied via role)
+    const effectiveAllowed = permSet.allowed.filter((p) => !permSet!.denied.includes(p));
+    return { allowed: effectiveAllowed, conditional: permSet.conditional };
   }
 
   private async cacheResult(

@@ -25,7 +25,7 @@ export const handler = async (
   const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
   await Promise.all([
     ctx.authGate.assertChannelMember(threadId),
-    ctx.permissions.assert("conversation:update", scope),
+    ctx.permissions.assert("chat:channel:update", scope),
   ]);
 
   // Verify thread exists and user is member

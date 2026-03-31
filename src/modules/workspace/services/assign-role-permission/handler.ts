@@ -5,10 +5,9 @@
  * Works for both workspace roles and project roles — roleId identifies the role.
  *
  * Auth:
- *   - assertWorkspaceAdminOrAbove
- *   - permissions.assert("workspace.role:assign-permission")
+ *   - permissions.assert("workspace:role:assign-permission") — ADMIN+ only (RBAC)
  * Steps:
- *   1. [auth] parallel
+ *   1. [auth] assert("workspace:role:assign-permission")
  *   2. upsertRolePermission — validate ownership, upsert RolePermission row
  * Cache Invalidation:
  *   - invalidator.permissions.invalidateByRole(roleId) — clears roleperms:{roleId}
@@ -26,10 +25,7 @@ export const assignRolePermission = async (
   const { roleId, workspaceId, permissionId, effect, conditions } = input;
   if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
   const scope = { type: "workspace" as const, id: workspaceId };
-  await Promise.all([
-    ctx.authGate.assertWorkspaceAdminOrAbove(workspaceId),
-    ctx.permissions.assert("workspace.role:assign-permission", scope),
-  ]);
+  await ctx.permissions.assert("workspace:role:assign-permission", scope);
 
   const result = await upsertRolePermission(
     roleId,

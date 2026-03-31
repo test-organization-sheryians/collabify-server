@@ -3,10 +3,10 @@
  *
  * Auth:
  *   - assertProjectMember — cache-backed; FORBIDDEN if not a project member
- *   - permissions.assert("project.member:read") — RBAC check
+ *   - permissions.assert("project:member:read") — RBAC check
  * Steps:
  *   1. getProject — cache-backed fetch for workspaceId
- *   2. [auth] assertProjectMember + assert("project.member:read") — parallel
+ *   2. [auth] assertProjectMember + assert("project:member:read") — parallel
  *   3. fetchProjectMembers — load all project members with user profiles
  */
 import { AppError } from "@/shared/errors";
@@ -34,7 +34,7 @@ export const getProjectMembers = async (
   await Promise.all([
     ctx.authGate.assertWorkspaceMember(project.workspaceId),
     ctx.authGate.assertProjectMember(projectId),
-    ctx.permissions.assert("project.member:read", scope),
+    ctx.permissions.assert("project:member:read", scope),
   ]);
 
   return fetchProjectMembers(projectId, db);

@@ -4,7 +4,7 @@
  * Upsert-semantics: invites new collaborators or updates existing roles in one call.
  *
  * Execution:
- *   Step 1 — [auth] assertPageCollaborator + assert("page.collaborator:add") — parallel (cache-backed)
+ *   Step 1 — [auth] assertPageCollaborator + assert("page:collaborator:add") — parallel (cache-backed)
  *   Step 2 — validateUsers        : all target userIds must exist in DB
  *   Step 3 — upsertCollaborators  : parallel upsert (create + role update) with user join
  */
@@ -39,7 +39,7 @@ export const handler = async (
     };
     await Promise.all([
       ctx.authGate.assertPageCollaborator(input.pageId),
-      ctx.permissions.assert("page.collaborator:add", scope),
+      ctx.permissions.assert("page:collaborator:add", scope),
     ]);
 
     // Step 2 — pre-flight user existence check

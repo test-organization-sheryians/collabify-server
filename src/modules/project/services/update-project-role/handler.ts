@@ -2,10 +2,9 @@
  * updateProjectRole — Service Handler (thin orchestrator)
  *
  * Auth:
- *   - assertProjectManager
- *   - permissions.assert("project.role:update")
+ *   - permissions.assert("project:role:update") — MANAGER+ only (RBAC)
  * Steps:
- *   1. [auth] parallel
+ *   1. [auth] assert("project:role:update")
  *   2. updateProjectRoleData — guard isSystem + rank escalation, then partial update
  */
 import { AppError } from "@/shared/errors";
@@ -20,10 +19,7 @@ export const updateProjectRole = async (
   const { roleId, projectId, workspaceId, actorUserId, name, description, rank } = input;
   if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
   const scope = { type: "project" as const, id: projectId, workspaceId };
-  await Promise.all([
-    ctx.authGate.assertProjectManager(projectId, workspaceId),
-    ctx.permissions.assert("project.role:update", scope),
-  ]);
+  await ctx.permissions.assert("project:role:update", scope);
 
   const updated = await updateProjectRoleData(
     roleId,

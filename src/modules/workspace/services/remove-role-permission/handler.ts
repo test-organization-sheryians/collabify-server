@@ -5,10 +5,9 @@
  * Works for both workspace roles and project roles — roleId identifies the role.
  *
  * Auth:
- *   - assertWorkspaceAdminOrAbove
- *   - permissions.assert("workspace.role:assign-permission")
+ *   - permissions.assert("workspace:role:assign-permission") — ADMIN+ only (RBAC)
  * Steps:
- *   1. [auth] parallel
+ *   1. [auth] assert("workspace:role:assign-permission")
  *   2. [pre-delete] invalidate role cache (must be done before row is gone)
  *   3. deleteRolePermission — validate ownership, then delete RolePermission row
  */
@@ -24,10 +23,7 @@ export const removeRolePermission = async (
   const { roleId, workspaceId, permissionId } = input;
   if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
   const scope = { type: "workspace" as const, id: workspaceId };
-  await Promise.all([
-    ctx.authGate.assertWorkspaceAdminOrAbove(workspaceId),
-    ctx.permissions.assert("workspace.role:assign-permission", scope),
-  ]);
+  await ctx.permissions.assert("workspace:role:assign-permission", scope);
 
   // Invalidate cached role permission set + all members holding this role
   // Must be done BEFORE deletion so we can still fetch members by roleId

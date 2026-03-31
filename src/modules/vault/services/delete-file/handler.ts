@@ -39,7 +39,7 @@ export const deleteVaultFileHandler = async (
     };
     await Promise.all([
       ctx.authGate.assertProjectMember(file.projectId),
-      ctx.permissions.assert("vault.file:delete", scope),
+      ctx.permissions.assert("vault:file:delete", scope),
     ]);
 
     await Promise.all([

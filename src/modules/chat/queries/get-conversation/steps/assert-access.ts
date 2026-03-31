@@ -27,6 +27,6 @@ export async function assertAccess(
 
   await Promise.all([
     ctx.authGate.assertChannelMember(conversationId),
-    ctx.permissions.assert("conversation:read", scope),
+    ctx.permissions.assert("chat:channel:read", scope),
   ]);
 }

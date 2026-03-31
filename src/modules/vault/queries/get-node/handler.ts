@@ -51,7 +51,7 @@ export const getVaultNodeHandler = async (
     };
     await Promise.all([
       ctx.authGate.assertProjectMember(node.projectId),
-      ctx.permissions.assert("vault.file:read", scope),
+      ctx.permissions.assert("vault:file:download", scope),
     ]);
     return node;
   } catch (error: unknown) {

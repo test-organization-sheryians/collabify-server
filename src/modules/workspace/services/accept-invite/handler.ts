@@ -47,27 +47,10 @@ export const acceptInvite = async (
       };
     }
 
-    // Step 4: resolve the Role row for this workspace by invite.role name.
-    // Using findFirst: Prisma's compound unique key input types don't accept
-    // null for nullable fields — projectId: null means workspace-level role.
-    const role = await tx.role.findFirst({
-      where: {
-        workspaceId: invite.workspaceId,
-        projectId: null, // workspace-level role — never a project-specific role
-        name: invite.role,
-      },
-    });
-    if (!role) {
-      throw new AppError(
-        `Role "${invite.role}" not found in workspace ${invite.workspaceId}`,
-        "INTERNAL_SERVER_ERROR",
-        500
-      );
-    }
-
-    // Step 4 cont: create membership + delete invite + get slug
+    // Step 4: create membership using roleId directly from the invite FK.
+    // The FK guarantees the role exists — no separate lookup needed.
     await tx.workspaceMember.create({
-      data: { workspaceId: invite.workspaceId, userId, roleId: role.id },
+      data: { workspaceId: invite.workspaceId, userId, roleId: invite.roleId },
     });
     await tx.workspaceInvite.delete({ where: { token } });
     const workspace = await tx.workspace.findUniqueOrThrow({

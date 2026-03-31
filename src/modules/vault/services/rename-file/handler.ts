@@ -39,7 +39,7 @@ export const renameVaultFileHandler = async (
     };
     await Promise.all([
       ctx.authGate.assertProjectMember(fileRecord.projectId),
-      ctx.permissions.assert("vault.file:update", scope),
+      ctx.permissions.assert("vault:file:rename", scope),
     ]);
     const file = await updateFileName(input.fileId, input.name, ctx.db);
 

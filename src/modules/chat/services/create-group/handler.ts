@@ -36,7 +36,7 @@ export const handler = async (
   };
   await Promise.all([
     ctx.authGate.assertProjectMember(projectId),
-    ctx.permissions.assert("conversation:create", scope),
+    ctx.permissions.assert("chat:dm:create", scope),
   ]);
 
   // 1. Verify project exists and is not archived/deleted

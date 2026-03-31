@@ -2,10 +2,9 @@
  * deleteWorkspace — Service Handler (thin orchestrator)
  *
  * Auth:
- *   - assertWorkspaceOwner — cache-backed; FORBIDDEN if not OWNER
- *   - permissions.assert("workspace:delete") — RBAC check
+ *   - permissions.assert("workspace:delete") — OWNER only (RBAC)
  * Steps:
- *   1. [auth] assertWorkspaceOwner + assert("workspace:delete") — parallel
+ *   1. [auth] assert("workspace:delete")
  *   2. softDeleteWorkspace — set deletedAt = now
  */
 import { AppError } from "@/shared/errors";
@@ -22,10 +21,7 @@ export const deleteWorkspace = async (
 
   if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
   const scope = { type: "workspace" as const, id: workspaceId };
-  await Promise.all([
-    ctx.authGate.assertWorkspaceOwner(workspaceId),
-    ctx.permissions.assert("workspace:delete", scope),
-  ]);
+  await ctx.permissions.assert("workspace:delete", scope);
 
   await softDeleteWorkspace(workspaceId, db);
   return true;

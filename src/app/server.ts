@@ -16,12 +16,18 @@ import { WhiteboardModule } from "../modules/whiteboard";
 import { startVaultJobs } from "../modules/vault";
 import { wsRegistry } from "../infra/ws/subscription-registry";
 import { registry } from "./metrics";
+import { runAuthBootstrap } from "../modules/authorization/bootstrap/bootstrap";
 
 const logger = createLogger("app:server");
 const app = new Hono();
 
 // 1. Bootstrapping
 void checkConnection(); // Check DB
+
+// Authorization bootstrap: sync permissions + system roles on startup
+// Non-fatal: server starts even if bootstrap fails (logs error)
+void runAuthBootstrap(db, redis);
+
 // NotificationModule.startEngine().catch((err) => {
 //   logger.error("Failed to start Notification Engine", { err });
 // });

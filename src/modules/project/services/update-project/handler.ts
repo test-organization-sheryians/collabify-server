@@ -2,11 +2,10 @@
  * updateProject — Service Handler (thin orchestrator)
  *
  * Auth:
- *   - assertProjectManager — FORBIDDEN if actor cannot manage project
- *   - permissions.assert("project:update") — RBAC check
+ *   - permissions.assert("project:update") — MANAGER+ only (RBAC)
  * Steps:
- *   1. getProject — cache-backed fetch for workspaceId
- *   2. [auth] assertProjectManager + assert("project:update") — parallel
+ *   1. getProject — cache-backed fetch for workspaceId (needed for scope)
+ *   2. [auth] assert("project:update")
  *   3. updateProjectFields — update name/description/isPrivate; return project
  */
 import { AppError } from "@/shared/errors";
@@ -31,10 +30,7 @@ export const updateProject = async (
     id: projectId,
     workspaceId: project.workspaceId,
   };
-  await Promise.all([
-    ctx.authGate.assertProjectManager(projectId, project.workspaceId),
-    ctx.permissions.assert("project:update", scope),
-  ]);
+  await ctx.permissions.assert("project:update", scope);
 
   return updateProjectFields(projectId, { name, description, isPrivate }, db);
 };

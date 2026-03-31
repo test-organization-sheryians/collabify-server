@@ -148,6 +148,7 @@ export const resolvers: Resolvers = {
         workspaceId: args.workspaceId,
         actorUserId: ctx.auth.userId,
         targetUserId: args.userId,
+        roleId: args.roleId,
       });
       return addProjectMember(data, ctx);
     },

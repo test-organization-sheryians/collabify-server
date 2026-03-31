@@ -49,7 +49,7 @@ export const handler = async (
   };
   await Promise.all([
     ctx.authGate.assertProjectMember(projectId),
-    ctx.permissions.assert("conversation:create", scope),
+    ctx.permissions.assert("chat:dm:create", scope),
   ]);
 
   // Validate project is active

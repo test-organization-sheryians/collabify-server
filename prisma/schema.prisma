@@ -12,13 +12,6 @@ enum UserStatus {
   DELETED
 }
 
-enum RoleType {
-  OWNER
-  ADMIN
-  MEMBER
-  GUEST
-}
-
 enum PolicyEffect {
   ALLOW
   DENY
@@ -169,12 +162,14 @@ model WorkspaceInvite {
   workspaceId String   @map("workspace_id")
   email       String
   token       String   @unique
-  role        RoleType @default(MEMBER)
-  inviterId   String   @map("inviter_id")
-  expiresAt   DateTime @map("expires_at")
-  createdAt   DateTime @default(now()) @map("created_at")
+  // FK to Role row — resolves which workspace role the invitee will receive on accept
+  roleId    String   @map("role_id")
+  inviterId String   @map("inviter_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignedRole Role      @relation("WorkspaceInviteRole", fields: [roleId], references: [id])
 
   @@index([email])
   @@map("workspace_invites")
@@ -229,6 +224,7 @@ model Role {
   permissions      RolePermission[]
   workspaceMembers WorkspaceMember[] @relation("WorkspaceMemberRole")
   projectMembers   ProjectMember[]   @relation("ProjectMemberRole")
+  workspaceInvites WorkspaceInvite[] @relation("WorkspaceInviteRole")
 
   // name is unique per (workspace + project) scope
   // projectId=null means workspace-wide; projects share role name namespace per workspace
@@ -1193,4 +1189,50 @@ model UsageRecord {
   @@unique([userId, resourceKey])
   @@unique([workspaceId, resourceKey])
   @@map("usage_records")
+}
+
+// ─── Feature Flags ────────────────────────────────────────────────────────────
+
+enum FlagContextType {
+  GLOBAL
+  WORKSPACE
+  PROJECT
+  USER
+}
+
+/// Global feature flag registry. Each row is a flag definition.
+/// The `defaultEnabled` value is the fallback when no override exists.
+model FeatureFlag {
+  id             String  @id @default(cuid())
+  key            String  @unique // e.g. "ai.summary", "vault.video-preview"
+  defaultEnabled Boolean @default(false) @map("default_enabled")
+  description    String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  overrides FeatureFlagOverride[]
+
+  @@map("feature_flags")
+}
+
+/// Per-context override for a feature flag.
+/// Resolution order: USER > PROJECT > WORKSPACE > GLOBAL (defaultEnabled)
+model FeatureFlagOverride {
+  id          String          @id @default(cuid())
+  flagId      String          @map("flag_id")
+  contextType FlagContextType @map("context_type")
+  // contextId: userId | projectId | workspaceId (null for GLOBAL override)
+  contextId   String?         @map("context_id")
+  enabled     Boolean
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  flag FeatureFlag @relation(fields: [flagId], references: [id], onDelete: Cascade)
+
+  @@unique([flagId, contextType, contextId])
+  @@index([flagId])
+  @@index([contextId])
+  @@map("feature_flag_overrides")
 }

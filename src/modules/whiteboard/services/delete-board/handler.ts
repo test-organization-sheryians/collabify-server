@@ -16,7 +16,7 @@ const logger = createLogger("whiteboard:services:delete-board");
  *
  * Auth:
  *   - assertBoardCollaborator — cache-backed membership gate
- *   - permissions.assert("board:delete") — RBAC check
+ *   - permissions.assert("whiteboard:delete") — RBAC check
  * Note: creator-only rule preserved after auth gate
  */
 export const handler = async (
@@ -42,7 +42,7 @@ export const handler = async (
     };
     await Promise.all([
       ctx.authGate.assertBoardCollaborator(boardId),
-      ctx.permissions.assert("board:delete", scope),
+      ctx.permissions.assert("whiteboard:delete", scope),
     ]);
 
     // Step 2 — fetch board + creator check, soft-delete atomically

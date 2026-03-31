@@ -40,7 +40,7 @@ export const confirmVaultUploadHandler = async (
   };
   await Promise.all([
     ctx.authGate.assertProjectMember(file.projectId),
-    ctx.permissions.assert("vault:upload", scope),
+    ctx.permissions.assert("vault:file:upload", scope),
   ]);
   await verifyS3Object(file);
   const activeFile = await activateFile(file, ctx.db);

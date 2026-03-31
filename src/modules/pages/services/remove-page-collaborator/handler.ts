@@ -5,7 +5,7 @@
  * The creator cannot be removed (see guardCreator step).
  *
  * Execution:
- *   Step 1 — [auth] assertPageCollaborator + assert("page.collaborator:remove") — parallel (cache-backed)
+ *   Step 1 — [auth] assertPageCollaborator + assert("page:collaborator:remove") — parallel (cache-backed)
  *   Step 2 — guardCreator      : prevent removing the page creator
  *   Step 3 — deleteCollaborator: hard-delete pageCollaborator record
  */
@@ -40,7 +40,7 @@ export const handler = async (
     };
     await Promise.all([
       ctx.authGate.assertPageCollaborator(input.pageId),
-      ctx.permissions.assert("page.collaborator:remove", scope),
+      ctx.permissions.assert("page:collaborator:remove", scope),
     ]);
 
     // Step 2 — creator guard (cannot remove page owner)

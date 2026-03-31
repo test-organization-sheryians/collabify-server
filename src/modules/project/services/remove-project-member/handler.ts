@@ -2,14 +2,13 @@
  * removeProjectMember — Service Handler (thin orchestrator)
  *
  * Auth:
- *   - assertProjectManager — FORBIDDEN if actor cannot manage project
- *   - permissions.assert("project.member:remove") — RBAC check
+ *   - permissions.assert("project:member:remove") — MANAGER+ only (RBAC)
  * Guards:
  *   - CONFLICT if actor is trying to remove themselves (use leaveProject instead)
  *   - CONFLICT if removing the last MANAGER — project must have at least one
  * Steps:
- *   1. [auth] assertProjectManager + assert("project.member:remove") — parallel
- *   2. Self-removal guard
+ *   1. Self-removal guard
+ *   2. [auth] assert("project:member:remove")
  *   3. Last-manager guard
  *   4. deleteProjectMember — delete row; NOT_FOUND if target not a member
  */
@@ -36,10 +35,7 @@ export const removeProjectMember = async (
   }
 
   const scope = { type: "project" as const, id: projectId, workspaceId };
-  await Promise.all([
-    ctx.authGate.assertProjectManager(projectId, workspaceId),
-    ctx.permissions.assert("project.member:remove", scope),
-  ]);
+  await ctx.permissions.assert("project:member:remove", scope);
 
   // Guard 2: block removal of last MANAGER
   const managerRole = await db.role.findFirst({

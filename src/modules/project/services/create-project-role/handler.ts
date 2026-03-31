@@ -2,10 +2,9 @@
  * createProjectRole — Service Handler (thin orchestrator)
  *
  * Auth:
- *   - assertProjectManager — MANAGER+ can manage project roles
- *   - permissions.assert("project.role:create")
+ *   - permissions.assert("project:role:create") — MANAGER+ only (RBAC)
  * Steps:
- *   1. [auth] assertProjectManager + assert("project.role:create") — parallel
+ *   1. [auth] assert("project:role:create")
  *   2. guardProjectRank — actor rank must be > target rank
  *   3. insertProjectRole — duplicate-name check then create Role row
  */
@@ -22,10 +21,7 @@ export const createProjectRole = async (
   const { projectId, workspaceId, actorUserId, name, rank, description } = input;
   if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
   const scope = { type: "project" as const, id: projectId, workspaceId };
-  await Promise.all([
-    ctx.authGate.assertProjectManager(projectId, workspaceId),
-    ctx.permissions.assert("project.role:create", scope),
-  ]);
+  await ctx.permissions.assert("project:role:create", scope);
 
   await guardProjectRank(projectId, actorUserId, rank, ctx.db);
   const role = await insertProjectRole(projectId, workspaceId, name, rank, description, ctx.db);

@@ -11,7 +11,7 @@ import type {
  *
  * Auth:
  *   - assertBoardCollaborator — cache-backed; FORBIDDEN if not a collaborator
- *   - permissions.assert("board.collaborator:add") — RBAC check
+ *   - permissions.assert("whiteboard:collaborator:add") — RBAC check
  */
 export const handler = async (
   input: AddBoardCollaboratorsInput,
@@ -36,7 +36,7 @@ export const handler = async (
     };
     await Promise.all([
       ctx.authGate.assertBoardCollaborator(boardId),
-      ctx.permissions.assert("board.collaborator:add", scope),
+      ctx.permissions.assert("whiteboard:collaborator:add", scope),
     ]);
 
     // Step 2 — validate all users are workspace members

@@ -20,7 +20,14 @@ export interface ConditionContext {
   resource: Record<string, unknown>;
 }
 
-export type ConditionOperator = "StringEquals" | "BoolEquals" | "NullEquals";
+export type ConditionOperator =
+  | "StringEquals"
+  | "StringContains"
+  | "BoolEquals"
+  | "NullEquals"
+  | "NumericGreaterThan"
+  | "NumericLessThan"
+  | "ArrayContains";
 
 export type ConditionBlock = Partial<
   Record<ConditionOperator, Record<string, unknown>>

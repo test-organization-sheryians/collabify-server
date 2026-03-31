@@ -2,6 +2,7 @@ export const inviteToWorkspaceTypeDefs = `
   input InviteToWorkspaceInput {
     workspaceId: ID!
     emails: [String!]!
+    roleId: ID!
   }
 
   type InviteResponse {

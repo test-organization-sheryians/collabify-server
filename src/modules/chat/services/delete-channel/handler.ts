@@ -28,7 +28,7 @@ export const handler = async (
   const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
   await Promise.all([
     ctx.authGate.assertChannelMember(channelId),
-    ctx.permissions.assert("channel:delete", scope),
+    ctx.permissions.assert("chat:channel:delete", scope),
   ]);
 
   // Fetch channel (still needed for archived check + members for fanout)

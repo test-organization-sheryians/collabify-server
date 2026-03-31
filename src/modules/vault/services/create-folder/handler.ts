@@ -37,7 +37,7 @@ export const createVaultFolderHandler = async (
     };
     await Promise.all([
       ctx.authGate.assertProjectMember(input.projectId),
-      ctx.permissions.assert("vault.folder:create", scope),
+      ctx.permissions.assert("vault:folder:create", scope),
     ]);
 
     if (input.parentFolderId) {

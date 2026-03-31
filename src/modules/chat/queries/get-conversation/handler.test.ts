@@ -305,7 +305,7 @@ describe("getConversation", () => {
       const ctx = buildCtx({ permissions: { assert } as any });
       await handler(validInput, ctx);
       expect(assert).toHaveBeenCalledWith(
-        "conversation:read",
+        "chat:channel:read",
         expect.objectContaining({ type: "workspace", id: WORKSPACE_ID })
       );
     });

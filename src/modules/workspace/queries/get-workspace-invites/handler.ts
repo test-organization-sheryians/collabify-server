@@ -2,10 +2,9 @@
  * getWorkspaceInvites — Query Handler (thin orchestrator)
  *
  * Auth:
- *   - assertWorkspaceAdminOrAbove — FORBIDDEN if rank < ADMIN
- *   - permissions.assert("workspace.member:invite") — RBAC check
+ *   - permissions.assert("workspace:invite:view") — ADMIN+ only (RBAC)
  * Steps:
- *   1. [auth] assertWorkspaceAdminOrAbove + assert("workspace.member:invite") — parallel
+ *   1. [auth] assert("workspace:invite:view")
  *   2. fetchPendingInvites — load all non-expired invites
  */
 import { AppError } from "@/shared/errors";
@@ -22,10 +21,7 @@ export const getWorkspaceInvites = async (
 
   if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
   const scope = { type: "workspace" as const, id: workspaceId };
-  await Promise.all([
-    ctx.authGate.assertWorkspaceAdminOrAbove(workspaceId),
-    ctx.permissions.assert("workspace.member:invite", scope),
-  ]);
+  await ctx.permissions.assert("workspace:invite:view", scope);
 
   return fetchPendingInvites(workspaceId, db);
 };

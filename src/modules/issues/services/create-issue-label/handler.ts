@@ -43,7 +43,7 @@ export const createIssueLabelHandler = async (
 
   await Promise.all([
     ctx.authGate.assertProjectMember(input.projectId),
-    ctx.permissions.assert("issue.label:create", scope),
+    ctx.permissions.assert("issue:label:manage", scope),
   ]);
 
   await checkDuplicateName(input.name, input.projectId, ctx.db);

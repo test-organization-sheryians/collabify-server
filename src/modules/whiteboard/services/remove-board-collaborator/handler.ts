@@ -10,7 +10,7 @@ import type {
  *
  * Auth:
  *   - assertBoardCollaborator — cache-backed membership gate
- *   - permissions.assert("board.collaborator:remove") — RBAC check
+ *   - permissions.assert("whiteboard:collaborator:remove") — RBAC check
  * Note: creator-only rule preserved after auth gate
  */
 export const handler = async (
@@ -36,7 +36,7 @@ export const handler = async (
     };
     await Promise.all([
       ctx.authGate.assertBoardCollaborator(boardId),
-      ctx.permissions.assert("board.collaborator:remove", scope),
+      ctx.permissions.assert("whiteboard:collaborator:remove", scope),
     ]);
 
     // Step 2 — creator-only sub-check

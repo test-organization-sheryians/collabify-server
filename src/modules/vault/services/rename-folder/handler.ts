@@ -35,7 +35,7 @@ export const renameVaultFolderHandler = async (
     };
     await Promise.all([
       ctx.authGate.assertProjectMember(editableFolder.projectId),
-      ctx.permissions.assert("vault.folder:update", scope),
+      ctx.permissions.assert("vault:folder:rename", scope),
     ]);
     const folder = await updateFolderName(input.folderId, input.name, ctx.db);
 

@@ -37,7 +37,7 @@ export const unpinVaultFolderHandler = async (
         workspaceId: proj?.workspaceId ?? "",
       };
       await ctx.authGate.assertProjectMember(folder.projectId);
-      await ctx.permissions.assert("vault.folder:read", scope);
+      await ctx.permissions.assert("vault:folder:create", scope);
     }
 
     await deletePin(userId, input.folderId, ctx.db);

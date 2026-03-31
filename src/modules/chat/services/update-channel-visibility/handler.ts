@@ -29,7 +29,7 @@ export const handler = async (
   const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
   await Promise.all([
     ctx.authGate.assertChannelMember(channelId),
-    ctx.permissions.assert("channel:update", scope),
+    ctx.permissions.assert("chat:channel:update", scope),
   ]);
 
   //  Verify channel exists (still needed for members fanout)

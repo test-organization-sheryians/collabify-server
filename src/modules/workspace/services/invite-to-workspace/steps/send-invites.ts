@@ -72,6 +72,7 @@ export async function sendInvites(
   workspaceId: string,
   actorUserId: string,
   emails: string[],
+  roleId: string,
   db: PrismaClient
 ): Promise<string[]> {
   const expiresAt = new Date(Date.now() + INVITE_EXPIRY_MS);
@@ -102,7 +103,7 @@ export async function sendInvites(
               token,
               inviterId: actorUserId,
               expiresAt,
-              role: "MEMBER",
+              roleId,
             },
           }),
         ]);

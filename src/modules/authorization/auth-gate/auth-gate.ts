@@ -68,6 +68,10 @@ export class AuthGate {
       throw AppError.forbidden("You are not a member of this workspace.");
   }
 
+  /**
+   * @deprecated Phase D — rank-based gate. Use `ctx.permissions.assert("workspace.*", scope)` instead.
+   * Kept for compatibility with non-migrated callers. Do NOT use in new code.
+   */
   async assertWorkspaceAdminOrAbove(workspaceId: string): Promise<void> {
     const ok = await isWorkspaceAdminOrAbove(
       workspaceId,
@@ -78,6 +82,10 @@ export class AuthGate {
     if (!ok) throw AppError.forbidden("Admin or owner access required.");
   }
 
+  /**
+   * @deprecated Phase D — rank-based gate. Use `ctx.permissions.assert("workspace:transfer", scope)` instead.
+   * Kept for compatibility with non-migrated callers. Do NOT use in new code.
+   */
   async assertWorkspaceOwner(workspaceId: string): Promise<void> {
     const ok = await isWorkspaceOwner(
       workspaceId,
@@ -98,6 +106,10 @@ export class AuthGate {
     if (!ok) throw AppError.forbidden("You are not a member of this project.");
   }
 
+  /**
+   * @deprecated Phase D — rank-based gate. Use `ctx.permissions.assert("project.*", scope)` instead.
+   * Kept for compatibility with non-migrated callers. Do NOT use in new code.
+   */
   async assertProjectManager(
     projectId: string,
     workspaceId: string

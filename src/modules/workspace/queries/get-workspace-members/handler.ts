@@ -3,9 +3,9 @@
  *
  * Auth:
  *   - assertWorkspaceMember — cache-backed; FORBIDDEN if not a member
- *   - permissions.assert("workspace.member:read") — RBAC check
+ *   - permissions.assert("workspace:member:read") — RBAC check
  * Steps:
- *   1. [auth] assertWorkspaceMember + assert("workspace.member:read") — parallel
+ *   1. [auth] assertWorkspaceMember + assert("workspace:member:read") — parallel
  *   2. fetchMembers — load all members with user profiles, ordered by joinedAt
  */
 import { AppError } from "@/shared/errors";
@@ -24,7 +24,7 @@ export const getWorkspaceMembers = async (
   const scope = { type: "workspace" as const, id: workspaceId };
   await Promise.all([
     ctx.authGate.assertWorkspaceMember(workspaceId),
-    ctx.permissions.assert("workspace.member:read", scope),
+    ctx.permissions.assert("workspace:member:read", scope),
   ]);
 
   const members = await fetchMembers(workspaceId, db);

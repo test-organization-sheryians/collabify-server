@@ -2,10 +2,9 @@
  * updateWorkspaceRole — Service Handler (thin orchestrator)
  *
  * Auth:
- *   - assertWorkspaceAdminOrAbove
- *   - permissions.assert("workspace.role:update")
+ *   - permissions.assert("workspace:role:update") — ADMIN+ only (RBAC)
  * Steps:
- *   1. [auth] parallel
+ *   1. [auth] assert("workspace:role:update")
  *   2. updateRoleData — guard isSystem + rank escalation, then partial update
  * Cache Invalidation:
  *   - invalidator.permissions.invalidateRolePermissions(roleId) — clears roleperms:{roleId}
@@ -22,10 +21,7 @@ export const updateWorkspaceRole = async (
   const { roleId, workspaceId, actorUserId, name, description, rank } = input;
   if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
   const scope = { type: "workspace" as const, id: workspaceId };
-  await Promise.all([
-    ctx.authGate.assertWorkspaceAdminOrAbove(workspaceId),
-    ctx.permissions.assert("workspace.role:update", scope),
-  ]);
+  await ctx.permissions.assert("workspace:role:update", scope);
 
   const updated = await updateRoleData(
     roleId,

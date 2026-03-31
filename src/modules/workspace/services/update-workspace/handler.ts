@@ -2,10 +2,9 @@
  * updateWorkspace — Service Handler (thin orchestrator)
  *
  * Auth:
- *   - assertWorkspaceAdminOrAbove — cache-backed; FORBIDDEN if rank < ADMIN
- *   - permissions.assert("workspace:update") — RBAC check
+ *   - permissions.assert("workspace:update") — ADMIN+ only (RBAC)
  * Steps:
- *   1. [auth] assertWorkspaceAdminOrAbove + assert("workspace:update") — parallel
+ *   1. [auth] assert("workspace:update")
  *   2. updateWorkspaceFields — update name/logoUrl/domainWhitelist; return workspace
  */
 import { AppError } from "@/shared/errors";
@@ -22,10 +21,7 @@ export const updateWorkspace = async (
 
   if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
   const scope = { type: "workspace" as const, id: workspaceId };
-  await Promise.all([
-    ctx.authGate.assertWorkspaceAdminOrAbove(workspaceId),
-    ctx.permissions.assert("workspace:update", scope),
-  ]);
+  await ctx.permissions.assert("workspace:update", scope);
 
   return updateWorkspaceFields(
     workspaceId,

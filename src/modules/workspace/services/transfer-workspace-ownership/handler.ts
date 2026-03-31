@@ -2,10 +2,9 @@
  * transferWorkspaceOwnership — Service Handler (thin orchestrator)
  *
  * Auth:
- *   - assertWorkspaceOwner — FORBIDDEN if not OWNER
- *   - permissions.assert("workspace:transfer") — RBAC check
+ *   - permissions.assert("workspace:transfer") — OWNER only (RBAC)
  * Steps:
- *   1. [auth] assertWorkspaceOwner + assert("workspace:transfer") — parallel
+ *   1. [auth] assert("workspace:transfer")
  *   2. verifyTargetIsMember  — NOT_FOUND if newOwner is not a member
  *   3. transferInTransaction — atomic OWNER swap; return new owner member
  */
@@ -24,10 +23,7 @@ export const transferWorkspaceOwnership = async (
 
   if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
   const scope = { type: "workspace" as const, id: workspaceId };
-  await Promise.all([
-    ctx.authGate.assertWorkspaceOwner(workspaceId),
-    ctx.permissions.assert("workspace:transfer", scope),
-  ]);
+  await ctx.permissions.assert("workspace:transfer", scope);
 
   await verifyTargetIsMember(workspaceId, newOwnerId, db);
   return transferInTransaction(workspaceId, actorUserId, newOwnerId, db);

@@ -2,11 +2,10 @@
  * unarchiveProject — Service Handler (thin orchestrator)
  *
  * Auth:
- *   - assertProjectManager — FORBIDDEN if actor cannot manage project
- *   - permissions.assert("project:archive") — RBAC check
+ *   - permissions.assert("project:archive") — MANAGER+ only (RBAC)
  * Steps:
- *   1. getProject — cache-backed fetch for workspaceId
- *   2. [auth] assertProjectManager + assert("project:archive") — parallel
+ *   1. getProject — cache-backed fetch for workspaceId (needed for scope)
+ *   2. [auth] assert("project:archive")
  *   3. setUnarchived — set isArchived=false; return project
  */
 import { AppError } from "@/shared/errors";
@@ -31,10 +30,7 @@ export const unarchiveProject = async (
     id: projectId,
     workspaceId: project.workspaceId,
   };
-  await Promise.all([
-    ctx.authGate.assertProjectManager(projectId, project.workspaceId),
-    ctx.permissions.assert("project:archive", scope),
-  ]);
+  await ctx.permissions.assert("project:archive", scope);
 
   return setUnarchived(projectId, db);
 };

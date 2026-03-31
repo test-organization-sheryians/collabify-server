@@ -197,6 +197,7 @@ export const resolvers: Resolvers = {
       const data = InviteToWorkspaceSchema.parse({
         workspaceId: args.input.workspaceId,
         emails: args.input.emails,
+        roleId: args.input.roleId,
         actorUserId: ctx.auth.userId,
       });
       return inviteToWorkspace(data, ctx);

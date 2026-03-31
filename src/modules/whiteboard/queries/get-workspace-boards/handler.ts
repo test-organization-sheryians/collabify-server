@@ -10,7 +10,7 @@ import type { BoardConnection } from "../get-user-boards/types";
  *
  * Auth:
  *   - assertWorkspaceMember — cache-backed; FORBIDDEN if not a member
- *   - permissions.assert("board:read") — RBAC check (future: admin-only via RBAC)
+ *   - permissions.assert("whiteboard:read") — RBAC check (future: admin-only via RBAC)
  */
 export const handler = async (
   input: GetWorkspaceBoardsInput,
@@ -27,7 +27,7 @@ export const handler = async (
     const scope = { type: "workspace" as const, id: workspaceId };
     await Promise.all([
       ctx.authGate.assertWorkspaceMember(workspaceId),
-      ctx.permissions.assert("board:read", scope),
+      ctx.permissions.assert("whiteboard:read", scope),
     ]);
 
     // Step 2 — paginated workspace board query

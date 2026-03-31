@@ -50,7 +50,7 @@ export const deleteIssueStatusHandler = async (
 
   await Promise.all([
     ctx.authGate.assertProjectMember(existing.projectId),
-    ctx.permissions.assert("issue.status:delete", scope),
+    ctx.permissions.assert("issue:status:manage", scope),
   ]);
 
   await guardNonEmptyColumn(input.statusId, ctx.db);

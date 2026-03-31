@@ -42,7 +42,7 @@ export const deleteVaultFolderHandler = async (
     };
     await Promise.all([
       ctx.authGate.assertProjectMember(folder.projectId),
-      ctx.permissions.assert("vault.folder:delete", scope),
+      ctx.permissions.assert("vault:folder:delete", scope),
     ]);
 
     if (!input.cascade) {

@@ -46,9 +46,19 @@ export async function deleteRoleAtScope(
 
 // ── Role permission set ────────────────────────────────────────────────────
 
+/**
+ * A single conditional permission entry — the permString + its ABAC conditions.
+ * Stored separately from allowed[] because the result depends on runtime resourceContext.
+ */
+export interface ConditionalPerm {
+  permString: string; // "resource:action"
+  conditions: Record<string, unknown>; // raw ConditionBlock JSON from RolePermission.conditions
+}
+
 export interface RolePermSet {
-  allowed: string[];
-  denied: string[];
+  allowed: string[]; // unconditional ALLOW perms ("resource:action")
+  denied: string[]; // unconditional DENY perms
+  conditional: ConditionalPerm[]; // ALLOW perms that require evaluateConditions()
 }
 
 export async function getRolePerms(

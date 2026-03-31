@@ -7,4 +7,5 @@ export const InviteToWorkspaceSchema = z.object({
     .min(1)
     .max(10, "Cannot invite more than 10 users at once"),
   actorUserId: z.string().min(1),
+  roleId: z.string().min(1), // Role FK — which workspace role to assign on accept
 });

@@ -2,12 +2,12 @@
  * removeMember — Service Handler (thin orchestrator)
  *
  * Auth:
- *   - assertWorkspaceAdminOrAbove — FORBIDDEN if actor rank < ADMIN
- *   - permissions.assert("workspace.member:remove") — RBAC check
+ *   - permissions.assert("workspace:member:remove") — ADMIN+ only (RBAC)
  * Steps:
- *   1. [auth] assertWorkspaceAdminOrAbove + assert("workspace.member:remove") — parallel
- *   2. guardLastOwner  — if target is OWNER, assert not the last one
- *   3. deleteMember    — delete workspaceMember record
+ *   1. [auth] assert("workspace:member:remove") — RBAC check
+ *   2. fetchMembers    — load actor + target member records
+ *   3. guardLastOwner  — if target is OWNER, assert not the last one
+ *   4. deleteMember    — delete workspaceMember record
  */
 import { AppError } from "@/shared/errors";
 import type { RemoveMemberInput } from "./types";
@@ -26,10 +26,7 @@ export const removeMember = async (
   if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
   const scope = { type: "workspace" as const, id: workspaceId };
   const [, { targetMember }] = await Promise.all([
-    Promise.all([
-      ctx.authGate.assertWorkspaceAdminOrAbove(workspaceId),
-      ctx.permissions.assert("workspace.member:remove", scope),
-    ]),
+    ctx.permissions.assert("workspace:member:remove", scope),
     fetchMembers(workspaceId, memberId, actorUserId, db),
   ]);
 

@@ -7,7 +7,7 @@ import type { UnarchiveBoardInput } from "./types";
  *
  * Auth:
  *   - assertBoardCollaborator — cache-backed membership gate
- *   - permissions.assert("board:archive") — RBAC check
+ *   - permissions.assert("whiteboard:archive") — RBAC check
  * Note: creator-only rule preserved after auth gate
  */
 export const handler = async (
@@ -33,7 +33,7 @@ export const handler = async (
     };
     await Promise.all([
       ctx.authGate.assertBoardCollaborator(boardId),
-      ctx.permissions.assert("board:archive", scope),
+      ctx.permissions.assert("whiteboard:archive", scope),
     ]);
 
     if (!cachedBoard.isArchived)

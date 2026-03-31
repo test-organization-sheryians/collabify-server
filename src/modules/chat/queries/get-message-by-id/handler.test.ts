@@ -179,7 +179,7 @@ describe("getMessageById", () => {
       });
       await handler(validInput, ctx);
       expect(permAssert).toHaveBeenCalledWith(
-        "conversation:read",
+        "chat:channel:read",
         expect.objectContaining({ type: "workspace", id: WORKSPACE_ID })
       );
     });

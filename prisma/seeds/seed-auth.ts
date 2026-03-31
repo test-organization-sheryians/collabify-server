@@ -5,7 +5,7 @@
  *   1. Seed all Permission rows from module manifests
  *   2. For every existing workspace:
  *      a. Ensure 4 WORKSPACE system roles exist (OWNER/ADMIN/MEMBER/GUEST)
- *      b. Ensure 3 PROJECT template roles exist (MANAGER/CONTRIBUTOR/VIEWER)
+ *      b. Ensure 3 PROJECT template roles exist (MANAGER/CONTRIBUTOR/GUEST)
  *   3. Assign all role-permissions to workspace system roles
  *
  * Run:
@@ -18,7 +18,7 @@
  *    10 = GUEST        (minimal read-only)
  *    80 = MANAGER      (project — full project access)
  *    50 = CONTRIBUTOR  (project — create & edit content)
- *    10 = VIEWER       (project — read-only)
+ *    10 = GUEST        (project — read-only)
  */
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -49,7 +49,7 @@ const WORKSPACE_SYSTEM_ROLES = [
 const PROJECT_SYSTEM_ROLES = [
   { name: "MANAGER",     rank: 80, description: "Full project access — manage members, content, and settings" },
   { name: "CONTRIBUTOR", rank: 50, description: "Create and edit project content" },
-  { name: "VIEWER",      rank: 10, description: "Read-only access to project content" },
+  { name: "GUEST",       rank: 10, description: "Read-only access to project content" },
 ] as const;
 
 // ── Role-permission grants ────────────────────────────────────────────────────
@@ -71,15 +71,18 @@ const GRANTS: Array<{
   { resource: "workspace", action: "delete",   roles: ["OWNER"] },
   { resource: "workspace", action: "transfer", roles: ["OWNER"] },
   // Workspace roles
-  { resource: "workspace.role", action: "create",           roles: ["OWNER", "ADMIN"] },
-  { resource: "workspace.role", action: "update",           roles: ["OWNER", "ADMIN"] },
-  { resource: "workspace.role", action: "delete",           roles: ["OWNER", "ADMIN"] },
+  { resource: "workspace.role", action: "create",            roles: ["OWNER", "ADMIN"] },
+  { resource: "workspace.role", action: "update",            roles: ["OWNER", "ADMIN"] },
+  { resource: "workspace.role", action: "delete",            roles: ["OWNER", "ADMIN"] },
   { resource: "workspace.role", action: "assign-permission", roles: ["OWNER", "ADMIN"] },
   // Workspace members
-  { resource: "workspace.member", action: "read",        roles: ["OWNER", "ADMIN", "MEMBER"] },
-  { resource: "workspace.member", action: "invite",      roles: ["OWNER", "ADMIN"] },
-  { resource: "workspace.member", action: "remove",      roles: ["OWNER", "ADMIN"] },
-  { resource: "workspace.member", action: "role-update", roles: ["OWNER", "ADMIN"] },
+  { resource: "workspace.member", action: "read",         roles: ["OWNER", "ADMIN", "MEMBER"] },
+  { resource: "workspace.member", action: "invite",       roles: ["OWNER", "ADMIN"] },
+  { resource: "workspace.member", action: "invite-cancel", roles: ["OWNER", "ADMIN"] },
+  { resource: "workspace.member", action: "invite-resend", roles: ["OWNER", "ADMIN"] },
+  { resource: "workspace.member", action: "invite-view",   roles: ["OWNER", "ADMIN"] },
+  { resource: "workspace.member", action: "remove",       roles: ["OWNER", "ADMIN"] },
+  { resource: "workspace.member", action: "role-update",  roles: ["OWNER", "ADMIN"] },
 
   // ── Project ───────────────────────────────────────────────────────────────
   { resource: "project", action: "create",  roles: ["OWNER", "ADMIN", "MEMBER"] },
@@ -187,20 +190,9 @@ async function seedPermissions(): Promise<void> {
     ...VAULT_PERMISSIONS,
   ];
 
-  // Also add role-management permissions not in any existing manifest
-  const EXTRA_PERMISSIONS = [
-    { resource: "workspace.role", action: "create",           module: "workspace", description: "Create a custom workspace role",     hasConditions: false },
-    { resource: "workspace.role", action: "update",           module: "workspace", description: "Update a custom workspace role",     hasConditions: false },
-    { resource: "workspace.role", action: "delete",           module: "workspace", description: "Delete a custom workspace role",     hasConditions: false },
-    { resource: "workspace.role", action: "assign-permission",module: "workspace", description: "Assign/remove permissions on a role",hasConditions: false },
-    { resource: "project.role",   action: "create",           module: "project",   description: "Create a custom project role",       hasConditions: false },
-    { resource: "project.role",   action: "update",           module: "project",   description: "Update a custom project role",       hasConditions: false },
-    { resource: "project.role",   action: "delete",           module: "project",   description: "Delete a custom project role",       hasConditions: false },
-  ];
-
-  console.log(`⚡ Seeding ${ALL.length + EXTRA_PERMISSIONS.length} permissions...`);
+  console.log(`⚡ Seeding ${ALL.length} permissions...`);
   let count = 0;
-  for (const perm of [...ALL, ...EXTRA_PERMISSIONS]) {
+  for (const perm of ALL) {
     await db.permission.upsert({
       where: { resource_action: { resource: perm.resource, action: perm.action } },
       create: { resource: perm.resource, action: perm.action, description: perm.description, module: perm.module, hasConditions: perm.hasConditions },
