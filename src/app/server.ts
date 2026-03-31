@@ -10,6 +10,7 @@ import { env } from "../shared/config/env";
 import { createLogger } from "../shared/lib/logger";
 import { createGraphQLApp } from "./graphql/yoga";
 import webhookRoutes from "./routes/webhooks";
+import { vaultProxyRoutes } from "./routes/vault-proxy";
 import { ChatModule } from "../modules/chat";
 import { WhiteboardModule } from "../modules/whiteboard";
 import { startVaultJobs } from "../modules/vault";
@@ -64,6 +65,7 @@ app.get("/metrics", async (c: Context) => {
 });
 app.route("/", webhookRoutes);
 app.route("/internal", internalRoutes);
+app.route("/", vaultProxyRoutes);
 
 // 4. GraphQL
 const yoga = createGraphQLApp();

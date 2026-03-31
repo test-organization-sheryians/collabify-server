@@ -577,6 +577,12 @@ model Whiteboard {
   elementCount  Int    @default(0) @map("element_count")
   fileSizeBytes BigInt @default(0) @map("file_size_bytes")
 
+  // --- Vault Media Reference Scan ---
+  // S3 key for the latest.yjs snapshot; written by the stream worker after each
+  // snapshot rebuild. Used by the vault cleanup job to parse the Y.Doc and verify
+  // whether a VaultFile is still referenced in yAssets before hard-deleting.
+  snapshotS3Key String? @map("snapshot_s3_key")
+
   // --- State & Lifecycle ---
   isArchived Boolean @default(false) @map("is_archived")
   isLocked   Boolean @default(false) @map("is_locked")

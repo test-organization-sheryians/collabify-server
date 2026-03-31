@@ -3,6 +3,7 @@
  *
  * Called by the editor on each save when one or more vault://fileId references
  * are removed from the saved content versus the previous saved snapshot.
+ * Supports entity types: PAGE, TASK, WHITEBOARD.
  *
  * Sets unrefAt/unrefEntityId/unrefEntityType on each VaultFile that:
  *   - belongs to the caller's project
@@ -67,7 +68,10 @@ export const markFilesUnreferencedHandler = async (
   if (files.length === 0) return { markedCount: 0 }
 
   const now = new Date()
-  const sourceType = input.entityType === 'PAGE' ? 'PAGE' : 'TASK'
+  const sourceType =
+    input.entityType === 'PAGE' ? 'PAGE'
+    : input.entityType === 'TASK' ? 'TASK'
+    : 'WHITEBOARD'
 
   // Batch update — mark each file as unreferenced.
   // Uses updateMany for efficiency; idempotent if unrefAt already set

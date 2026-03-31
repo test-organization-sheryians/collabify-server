@@ -108,7 +108,7 @@ const sharedTypeDefs = /* GraphQL */ `
 
   type VaultDownloadUrl {
     url: String!
-    expiresAt: DateTime!
+    expiresAt: DateTime
   }
 
   type VaultUsage {

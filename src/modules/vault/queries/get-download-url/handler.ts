@@ -34,7 +34,7 @@ export const getVaultDownloadUrlHandler = async (
     // NOTE: vault.file:read does NOT exist in the permission manifest (vault/permissions.ts)
     // only vault:read does — asserting vault.file:read always returned 403 for non-owners.
     await ctx.authGate.assertProjectMember(file.projectId);
-    return generateDownloadUrl(file.s3Key);
+    return generateDownloadUrl(file.id);
   } catch (error: unknown) {
     if (error instanceof AppError) throw error;
     logger.error("Failed to generate download URL", {

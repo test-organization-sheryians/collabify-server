@@ -2538,7 +2538,7 @@ export type VaultChildrenResult = {
 
 export type VaultDownloadUrl = {
   __typename?: 'VaultDownloadUrl';
-  expiresAt: Scalars['DateTime']['output'];
+  expiresAt?: Maybe<Scalars['DateTime']['output']>;
   url: Scalars['String']['output'];
 };
 
@@ -4160,7 +4160,7 @@ export type VaultChildrenResultResolvers<ContextType = ServiceContext, ParentTyp
 }>;
 
 export type VaultDownloadUrlResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['VaultDownloadUrl'] = ResolversParentTypes['VaultDownloadUrl']> = ResolversObject<{
-  expiresAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  expiresAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
   url?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 }>;
 

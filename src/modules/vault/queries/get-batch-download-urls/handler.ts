@@ -18,7 +18,7 @@ import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
 import type { ServiceContext } from "@/graphql/types";
 import type { GetBatchDownloadUrlsInput } from "./schema";
-import { generatePresignedGet } from "../../lib/s3-keys";
+import { env } from "@/shared/config/env";
 
 const logger = createLogger("vault:queries:get-batch-download-urls");
 
@@ -117,31 +117,16 @@ export const getBatchDownloadUrlsHandler = async (
         };
       }
 
-      // Generate presigned GET URL (sub-5ms — no AWS network call)
-      try {
-        const url = await generatePresignedGet(file.s3Key);
-        return {
-          fileId,
-          url,
-          status: "ACTIVE",
-          name: file.name,
-          mimeType: file.mimeType,
-          sizeBytes: Number(file.sizeBytes),
-        };
-      } catch (err) {
-        logger.warn("Failed to generate presigned GET url for file", {
-          fileId,
-          err,
-        });
-        return {
-          fileId,
-          url: null,
-          status: "DELETED",
-          name: file.name,
-          mimeType: file.mimeType,
-          sizeBytes: Number(file.sizeBytes),
-        };
-      }
+      // Build permanent proxy URL — no AWS SDK call, no expiry
+      const url = `${env.API_URL}/vault/file/${fileId}`;
+      return {
+        fileId,
+        url,
+        status: "ACTIVE",
+        name: file.name,
+        mimeType: file.mimeType,
+        sizeBytes: Number(file.sizeBytes),
+      };
     })
   );
 
