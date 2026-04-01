@@ -83,7 +83,7 @@ export const resolvers: Resolvers = {
     },
     task: (parent, _, ctx) => {
       if (parent.entityType === "TASK") {
-        return ctx.dataloaders.notification.taskById.load(parent.entityId);
+        return ctx.dataloaders.notification.issueById.load(parent.entityId);
       }
       return null;
     },

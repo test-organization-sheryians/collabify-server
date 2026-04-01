@@ -1,5 +1,5 @@
 import type { Redis } from "ioredis";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient, PluginType } from "@prisma/client";
 import type {
   MemberWithRole,
   CachedWorkspace,
@@ -154,6 +154,24 @@ export class AuthGate {
       this.db
     );
     if (!ok) throw AppError.forbidden("You are not a member of this channel.");
+  }
+
+  /**
+   * Asserts that a given PluginType is active for the project.
+   * Throws AppError.forbidden if the plugin is disabled.
+   *
+   * NOTE: Intentionally not Redis-cached — plugin toggles are infrequent
+   * and the DB count is fast (indexed on projectId + type).
+   */
+  async assertPluginActive(projectId: string, type: PluginType): Promise<void> {
+    const count = await this.db.projectPlugin.count({
+      where: { projectId, type },
+    });
+    if (!count) {
+      throw AppError.forbidden(
+        `The ${type} plugin is disabled for this project.`
+      );
+    }
   }
 
   // ── Boolean methods (no throw) ────────────────────────────────────────────

@@ -28,6 +28,16 @@ enum PrincipalType {
   ALL
 }
 
+// ─── Plugin Architecture ──────────────────────────────────────────────────────
+
+enum PluginType {
+  CHAT
+  WHITEBOARD
+  PAGES
+  VAULT
+  ISSUES
+}
+
 model User {
   id           String     @id @unique
   email        String     @unique
@@ -127,6 +137,8 @@ model Workspace {
   vaultWorkspaceUsage VaultWorkspaceUsage?
   whiteboards         Whiteboard[]
   chats               ChatConversation[]
+
+  plugins                 WorkspacePlugin[]
 
   usageRecords            UsageRecord[]
   notificationPreferences NotificationPreference[]  
@@ -287,6 +299,8 @@ model Project {
   members   ProjectMember[]
   roles     Role[]           @relation("ProjectScopedRoles")
 
+  plugins                  ProjectPlugin[]
+
   pages                    Page[]
   vaultFolders             VaultFolder[]
   vaultFiles               VaultFile[]
@@ -318,6 +332,33 @@ model ProjectCounter {
 
   @@unique([projectId, counterType])
   @@map("project_counters")
+}
+
+// Junction table: which plugins are active for a given project.
+// All 5 plugins are seeded on project creation. Admins can toggle via ToggleProjectPlugin.
+model ProjectPlugin {
+  projectId String     @map("project_id")
+  type      PluginType
+  isSystem  Boolean    @default(false) @map("is_system")
+  settings  Json?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, type])
+  @@map("project_plugins")
+}
+
+// Junction table: which plugins are active at the workspace level (future use).
+model WorkspacePlugin {
+  workspaceId String     @map("workspace_id")
+  type        PluginType
+  isSystem    Boolean    @default(false) @map("is_system")
+  settings    Json?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, type])
+  @@map("workspace_plugins")
 }
 
 model ProjectMember {

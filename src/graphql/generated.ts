@@ -863,6 +863,7 @@ export type Mutation = {
   subscribeThread: SubscribeThreadResult;
   syncUser: User;
   toggleFeatureFlag: ToggleFlagResult;
+  toggleProjectPlugin: Scalars['Boolean']['output'];
   transferWorkspaceOwnership: WorkspaceMember;
   unarchiveBoard: Whiteboard;
   unarchiveChannel: UnarchiveChannelResult;
@@ -1361,6 +1362,14 @@ export type MutationToggleFeatureFlagArgs = {
 };
 
 
+export type MutationToggleProjectPluginArgs = {
+  enable: Scalars['Boolean']['input'];
+  projectId: Scalars['ID']['input'];
+  type: Scalars['String']['input'];
+  workspaceId: Scalars['ID']['input'];
+};
+
+
 export type MutationTransferWorkspaceOwnershipArgs = {
   newOwnerId: Scalars['ID']['input'];
   workspaceId: Scalars['ID']['input'];
@@ -1658,6 +1667,7 @@ export enum PresenceStatus {
 
 export type Project = {
   __typename?: 'Project';
+  activePlugins: Array<Scalars['String']['output']>;
   createdAt: Scalars['String']['output'];
   description?: Maybe<Scalars['String']['output']>;
   id: Scalars['ID']['output'];
@@ -3811,6 +3821,7 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   subscribeThread?: Resolver<ResolversTypes['SubscribeThreadResult'], ParentType, ContextType, RequireFields<MutationSubscribeThreadArgs, 'threadId'>>;
   syncUser?: Resolver<ResolversTypes['User'], ParentType, ContextType, RequireFields<MutationSyncUserArgs, 'clerkId' | 'email'>>;
   toggleFeatureFlag?: Resolver<ResolversTypes['ToggleFlagResult'], ParentType, ContextType, RequireFields<MutationToggleFeatureFlagArgs, 'input'>>;
+  toggleProjectPlugin?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationToggleProjectPluginArgs, 'enable' | 'projectId' | 'type' | 'workspaceId'>>;
   transferWorkspaceOwnership?: Resolver<ResolversTypes['WorkspaceMember'], ParentType, ContextType, RequireFields<MutationTransferWorkspaceOwnershipArgs, 'newOwnerId' | 'workspaceId'>>;
   unarchiveBoard?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType, RequireFields<MutationUnarchiveBoardArgs, 'boardId'>>;
   unarchiveChannel?: Resolver<ResolversTypes['UnarchiveChannelResult'], ParentType, ContextType, RequireFields<MutationUnarchiveChannelArgs, 'channelId' | 'workspaceId'>>;
@@ -3952,6 +3963,7 @@ export type PinFolderResultResolvers<ContextType = ServiceContext, ParentType ex
 }>;
 
 export type ProjectResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Project'] = ResolversParentTypes['Project']> = ResolversObject<{
+  activePlugins?: Resolver<Array<ResolversTypes['String']>, ParentType, ContextType>;
   createdAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;

@@ -24,9 +24,10 @@ export const handler = async (
   input: GetMessageReactionsInput,
   ctx: ServiceContext
 ) => {
-  const userId = ctx.auth.userId!;
-
   try {
+    if (!ctx.auth?.userId) throw AppError.unauthorized();
+    const userId = ctx.auth.userId;
+
     const { conversationId } = await fetchMessageConversation(input.messageId, ctx);
     await assertAccess(conversationId, ctx);
     return await fetchReactions(input.messageId, userId, ctx);

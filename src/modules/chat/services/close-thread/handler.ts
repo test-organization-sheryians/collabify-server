@@ -1,84 +1,33 @@
-import { ServiceContext } from "@/graphql/types";
+import { createLogger } from "@/shared/lib/logger";
 import { AppError } from "@/shared/errors";
+import type { ServiceContext } from "@/graphql/types";
 import type { CloseThreadInput, CloseThreadOutput } from "./types";
+import { assertAccess } from "./steps/assert-access";
+import { close } from "./steps/close";
+
+const log = createLogger("chat:services:close-thread");
 
 /**
  * Close Thread Handler
  *
  * Marks a thread as closed. No new messages allowed (enforced at send-message level).
+ *
+ * Steps:
+ *  1. assertAccess — asserts authentication, permissions scoped to `chat:channel:update`, and validates active thread members.
+ *  2. close        — executes the `$update` Prisma timestamp logic and publishes the Redis fanout limit.
  */
 export const handler = async (
   input: CloseThreadInput,
   ctx: ServiceContext
 ): Promise<CloseThreadOutput> => {
-  const { userId } = ctx.auth;
-  if (!userId) {
-    throw AppError.unauthorized("User not authenticated");
+  try {
+    if (!ctx.auth?.userId) throw AppError.unauthorized();
+
+    const members = await assertAccess(input, ctx);
+    return await close(input, members, ctx);
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    log.error("[close-thread] Unexpected failure", { err, ...input });
+    throw new AppError("Failed to close thread");
   }
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
-
-  const { workspaceId, threadId } = input;
-
-  // Step 0 — channel member gate + permission
-  const cachedChannel = await ctx.authGate.getChannel(threadId);
-  if (!cachedChannel) throw AppError.notFound("Thread not found");
-  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
-  await Promise.all([
-    ctx.authGate.assertChannelMember(threadId),
-    ctx.permissions.assert("chat:channel:update", scope),
-  ]);
-
-  // Verify thread exists and user is member
-  const thread = await ctx.db.chatConversation.findFirst({
-    where: {
-      id: threadId,
-      workspaceId,
-      type: "THREAD",
-      members: { some: { userId } },
-      deletedAt: null,
-    },
-    include: {
-      members: { select: { userId: true } },
-    },
-  });
-
-  if (!thread) {
-    throw AppError.notFound("Thread not found or access denied");
-  }
-
-  // Check if already closed
-  if (thread.closedAt) {
-    throw AppError.badRequest("Thread is already closed");
-  }
-
-  // Close thread
-  const closedAt = new Date();
-  await ctx.db.chatConversation.update({
-    where: { id: threadId },
-    data: { closedAt },
-  });
-
-  // Fanout to all members
-  await Promise.all(
-    thread.members.map(async (member) => {
-      await ctx.redis.publish(
-        `user:${member.userId}:events`,
-        JSON.stringify({
-          type: "chat:thread-closed",
-          payload: {
-            threadId,
-            closedBy: userId,
-            closedAt: closedAt.toISOString(),
-            timestamp: closedAt.toISOString(),
-          },
-        })
-      );
-    })
-  );
-
-  return {
-    success: true,
-    threadId,
-    closedAt,
-  };
 };

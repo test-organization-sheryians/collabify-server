@@ -1,39 +1,38 @@
-import { ServiceContext } from "@/graphql/types";
+import type { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
-import { Prisma } from "@prisma/client";
-import { RenameChannelInput } from "./types";
+import { createLogger } from "@/shared/lib/logger";
 
+import type { RenameChannelInput } from "./types";
+import { assertAccess } from "./steps/assert-access";
+import { executeRename } from "./steps/execute-rename";
+
+const log = createLogger("chat:services:rename-channel");
+
+/**
+ * Rename Channel Handler (Phase D)
+ * Evaluates Project level limits natively isolating exceptions explicitly tracing target bounds.
+ */
 export const handler = async (
   input: RenameChannelInput,
   ctx: ServiceContext
 ) => {
-  const { userId } = ctx.auth;
-  if (!userId)
-    throw new AppError("User not authenticated", "UNAUTHORIZED", 401);
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
+  if (!ctx.auth?.userId) {
+    throw AppError.unauthorized("User not authenticated");
+  }
 
   try {
-    // Step 0 — channel member gate + permission
-    const cachedChannel = await ctx.authGate.getChannel(input.channelId);
-    if (!cachedChannel) throw AppError.notFound("Channel not found");
-    const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
-    await Promise.all([
-      ctx.authGate.assertChannelMember(input.channelId),
-      ctx.permissions.assert("chat:channel:update", scope),
-    ]);
-
-    // 3. Update Name
-    return await ctx.db.chatConversation.update({
-      where: { id: input.channelId },
-      data: { name: input.name },
-    });
-  } catch (error: any) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      if (error.code === "P2002") {
-        throw AppError.conflict("Channel name already taken in this project");
-      }
+    await assertAccess(input, ctx);
+    return await executeRename(input, ctx);
+  } catch (err) {
+    if (err instanceof AppError) {
+      throw err;
     }
-    if (error instanceof AppError) throw error;
-    throw new AppError("Failed to rename channel");
+    
+    log.error("[chat:services:rename-channel] Unexpected failure", {
+      err,
+      input: { channelId: input.channelId },
+    });
+    
+    throw new AppError("Failed to rename channel", "INTERNAL_SERVER_ERROR");
   }
 };

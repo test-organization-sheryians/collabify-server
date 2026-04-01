@@ -1,6 +1,7 @@
 import { Resolvers } from "@/graphql/generated";
 import { AppError } from "@/shared/errors";
 import { requireUser } from "@/shared/utils/graphql-helpers";
+import type { PluginType } from "@prisma/client";
 import {
   createProject,
   CreateProjectSchema,
@@ -28,6 +29,8 @@ import {
   UpdateProjectRoleSchema,
   deleteProjectRole,
   DeleteProjectRoleSchema,
+  toggleProjectPlugin,
+  ToggleProjectPluginSchema,
 } from "../services";
 import {
   getMyProjects,
@@ -53,6 +56,16 @@ export const resolvers: Resolvers = {
         throw new Error("Project DataLoaders not found in context");
       }
       return ctx.dataloaders.project.membersByProjectId.load(parent.id);
+    },
+    // If activePlugins was already appended by the query handler (e.g. getProjectBySlug),
+    // return it directly. Otherwise lazy-fetch from DB (covers DataLoader code paths).
+    activePlugins: async (parent, _args, ctx) => {
+      if ((parent as any).activePlugins) return (parent as any).activePlugins;
+      const rows = await ctx.db.projectPlugin.findMany({
+        where: { projectId: parent.id },
+        select: { type: true },
+      });
+      return rows.map((r) => r.type as string);
     },
   },
   ProjectMember: {
@@ -244,6 +257,18 @@ export const resolvers: Resolvers = {
         actorUserId: ctx.auth.userId,
       });
       return deleteProjectRole(data, ctx);
+    },
+
+    toggleProjectPlugin: async (_, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized('Unauthorized');
+      const data = ToggleProjectPluginSchema.parse({
+        projectId: args.projectId,
+        workspaceId: args.workspaceId,
+        type: args.type,
+        enable: args.enable,
+        actorUserId: ctx.auth.userId,
+      });
+      return toggleProjectPlugin(data, ctx);
     },
   },
 };

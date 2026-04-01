@@ -1,7 +1,8 @@
-export type PermissionScope =
-  | { type: "workspace"; id: string }
-  | { type: "project"; id: string; workspaceId: string }
-  | { type: "resource"; id: string; projectId: string; workspaceId: string };
+export type WorkspaceScope = { type: "workspace"; id: string };
+export type ProjectScope = { type: "project"; id: string; workspaceId: string };
+export type ResourceScope = { type: "resource"; id: string; projectId: string; workspaceId: string };
+
+export type PermissionScope = WorkspaceScope | ProjectScope | ResourceScope;
 
 export type PermissionResultReason =
   | "owner_bypass"

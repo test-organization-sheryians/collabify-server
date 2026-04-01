@@ -15,7 +15,9 @@ export async function assertAccess(
   projectId: string,
   ctx: ServiceContext
 ): Promise<void> {
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
+  if (!ctx.authGate || !ctx.permissions || !ctx.auth?.userId) {
+    throw AppError.unauthorized();
+  }
 
   if (projectId) {
     await Promise.all([

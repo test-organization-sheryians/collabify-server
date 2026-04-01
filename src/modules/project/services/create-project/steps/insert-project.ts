@@ -171,6 +171,19 @@ export async function insertProject(
         },
       });
 
+      // 6. Seed all 5 core plugins as active for the new project.
+      //    isSystem = false — all plugins can be toggled by project admins.
+      await tx.projectPlugin.createMany({
+        data: [
+          { projectId: project.id, type: "CHAT",       isSystem: false },
+          { projectId: project.id, type: "WHITEBOARD", isSystem: false },
+          { projectId: project.id, type: "PAGES",      isSystem: false },
+          { projectId: project.id, type: "VAULT",      isSystem: false },
+          { projectId: project.id, type: "ISSUES",     isSystem: false },
+        ],
+        skipDuplicates: true,
+      });
+
       return project;
     });
   } catch (error: unknown) {

@@ -3,6 +3,7 @@ import { AppError } from "@/shared/errors";
 import type { ServiceContext } from "@/graphql/types";
 import type { GetProjectDmsInput } from "./schema";
 import { fetchProjectDms } from "./steps/fetch-project-dms";
+import { assertAccess } from "./steps/assert-access";
 
 const log = createLogger("chat:queries:get-project-dms");
 
@@ -29,21 +30,22 @@ export const handler = async (
   if (!ctx.authGate) throw AppError.unauthorized();
 
   try {
-    // Auth: must be a project member
-    await ctx.authGate.assertProjectMember(input.projectId);
+    // Auth gate via delegated step
+    await assertAccess(input.projectId, input.workspaceId, ctx);
 
     const rows = await fetchProjectDms(input, userId, ctx);
 
-    return rows.map((dm) => {
+    // Batch load all unread counts in a single O(1) query
+    const channelIds = rows.map((dm) => dm.id);
+    const unreadCounts = await ctx.dataloaders.chat.unreadMessageCountByChannelId.loadMany(channelIds);
+
+    return rows.map((dm, i) => {
       // Identify the other participant (the one who isn't the caller)
       const otherMember = dm.members.find((m) => m.userId !== userId);
-      const callerMember = dm.members.find((m) => m.userId === userId);
 
-      // Unread = messages with sequence > caller's lastReadSeq
-      // Note: full unread count requires a separate message count query.
-      // For now, the sidebar shows the conversation freshness via updatedAt.
-      // TODO: batch unread counts via dataloader in a future optimization.
-      const unreadCount = 0;
+      // Extract the correctly matched count
+      const unreadCountResult = unreadCounts[i];
+      const unreadCount = unreadCountResult instanceof Error ? 0 : (unreadCountResult as number);
 
       return {
         id: dm.id,

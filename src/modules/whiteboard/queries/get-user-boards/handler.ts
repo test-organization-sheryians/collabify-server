@@ -21,14 +21,21 @@ export const handler = async (
 
   try {
     // Step 1 — auth gate (cache-backed)
-    // Use project scope when projectId provided for correct RBAC
-    const scope = projectId
-      ? { type: "project" as const, id: projectId, workspaceId }
-      : { type: "workspace" as const, id: workspaceId };
-    await Promise.all([
-      ctx.authGate.assertWorkspaceMember(workspaceId),
-      ctx.permissions.assert("whiteboard:read", scope),
-    ]);
+    // whiteboard:read requires ProjectScope. When no projectId is given, the user
+    // is browsing their workspace-wide boards — use workspace:read instead.
+    if (projectId) {
+      const scope = { type: "project" as const, id: projectId, workspaceId };
+      await Promise.all([
+        ctx.authGate.assertWorkspaceMember(workspaceId),
+        ctx.permissions.assert("whiteboard:read", scope),
+      ]);
+    } else {
+      const scope = { type: "workspace" as const, id: workspaceId };
+      await Promise.all([
+        ctx.authGate.assertWorkspaceMember(workspaceId),
+        ctx.permissions.assert("workspace:read", scope),
+      ]);
+    }
 
     // Step 2 — fetch user's boards (creator or collaborator)
     // When projectId is given, scope to that project only

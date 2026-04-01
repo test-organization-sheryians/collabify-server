@@ -23,7 +23,10 @@ export async function assertAccess(
   const cachedChannel = await ctx.authGate.getChannel(conversationId);
   if (!cachedChannel) throw AppError.notFound("Conversation not found");
 
-  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
+  if (!cachedChannel.projectId) {
+    throw AppError.badRequest("Channel must belong to a project to evaluate permissions.");
+  }
+  const scope = { type: "project" as const, id: cachedChannel.projectId, workspaceId: cachedChannel.workspaceId };
 
   await Promise.all([
     ctx.authGate.assertChannelMember(conversationId),

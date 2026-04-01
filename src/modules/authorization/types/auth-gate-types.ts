@@ -36,6 +36,7 @@ export interface CachedBoard {
 
 export interface CachedChannel {
   id: string;
+  projectId: string | null;
   workspaceId: string;
   isArchived: boolean;
 }

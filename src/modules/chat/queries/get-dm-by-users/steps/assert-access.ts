@@ -14,6 +14,10 @@ import { AppError } from "@/shared/errors";
  *
  * @throws AppError 401  if ctx.authGate or ctx.permissions is missing (unauthenticated)
  */
-export async function assertAccess(ctx: ServiceContext): Promise<void> {
+export async function assertAccess(
+  projectId: string,
+  ctx: ServiceContext
+): Promise<void> {
   if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
+  await ctx.authGate.assertProjectMember(projectId);
 }

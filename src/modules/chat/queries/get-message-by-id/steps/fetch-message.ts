@@ -21,7 +21,10 @@ export type MessageByIdRow = Prisma.ChatMessageGetPayload<{
 
 /**
  * fetchMessage — fetches the full message row with an explicit select.
- * Called after assertAccess has verified membership — messageId is guaranteed to exist.
+ * 
+ * NOTE: This is deliberately called BEFORE `assertAccess` because we must
+ * obtain the `conversationId` first to establish context bounds, so this relies
+ * fundamentally on the unauthenticated `ctx.auth?.userId` guard within the main handler.
  */
 export async function fetchMessage(
   messageId: string,

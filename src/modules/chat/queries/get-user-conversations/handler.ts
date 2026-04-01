@@ -17,9 +17,7 @@ const log = createLogger("chat:queries:get-user-conversations");
  *  1. assertAccess       — workspace or project-scoped auth gate (bug fixed: no longer
  *                          silently uses user-supplied workspaceId when getProject returns null)
  *  2. fetchConversations — DB findMany with explicit select (limit+1 look-ahead)
- *  3. metadata loop      — per-conversation: chatMember findUnique + chatMessage count + findFirst
- *
- * TODO: Step 3 is O(N×3) queries. Future optimization: batch via dataloaders.
+ *  3. metadata           — batch assign lastMessage and unreadCount via dataloaders
  *
  * @throws AppError 401  if not authenticated
  * @throws AppError 403  if not a workspace/project member or lacks conversation:read
@@ -40,36 +38,21 @@ export const handler = async (
     const hasNextPage = conversations.length > limit;
     const edges = hasNextPage ? conversations.slice(0, limit) : conversations;
 
-    // Per-conversation metadata fetch (N×3 queries — see TODO above)
-    const conversationsWithMetadata = await Promise.all(
-      edges.map(async (conv): Promise<Conversation> => {
-        const member = await ctx.db.chatMember.findUnique({
-          where: {
-            conversationId_userId: { conversationId: conv.id, userId },
-          },
-        });
+    // Batch load per-conversation metadata to eliminate N+1
+    const convoIds = edges.map((c) => c.id);
+    const [unreadCounts, lastMessages] = await Promise.all([
+      ctx.dataloaders.chat.unreadMessageCountByChannelId.loadMany(convoIds),
+      ctx.dataloaders.chat.lastMessageByChannelId.loadMany(convoIds),
+    ]);
 
-        const [unreadCount, lastMessage] = await Promise.all([
-          ctx.db.chatMessage.count({
-            where: {
-              conversationId: conv.id,
-              sequence: { gt: member?.lastReadSeq ?? 0 },
-              deletedAt: null,
-            },
-          }),
-          ctx.db.chatMessage.findFirst({
-            where: { conversationId: conv.id, deletedAt: null },
-            orderBy: { createdAt: "desc" },
-            select: {
-              id: true,
-              content: true,
-              authorUserId: true,
-              createdAt: true,
-            },
-          }),
-        ]);
+    const conversationsWithMetadata = edges.map((conv, i): Conversation => {
+      const uResult = unreadCounts[i];
+      const mResult = lastMessages[i];
 
-        return {
+      const unreadCount = uResult instanceof Error ? 0 : (uResult as number);
+      const lastMessage = mResult instanceof Error ? null : mResult;
+
+      return {
           id: conv.id,
           type: conv.type as ConversationType,
           name: conv.name,
@@ -88,8 +71,7 @@ export const handler = async (
           updatedAt: conv.updatedAt,
           deletedAt: conv.deletedAt,
         };
-      })
-    );
+    });
 
     return {
       edges: conversationsWithMetadata,

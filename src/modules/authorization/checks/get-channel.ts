@@ -23,13 +23,14 @@ export async function getChannel(
 
   const channel = await db.chatConversation.findUnique({
     where: { id: channelId },
-    select: { id: true, workspaceId: true, isArchived: true },
+    select: { id: true, workspaceId: true, projectId: true, isArchived: true },
   });
 
   if (!channel) return null;
 
   const value: CachedChannel = {
     id: channel.id,
+    projectId: channel.projectId,
     workspaceId: channel.workspaceId,
     isArchived: channel.isArchived,
   };

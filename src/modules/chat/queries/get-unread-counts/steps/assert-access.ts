@@ -6,6 +6,6 @@ export async function assertAccess(
   workspaceId: string,
   ctx: ServiceContext
 ): Promise<void> {
-  if (!ctx.authGate) throw AppError.unauthorized();
+  if (!ctx.authGate || !ctx.auth?.userId) throw AppError.unauthorized();
   await ctx.authGate.assertWorkspaceMember(workspaceId);
 }

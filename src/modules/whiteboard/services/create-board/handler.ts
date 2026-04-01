@@ -37,10 +37,12 @@ export const handler = async (input: CreateBoardInput, ctx: ServiceContext) => {
         ctx.permissions.assert("whiteboard:create", scope),
       ]);
     } else {
+      // No projectId — workspace-level creation. whiteboard:create requires ProjectScope,
+      // so guard with workspace:read membership check instead.
       const scope = { type: "workspace" as const, id: input.workspaceId };
       await Promise.all([
         ctx.authGate.assertWorkspaceMember(input.workspaceId),
-        ctx.permissions.assert("whiteboard:create", scope),
+        ctx.permissions.assert("workspace:read", scope),
       ]);
     }
 

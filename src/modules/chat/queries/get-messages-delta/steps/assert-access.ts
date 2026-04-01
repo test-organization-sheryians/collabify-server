@@ -6,12 +6,28 @@ export async function assertAccess(
   conversationId: string,
   ctx: ServiceContext
 ): Promise<void> {
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
+  if (!ctx.authGate || !ctx.permissions || !ctx.auth?.userId) {
+    throw AppError.unauthorized();
+  }
 
   const cachedChannel = await ctx.authGate.getChannel(conversationId);
-  if (!cachedChannel) throw AppError.notFound("Conversation not found");
+  if (!cachedChannel) {
+    throw AppError.notFound("Conversation not found", "CHANNEL_NOT_FOUND");
+  }
 
-  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
+  if (!cachedChannel.projectId) {
+    throw AppError.badRequest(
+      "Channel must belong to a project to evaluate permissions.",
+      "INVALID_CHANNEL_TYPE"
+    );
+  }
+
+  const scope = {
+    type: "project" as const,
+    id: cachedChannel.projectId,
+    workspaceId: cachedChannel.workspaceId,
+  };
+
   await Promise.all([
     ctx.authGate.assertChannelMember(conversationId),
     ctx.permissions.assert("chat:channel:read", scope),

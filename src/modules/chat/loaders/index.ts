@@ -4,6 +4,7 @@ import { createMemberCountByChannelIdLoader } from "./member-count-by-channel-id
 import { createLastMessageByChannelIdLoader } from "./last-message-by-channel-id.loader";
 import { createUserByIdLoader } from "./user-by-id.loader";
 import { createReplyCountByMessageIdLoader } from "./reply-count-by-message-id.loader";
+import { createUnreadMessageCountLoader } from "./unread-message-count.loader";
 import type { ApplicationContext } from "@/graphql/types";
 
 /**
@@ -17,6 +18,7 @@ export const createChatLoaders = (ctx: ApplicationContext) => ({
   lastMessageByChannelId: createLastMessageByChannelIdLoader(),
   userById: createUserByIdLoader(ctx),
   replyCountByMessageId: createReplyCountByMessageIdLoader(ctx),
+  unreadMessageCountByChannelId: createUnreadMessageCountLoader(ctx),
 });
 
 export type ChatLoaders = ReturnType<typeof createChatLoaders>;

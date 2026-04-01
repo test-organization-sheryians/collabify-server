@@ -24,10 +24,12 @@ export const handler = async (
 
   try {
     // Step 1 — workspace member gate (cache-backed)
+    // getWorkspaceBoards is a workspace-admin query (no project context).
+    // Use workspace:read — whiteboard:read requires ProjectScope now.
     const scope = { type: "workspace" as const, id: workspaceId };
     await Promise.all([
       ctx.authGate.assertWorkspaceMember(workspaceId),
-      ctx.permissions.assert("whiteboard:read", scope),
+      ctx.permissions.assert("workspace:read", scope),
     ]);
 
     // Step 2 — paginated workspace board query

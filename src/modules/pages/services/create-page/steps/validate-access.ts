@@ -21,13 +21,9 @@ export async function validateAccess(
   if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
   // 1 — Workspace membership (cache-backed)
-  const scope = { type: "workspace" as const, id: input.workspaceId };
-  await Promise.all([
-    ctx.authGate.assertWorkspaceMember(input.workspaceId),
-    ctx.permissions.assert("page:create", scope),
-  ]);
+  await ctx.authGate.assertWorkspaceMember(input.workspaceId);
 
-  // 2 — Project belongs to the workspace
+  // 2 — Project belongs to the workspace (needed to build project scope for RBAC)
   const project = await ctx.db.project.findUnique({
     where: { id: input.projectId },
     select: { workspaceId: true },
@@ -35,6 +31,13 @@ export async function validateAccess(
   if (!project || project.workspaceId !== input.workspaceId) {
     throw AppError.badRequest("Invalid project for this workspace");
   }
+
+  // 3 — RBAC check — project scope so project-role permissions are evaluated
+  await ctx.permissions.assert("page:create", {
+    type: "project",
+    id: input.projectId,
+    workspaceId: input.workspaceId,
+  });
 
   // 3 — Parent page belongs to the same project (cross-project injection guard)
   if (input.parentId) {

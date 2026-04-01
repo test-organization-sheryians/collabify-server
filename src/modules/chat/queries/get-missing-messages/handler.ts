@@ -23,6 +23,7 @@ export const handler = async (
   ctx: ServiceContext
 ) => {
   try {
+    if (!ctx.auth?.userId) throw AppError.unauthorized();
     await assertAccess(input.channelId, ctx);
     return await fetchMissingMessages(input, ctx);
   } catch (err) {

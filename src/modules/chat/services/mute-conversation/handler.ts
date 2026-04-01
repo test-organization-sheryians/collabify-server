@@ -1,6 +1,12 @@
-import { ServiceContext } from "@/graphql/types";
+import type { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
+import { createLogger } from "@/shared/lib/logger";
+
 import type { MuteConversationInput, MuteConversationOutput } from "./types";
+import { assertAccess } from "./steps/assert-access";
+import { executeMute } from "./steps/execute-mute";
+
+const log = createLogger("chat:services:mute-conversation");
 
 /**
  * Mute Conversation Handler
@@ -12,49 +18,24 @@ export const handler = async (
   input: MuteConversationInput,
   ctx: ServiceContext
 ): Promise<MuteConversationOutput> => {
-  const { userId } = ctx.auth;
-  if (!userId) {
+  if (!ctx.auth?.userId) {
     throw AppError.unauthorized("User not authenticated");
   }
-  if (!ctx.authGate) throw AppError.unauthorized();
 
-  const { conversationId, isMuted } = input;
-
-  // Step 0 — channel member gate
-  const cachedChannel = await ctx.authGate.getChannel(conversationId);
-  if (!cachedChannel) throw AppError.notFound("Conversation not found");
-  await ctx.authGate.assertChannelMember(conversationId);
-
-  // Verify membership exists
-  const membership = await ctx.db.chatMember.findUnique({
-    where: {
-      conversationId_userId: {
-        conversationId,
-        userId,
-      },
-    },
-  });
-
-  if (!membership) {
-    throw AppError.notFound("You are not a member of this conversation");
+  try {
+    await assertAccess(input, ctx);
+    return await executeMute(input, ctx);
+  } catch (err) {
+    if (err instanceof AppError) {
+      throw err;
+    }
+    
+    // Log unexpected operational drops tracking failures upstream securely mapping.
+    log.error("[chat:services:mute-conversation] Unexpected failure", {
+      err,
+      input: { conversationId: input.conversationId },
+    });
+    
+    throw err;
   }
-
-  // Update mute status
-  await ctx.db.chatMember.update({
-    where: {
-      conversationId_userId: {
-        conversationId,
-        userId,
-      },
-    },
-    data: {
-      isMuted,
-    },
-  });
-
-  return {
-    success: true,
-    conversationId,
-    isMuted,
-  };
 };

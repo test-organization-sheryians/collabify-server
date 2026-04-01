@@ -1,6 +1,12 @@
-import { ServiceContext } from "@/graphql/types";
+import type { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
+import { createLogger } from "@/shared/lib/logger";
+
 import type { LeaveGroupInput, LeaveGroupOutput } from "./types";
+import { assertAccess } from "./steps/assert-access";
+import { executeLeave } from "./steps/execute-leave";
+
+const log = createLogger("chat:services:leave-group");
 
 /**
  * Leave Group Handler
@@ -12,74 +18,24 @@ export const handler = async (
   input: LeaveGroupInput,
   ctx: ServiceContext
 ): Promise<LeaveGroupOutput> => {
-  const { userId } = ctx.auth;
-  if (!userId) {
+  if (!ctx.auth?.userId) {
     throw AppError.unauthorized("User not authenticated");
   }
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
-  const { workspaceId, groupId } = input;
-
-  // Step 0 — channel member gate
-  const cachedChannel = await ctx.authGate.getChannel(groupId);
-  if (!cachedChannel) throw AppError.notFound("Group not found");
-  await ctx.authGate.assertChannelMember(groupId);
-
-  // Verify group exists and user is member
-  const group = await ctx.db.chatConversation.findFirst({
-    where: {
-      id: groupId,
-      workspaceId,
-      type: "GROUP_DM" as const,
-      members: { some: { userId } },
-      deletedAt: null,
-    },
-    include: {
-      members: { select: { userId: true } },
-    },
-  });
-
-  if (!group) {
-    throw AppError.notFound("Group not found or you are not a member");
-  }
-
-  // Remove user's membership
-  await ctx.db.chatMember.delete({
-    where: {
-      conversationId_userId: {
-        conversationId: groupId,
-        userId,
-      },
-    },
-  });
-
-  // If last member, delete group
-  if (group.members.length === 1) {
-    await ctx.db.chatConversation.delete({
-      where: { id: groupId },
+  try {
+    const { group } = await assertAccess(input, ctx);
+    return await executeLeave(input, group, ctx);
+  } catch (err) {
+    if (err instanceof AppError) {
+      throw err;
+    }
+    
+    // Log unexpected failures explicitly per Phase D error handling audit
+    log.error("[chat:services:leave-group] Unexpected failure", {
+      err,
+      input: { groupId: input.groupId },
     });
-  } else {
-    // Fanout to remaining members
-    const remainingMembers = group.members.filter((m) => m.userId !== userId);
-    await Promise.all(
-      remainingMembers.map(async (member) => {
-        await ctx.redis.publish(
-          `user:${member.userId}:events`,
-          JSON.stringify({
-            type: "chat:group-member-left",
-            payload: {
-              groupId,
-              userId,
-              timestamp: new Date().toISOString(),
-            },
-          })
-        );
-      })
-    );
+    
+    throw err;
   }
-
-  return {
-    success: true,
-    groupId,
-  };
 };

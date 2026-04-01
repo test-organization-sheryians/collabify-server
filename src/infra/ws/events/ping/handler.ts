@@ -1,9 +1,8 @@
-import { ChatWebSocket, createSuccessFrame } from "../../types";
-import { Context } from "hono";
+import { ChatWebSocket, createSuccessFrame, WSHandlerContext } from "../../types";
 import { PingInput } from "./schema";
 
 export const pingHandler = (
-  _ctx: Context,
+  _ctx: WSHandlerContext,
   socket: ChatWebSocket,
   _input: PingInput
 ) => {

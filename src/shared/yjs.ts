@@ -5,7 +5,7 @@
  * **Note:** TypeScript handles this transpilation correctly at runtime
  */
 
-// @ts-expect-error - TypeScript transpiles this correctly to CommonJS require
+// @ts-ignore - TypeScript transpiles this correctly to CommonJS require
 // The lint warning is a false positive for TypeScript module resolution
 import * as Y from "yjs";
 

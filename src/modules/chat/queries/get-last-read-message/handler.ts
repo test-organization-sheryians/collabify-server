@@ -28,7 +28,8 @@ export const handler = async (
     await assertAccess(input.channelId, ctx);
 
     // Safe: assertAccess guarantees authenticated session before reaching here.
-    const userId = ctx.auth.userId ?? "";
+    const userId = ctx.auth?.userId;
+    if (!userId) throw AppError.unauthorized();
 
     return await fetchLastRead(input.channelId, userId, ctx);
   } catch (err) {

@@ -21,6 +21,7 @@ export const typeDefs = `
     createdAt: String!
     updatedAt: String!
     members: [ProjectMember!]!
+    activePlugins: [String!]!
   }
 
   type ProjectRole {

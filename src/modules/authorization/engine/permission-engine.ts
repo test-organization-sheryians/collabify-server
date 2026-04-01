@@ -1,7 +1,7 @@
 import type { Redis } from "ioredis";
 import type { PrismaClient } from "@prisma/client";
 import type { PermissionScope } from "../types/permission-types";
-import type { AppPermission } from "../types/app-permissions";
+import type { AppPermission, PermissionScopeMap } from "../types/app-permissions";
 import { AppError } from "@/shared/errors";
 import { PermissionResolver } from "./resolver";
 import { keys } from "../cache/keys";
@@ -35,9 +35,9 @@ export class PermissionEngine {
   /**
    * assert — throws AppError.forbidden() if user does not have permission.
    */
-  async assert(
-    permission: AppPermission,
-    scope: PermissionScope
+  async assert<P extends AppPermission>(
+    permission: P,
+    scope: PermissionScopeMap[P]
   ): Promise<void> {
     const allowed = await this.can(permission, scope);
     if (!allowed) {
@@ -48,11 +48,13 @@ export class PermissionEngine {
   /**
    * can — returns boolean. Use when you want a soft check without throwing.
    */
-  async can(
-    permission: AppPermission,
-    scope: PermissionScope
+  async can<P extends AppPermission>(
+    permission: P,
+    scope: PermissionScopeMap[P]
   ): Promise<boolean> {
-    const [resource, action] = permission.split(":") as [string, string];
+    const lastColonPos = permission.lastIndexOf(":");
+    const resource = permission.slice(0, lastColonPos);
+    const action = permission.slice(lastColonPos + 1);
     const workspaceId = this.deriveWorkspaceId(scope);
 
     // 1. Owner bypass — workspace owners skip all checks
@@ -74,12 +76,14 @@ export class PermissionEngine {
    * assertWithContext — for conditional permissions (hasConditions: true).
    * Requires the resource object to evaluate conditions (e.g. createdBy, isLocked).
    */
-  async assertWithContext(
-    permission: `${string}:${string}`,
-    scope: PermissionScope,
+  async assertWithContext<P extends AppPermission>(
+    permission: P,
+    scope: PermissionScopeMap[P],
     resourceContext: Record<string, unknown>
   ): Promise<void> {
-    const [resource, action] = permission.split(":") as [string, string];
+    const lastColonPos = permission.lastIndexOf(":");
+    const resource = permission.slice(0, lastColonPos);
+    const action = permission.slice(lastColonPos + 1);
     const workspaceId = this.deriveWorkspaceId(scope);
 
     if (workspaceId) {
@@ -105,10 +109,10 @@ export class PermissionEngine {
    * filter — for list views. Returns only items the user can access.
    * Does not throw — returns empty array if user has no access to any items.
    */
-  async filter<T extends { id: string }>(
+  async filter<T extends { id: string }, P extends AppPermission>(
     items: T[],
-    permission: AppPermission,
-    getScope: (item: T) => PermissionScope
+    permission: P,
+    getScope: (item: T) => PermissionScopeMap[P]
   ): Promise<T[]> {
     const results = await Promise.all(
       items.map(async (item) => {
