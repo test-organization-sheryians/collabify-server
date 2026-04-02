@@ -15,6 +15,8 @@ import {
   GetPublicUserSchema,
   getWorkspaceUser,
   GetWorkspaceUserSchema,
+  getUserHome,
+  GetUserHomeSchema,
 } from "../queries";
 
 export const resolvers: Resolvers = {
@@ -42,6 +44,13 @@ export const resolvers: Resolvers = {
         actorUserId: ctx.auth.userId,
       });
       return getWorkspaceUser(data, ctx);
+    },
+
+    userHome: async (_root, _args, ctx) => {
+      const userId = ctx.auth.userId;
+      if (!userId) return null;
+      const data = GetUserHomeSchema.parse({ userId });
+      return getUserHome(data, ctx);
     },
   },
   Mutation: {

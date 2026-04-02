@@ -55,11 +55,22 @@ webhookRouter.post("/api/webhooks/clerk", async (c: Context) => {
         break;
       }
 
-      case "user.deleted":
-        logger.info("User deleted event ignored (Soft Delete Policy)", {
-          userId: evt.data.id,
+      case "user.deleted": {
+        const userId = evt.data.id;
+        if (!userId) {
+          logger.warn("user.deleted webhook missing id — skipping");
+          break;
+        }
+        await db.user.update({
+          where: { id: userId },
+          data: {
+            deletedAt: new Date(),
+            status: "DELETED",
+          },
         });
+        logger.info("Soft-deleted user via webhook", { userId });
         break;
+      }
 
       default:
         logger.info("Ignored unhandled event type", { eventType });

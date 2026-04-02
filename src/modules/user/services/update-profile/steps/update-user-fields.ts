@@ -5,6 +5,9 @@ import type { PrismaClient } from "@prisma/client";
 interface UpdateData {
   fullName?: string;
   avatarUrl?: string | null;
+  bio?: string | null;
+  timezone?: string;
+  language?: string;
 }
 
 export async function updateUserFields(

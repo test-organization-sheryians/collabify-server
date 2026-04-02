@@ -12,8 +12,8 @@ export const updateProfile = async (
   input: UpdateProfileInput,
   ctx: ServiceContext
 ) => {
-  const { userId, fullName, avatarUrl } = input;
+  const { userId, fullName, avatarUrl, bio, timezone, language } = input;
   const { db } = ctx;
 
-  return updateUserFields(userId, { fullName, avatarUrl }, db);
+  return updateUserFields(userId, { fullName, avatarUrl, bio, timezone, language }, db);
 };

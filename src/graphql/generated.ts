@@ -1640,6 +1640,14 @@ export type PageSnapshot = {
   snapshotTimestamp?: Maybe<Scalars['DateTime']['output']>;
 };
 
+export type PendingInviteEntry = {
+  __typename?: 'PendingInviteEntry';
+  id: Scalars['ID']['output'];
+  role: Scalars['String']['output'];
+  token: Scalars['String']['output'];
+  workspaceName: Scalars['String']['output'];
+};
+
 export type Permission = {
   __typename?: 'Permission';
   action: Scalars['String']['output'];
@@ -1859,6 +1867,7 @@ export type Query = {
   unreadNotificationCount: Scalars['Int']['output'];
   user?: Maybe<PublicUser>;
   userBoards: BoardConnection;
+  userHome?: Maybe<UserHomeData>;
   workspaceBoards: BoardConnection;
   workspaceById?: Maybe<Workspace>;
   workspaceBySlug: Workspace;
@@ -2534,7 +2543,10 @@ export type UpdateIssueStatusResult = {
 
 export type UpdateProfileInput = {
   avatarUrl?: InputMaybe<Scalars['String']['input']>;
+  bio?: InputMaybe<Scalars['String']['input']>;
   fullName?: InputMaybe<Scalars['String']['input']>;
+  language?: InputMaybe<Scalars['String']['input']>;
+  timezone?: InputMaybe<Scalars['String']['input']>;
 };
 
 export type UpdateProjectInput = {
@@ -2564,11 +2576,14 @@ export type UpdateWorkspaceRoleInput = {
 export type User = {
   __typename?: 'User';
   avatarUrl?: Maybe<Scalars['String']['output']>;
+  bio?: Maybe<Scalars['String']['output']>;
   createdAt: Scalars['String']['output'];
   email: Scalars['String']['output'];
   fullName?: Maybe<Scalars['String']['output']>;
   id: Scalars['ID']['output'];
+  language?: Maybe<Scalars['String']['output']>;
   status: Scalars['String']['output'];
+  timezone?: Maybe<Scalars['String']['output']>;
   updatedAt: Scalars['String']['output'];
 };
 
@@ -2577,6 +2592,21 @@ export type UserBasic = {
   avatarUrl?: Maybe<Scalars['String']['output']>;
   email: Scalars['String']['output'];
   fullName: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+};
+
+export type UserHomeData = {
+  __typename?: 'UserHomeData';
+  pendingInvites: Array<PendingInviteEntry>;
+  user: UserHomeProfile;
+  workspaces: Array<WorkspaceHomeEntry>;
+};
+
+export type UserHomeProfile = {
+  __typename?: 'UserHomeProfile';
+  avatarUrl?: Maybe<Scalars['String']['output']>;
+  email: Scalars['String']['output'];
+  fullName?: Maybe<Scalars['String']['output']>;
   id: Scalars['ID']['output'];
 };
 
@@ -2735,6 +2765,15 @@ export type Workspace = {
   name: Scalars['String']['output'];
   slug: Scalars['String']['output'];
   updatedAt: Scalars['String']['output'];
+};
+
+export type WorkspaceHomeEntry = {
+  __typename?: 'WorkspaceHomeEntry';
+  id: Scalars['ID']['output'];
+  logoUrl?: Maybe<Scalars['String']['output']>;
+  memberRole: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  slug: Scalars['String']['output'];
 };
 
 export type WorkspaceInvite = {
@@ -3019,6 +3058,7 @@ export type ResolversTypes = ResolversObject<{
   PageInfo: ResolverTypeWrapper<PageInfo>;
   PageRole: PageRole;
   PageSnapshot: ResolverTypeWrapper<PageSnapshot>;
+  PendingInviteEntry: ResolverTypeWrapper<PendingInviteEntry>;
   Permission: ResolverTypeWrapper<Permission>;
   PinFolderResult: ResolverTypeWrapper<Omit<PinFolderResult, 'folder'> & { folder: ResolversTypes['VaultFolder'] }>;
   PinVaultFolderInput: PinVaultFolderInput;
@@ -3089,6 +3129,8 @@ export type ResolversTypes = ResolversObject<{
   UpdateWorkspaceRoleInput: UpdateWorkspaceRoleInput;
   User: ResolverTypeWrapper<PrismaUser>;
   UserBasic: ResolverTypeWrapper<UserBasic>;
+  UserHomeData: ResolverTypeWrapper<UserHomeData>;
+  UserHomeProfile: ResolverTypeWrapper<UserHomeProfile>;
   UserPresence: ResolverTypeWrapper<UserPresence>;
   VaultBatchDownloadResult: ResolverTypeWrapper<VaultBatchDownloadResult>;
   VaultChildrenResult: ResolverTypeWrapper<Omit<VaultChildrenResult, 'files' | 'folders'> & { files: Array<ResolversTypes['VaultFile']>, folders: Array<ResolversTypes['VaultFolder']> }>;
@@ -3104,6 +3146,7 @@ export type ResolversTypes = ResolversObject<{
   VaultUsage: ResolverTypeWrapper<VaultUsage>;
   Whiteboard: ResolverTypeWrapper<Whiteboard>;
   Workspace: ResolverTypeWrapper<PrismaWorkspace>;
+  WorkspaceHomeEntry: ResolverTypeWrapper<WorkspaceHomeEntry>;
   WorkspaceInvite: ResolverTypeWrapper<WorkspaceInvite>;
   WorkspaceInviteInfo: ResolverTypeWrapper<WorkspaceInviteInfo>;
   WorkspaceMember: ResolverTypeWrapper<PrismaWorkspaceMember>;
@@ -3229,6 +3272,7 @@ export type ResolversParentTypes = ResolversObject<{
   PageCollaboratorInput: PageCollaboratorInput;
   PageInfo: PageInfo;
   PageSnapshot: PageSnapshot;
+  PendingInviteEntry: PendingInviteEntry;
   Permission: Permission;
   PinFolderResult: Omit<PinFolderResult, 'folder'> & { folder: ResolversParentTypes['VaultFolder'] };
   PinVaultFolderInput: PinVaultFolderInput;
@@ -3297,6 +3341,8 @@ export type ResolversParentTypes = ResolversObject<{
   UpdateWorkspaceRoleInput: UpdateWorkspaceRoleInput;
   User: PrismaUser;
   UserBasic: UserBasic;
+  UserHomeData: UserHomeData;
+  UserHomeProfile: UserHomeProfile;
   UserPresence: UserPresence;
   VaultBatchDownloadResult: VaultBatchDownloadResult;
   VaultChildrenResult: Omit<VaultChildrenResult, 'files' | 'folders'> & { files: Array<ResolversParentTypes['VaultFile']>, folders: Array<ResolversParentTypes['VaultFolder']> };
@@ -3309,6 +3355,7 @@ export type ResolversParentTypes = ResolversObject<{
   VaultUsage: VaultUsage;
   Whiteboard: Whiteboard;
   Workspace: PrismaWorkspace;
+  WorkspaceHomeEntry: WorkspaceHomeEntry;
   WorkspaceInvite: WorkspaceInvite;
   WorkspaceInviteInfo: WorkspaceInviteInfo;
   WorkspaceMember: PrismaWorkspaceMember;
@@ -3950,6 +3997,13 @@ export type PageSnapshotResolvers<ContextType = ServiceContext, ParentType exten
   snapshotTimestamp?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
 }>;
 
+export type PendingInviteEntryResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['PendingInviteEntry'] = ResolversParentTypes['PendingInviteEntry']> = ResolversObject<{
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  role?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  token?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  workspaceName?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+}>;
+
 export type PermissionResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Permission'] = ResolversParentTypes['Permission']> = ResolversObject<{
   action?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
@@ -4080,6 +4134,7 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   unreadNotificationCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   user?: Resolver<Maybe<ResolversTypes['PublicUser']>, ParentType, ContextType, RequireFields<QueryUserArgs, 'userId'>>;
   userBoards?: Resolver<ResolversTypes['BoardConnection'], ParentType, ContextType, RequireFields<QueryUserBoardsArgs, 'workspaceId'>>;
+  userHome?: Resolver<Maybe<ResolversTypes['UserHomeData']>, ParentType, ContextType>;
   workspaceBoards?: Resolver<ResolversTypes['BoardConnection'], ParentType, ContextType, RequireFields<QueryWorkspaceBoardsArgs, 'workspaceId'>>;
   workspaceById?: Resolver<Maybe<ResolversTypes['Workspace']>, ParentType, ContextType, RequireFields<QueryWorkspaceByIdArgs, 'workspaceId'>>;
   workspaceBySlug?: Resolver<ResolversTypes['Workspace'], ParentType, ContextType, RequireFields<QueryWorkspaceBySlugArgs, 'slug'>>;
@@ -4256,11 +4311,14 @@ export type UpdateIssueStatusResultResolvers<ContextType = ServiceContext, Paren
 
 export type UserResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['User'] = ResolversParentTypes['User']> = ResolversObject<{
   avatarUrl?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  bio?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   createdAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   email?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   fullName?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  language?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   status?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  timezone?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   updatedAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 }>;
 
@@ -4268,6 +4326,19 @@ export type UserBasicResolvers<ContextType = ServiceContext, ParentType extends 
   avatarUrl?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   email?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   fullName?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+}>;
+
+export type UserHomeDataResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['UserHomeData'] = ResolversParentTypes['UserHomeData']> = ResolversObject<{
+  pendingInvites?: Resolver<Array<ResolversTypes['PendingInviteEntry']>, ParentType, ContextType>;
+  user?: Resolver<ResolversTypes['UserHomeProfile'], ParentType, ContextType>;
+  workspaces?: Resolver<Array<ResolversTypes['WorkspaceHomeEntry']>, ParentType, ContextType>;
+}>;
+
+export type UserHomeProfileResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['UserHomeProfile'] = ResolversParentTypes['UserHomeProfile']> = ResolversObject<{
+  avatarUrl?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  email?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  fullName?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
 }>;
 
@@ -4387,6 +4458,14 @@ export type WorkspaceResolvers<ContextType = ServiceContext, ParentType extends 
   name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   slug?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   updatedAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+}>;
+
+export type WorkspaceHomeEntryResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['WorkspaceHomeEntry'] = ResolversParentTypes['WorkspaceHomeEntry']> = ResolversObject<{
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  logoUrl?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  memberRole?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  slug?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 }>;
 
 export type WorkspaceInviteResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['WorkspaceInvite'] = ResolversParentTypes['WorkspaceInvite']> = ResolversObject<{
@@ -4542,6 +4621,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   PageCollaborator?: PageCollaboratorResolvers<ContextType>;
   PageInfo?: PageInfoResolvers<ContextType>;
   PageSnapshot?: PageSnapshotResolvers<ContextType>;
+  PendingInviteEntry?: PendingInviteEntryResolvers<ContextType>;
   Permission?: PermissionResolvers<ContextType>;
   PinFolderResult?: PinFolderResultResolvers<ContextType>;
   Project?: ProjectResolvers<ContextType>;
@@ -4585,6 +4665,8 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   UpdateIssueStatusResult?: UpdateIssueStatusResultResolvers<ContextType>;
   User?: UserResolvers<ContextType>;
   UserBasic?: UserBasicResolvers<ContextType>;
+  UserHomeData?: UserHomeDataResolvers<ContextType>;
+  UserHomeProfile?: UserHomeProfileResolvers<ContextType>;
   UserPresence?: UserPresenceResolvers<ContextType>;
   VaultBatchDownloadResult?: VaultBatchDownloadResultResolvers<ContextType>;
   VaultChildrenResult?: VaultChildrenResultResolvers<ContextType>;
@@ -4597,6 +4679,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   VaultUsage?: VaultUsageResolvers<ContextType>;
   Whiteboard?: WhiteboardResolvers<ContextType>;
   Workspace?: WorkspaceResolvers<ContextType>;
+  WorkspaceHomeEntry?: WorkspaceHomeEntryResolvers<ContextType>;
   WorkspaceInvite?: WorkspaceInviteResolvers<ContextType>;
   WorkspaceInviteInfo?: WorkspaceInviteInfoResolvers<ContextType>;
   WorkspaceMember?: WorkspaceMemberResolvers<ContextType>;

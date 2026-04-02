@@ -46,6 +46,14 @@ model User {
   avatarUrl    String?    @map("avatar_url")
   status       UserStatus @default(ACTIVE)
 
+  // ── Profile Fields ────────────────────────────────────────────────────────
+  bio              String?  @db.Text
+  timezone         String?  @default("UTC")
+  language         String?  @default("en")
+
+  // ── Billing Link ──────────────────────────────────────────────────────────
+  stripeCustomerId String?  @unique @map("stripe_customer_id")
+
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")

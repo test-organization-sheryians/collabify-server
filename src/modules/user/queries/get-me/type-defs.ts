@@ -4,6 +4,9 @@ export const typeDefs = `
     email: String!
     fullName: String
     avatarUrl: String
+    bio: String
+    timezone: String
+    language: String
     status: String!
     createdAt: String!
     updatedAt: String!

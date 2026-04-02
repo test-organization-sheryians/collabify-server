@@ -7,6 +7,7 @@ import {
   typeDefs as getMeTypeDefs,
   getPublicUserTypeDefs,
   getWorkspaceUserTypeDefs,
+  getUserHomeTypeDefs,
 } from "../queries";
 
 export const typeDefs = [
@@ -16,4 +17,5 @@ export const typeDefs = [
   getMeTypeDefs,
   getPublicUserTypeDefs,
   getWorkspaceUserTypeDefs,
+  getUserHomeTypeDefs,
 ];
