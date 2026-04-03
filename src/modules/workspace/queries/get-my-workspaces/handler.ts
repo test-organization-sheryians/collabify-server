@@ -10,13 +10,21 @@ export const getMyWorkspaces = async (
   const { userId } = input;
   const { db } = ctx;
 
-  return db.workspace.findMany({
+  const memberships = await db.workspaceMember.findMany({
     where: {
-      members: {
-        some: { userId },
-      },
-      deletedAt: null,
+      userId,
+      workspace: { deletedAt: null },
     },
-    orderBy: { createdAt: "desc" },
+    include: {
+      workspace: true,
+      assignedRole: true,
+    },
+    orderBy: { workspace: { createdAt: "desc" } },
   });
+
+  return memberships.map((m) => ({
+    ...m.workspace,
+    memberRole: m.assignedRole?.name ?? null,
+  }));
 };
+

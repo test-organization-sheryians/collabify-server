@@ -13,7 +13,7 @@
 // ═══════════════════════════════════════════════════════════════
 // MASTER SWITCH — set true to enable every logger at once
 // ═══════════════════════════════════════════════════════════════
-export const ALL = false; // ❌ Off
+export const ALL = true; // ❌ Off
 
 // ═══════════════════════════════════════════════════════════════
 // GROUP FLAGS — enable an entire feature or module at once

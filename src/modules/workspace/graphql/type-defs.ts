@@ -39,6 +39,7 @@ const baseTypeDefs = `
     name: String!
     logoUrl: String
     domainWhitelist: String
+    memberRole: String
     createdAt: String!
     updatedAt: String!
   }

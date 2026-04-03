@@ -2762,6 +2762,7 @@ export type Workspace = {
   domainWhitelist?: Maybe<Scalars['String']['output']>;
   id: Scalars['ID']['output'];
   logoUrl?: Maybe<Scalars['String']['output']>;
+  memberRole?: Maybe<Scalars['String']['output']>;
   name: Scalars['String']['output'];
   slug: Scalars['String']['output'];
   updatedAt: Scalars['String']['output'];
@@ -4455,6 +4456,7 @@ export type WorkspaceResolvers<ContextType = ServiceContext, ParentType extends 
   domainWhitelist?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   logoUrl?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  memberRole?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   slug?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   updatedAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;

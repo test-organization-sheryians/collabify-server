@@ -3,6 +3,7 @@
  *
  * Steps:
  *   1. updateUserFields — update fullName/avatarUrl; throw NOT_FOUND if missing
+ *   2. bustCache        — invalidate Redis so next getMe returns fresh data
  */
 import type { UpdateProfileInput } from "./schema";
 import type { ServiceContext } from "@/graphql/types";
@@ -13,7 +14,13 @@ export const updateProfile = async (
   ctx: ServiceContext
 ) => {
   const { userId, fullName, avatarUrl, bio, timezone, language } = input;
-  const { db } = ctx;
+  const { db, redis } = ctx;
 
-  return updateUserFields(userId, { fullName, avatarUrl, bio, timezone, language }, db);
+  const updated = await updateUserFields(userId, { fullName, avatarUrl, bio, timezone, language }, db);
+
+  // Bust the Redis cache so the next getMe call reads fresh data from DB.
+  // Strategy: DEL is fire-and-forget; a cache miss is safe (falls back to DB).
+  await redis.del(`user:${userId}`);
+
+  return updated;
 };
