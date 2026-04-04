@@ -1,6 +1,6 @@
 /**
- * Resolve the named role in the workspace and update the member's roleId.
- * Returns the updated member including user and role.
+ * Resolve the role by ID in the workspace and update the member's roleId.
+ * Returns the updated member including user, role name, roleId, and roleRank.
  */
 import { AppError } from "@/shared/errors";
 import type { PrismaClient } from "@prisma/client";
@@ -8,20 +8,29 @@ import type { PrismaClient } from "@prisma/client";
 export async function updateRole(
   memberId: string,
   workspaceId: string,
-  roleName: string,
+  roleId: string,
   db: PrismaClient
 ) {
+  // Verify the role belongs to this workspace
   const role = await db.role.findFirst({
-    where: { workspaceId, projectId: null, name: roleName },
+    where: { id: roleId, workspaceId, projectId: null },
   });
 
   if (!role) {
-    throw AppError.notFound(`Role "${roleName}" not found in workspace`);
+    throw AppError.notFound(`Role not found in workspace`);
   }
 
-  return db.workspaceMember.update({
+  const updated = await db.workspaceMember.update({
     where: { id: memberId, workspaceId },
     data: { roleId: role.id },
     include: { user: true, assignedRole: true },
   });
+
+  return {
+    ...updated,
+    role: updated.assignedRole.name,
+    roleId: updated.assignedRole.id,
+    roleRank: updated.assignedRole.rank,
+  };
 }
+

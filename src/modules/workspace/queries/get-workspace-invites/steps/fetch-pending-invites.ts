@@ -11,7 +11,7 @@ export async function fetchPendingInvites(
       expiresAt: { gt: new Date() },
     },
     include: {
-      assignedRole: { select: { name: true } },
+      assignedRole: { select: { id: true, name: true } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -20,6 +20,7 @@ export async function fetchPendingInvites(
     id: invite.id,
     email: invite.email,
     role: invite.assignedRole.name, // role name string (e.g. "MEMBER", "ADMIN")
+    roleId: invite.assignedRole.id, // role id string
     expiresAt: invite.expiresAt.toISOString(),
     createdAt: invite.createdAt.toISOString(),
   }));

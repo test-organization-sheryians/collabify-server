@@ -1487,7 +1487,7 @@ export type MutationUpdateWorkspaceArgs = {
 
 export type MutationUpdateWorkspaceMemberRoleArgs = {
   memberId: Scalars['ID']['input'];
-  role: Scalars['String']['input'];
+  roleId: Scalars['ID']['input'];
   workspaceId: Scalars['ID']['input'];
 };
 
@@ -2784,6 +2784,7 @@ export type WorkspaceInvite = {
   expiresAt: Scalars['String']['output'];
   id: Scalars['ID']['output'];
   role: Scalars['String']['output'];
+  roleId: Scalars['ID']['output'];
 };
 
 export type WorkspaceInviteInfo = {
@@ -2798,6 +2799,8 @@ export type WorkspaceMember = {
   id: Scalars['ID']['output'];
   joinedAt: Scalars['String']['output'];
   role: Scalars['String']['output'];
+  roleId: Scalars['ID']['output'];
+  roleRank: Scalars['Int']['output'];
   user: User;
 };
 
@@ -3890,7 +3893,7 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   updateProjectMemberRole?: Resolver<ResolversTypes['ProjectMember'], ParentType, ContextType, RequireFields<MutationUpdateProjectMemberRoleArgs, 'projectId' | 'roleId' | 'userId' | 'workspaceId'>>;
   updateProjectRole?: Resolver<ResolversTypes['ProjectRole'], ParentType, ContextType, RequireFields<MutationUpdateProjectRoleArgs, 'input' | 'projectId' | 'roleId' | 'workspaceId'>>;
   updateWorkspace?: Resolver<ResolversTypes['Workspace'], ParentType, ContextType, RequireFields<MutationUpdateWorkspaceArgs, 'input' | 'workspaceId'>>;
-  updateWorkspaceMemberRole?: Resolver<ResolversTypes['WorkspaceMember'], ParentType, ContextType, RequireFields<MutationUpdateWorkspaceMemberRoleArgs, 'memberId' | 'role' | 'workspaceId'>>;
+  updateWorkspaceMemberRole?: Resolver<ResolversTypes['WorkspaceMember'], ParentType, ContextType, RequireFields<MutationUpdateWorkspaceMemberRoleArgs, 'memberId' | 'roleId' | 'workspaceId'>>;
   updateWorkspaceRole?: Resolver<ResolversTypes['WorkspaceRole'], ParentType, ContextType, RequireFields<MutationUpdateWorkspaceRoleArgs, 'input' | 'roleId' | 'workspaceId'>>;
 }>;
 
@@ -4476,6 +4479,7 @@ export type WorkspaceInviteResolvers<ContextType = ServiceContext, ParentType ex
   expiresAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   role?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  roleId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
 }>;
 
 export type WorkspaceInviteInfoResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['WorkspaceInviteInfo'] = ResolversParentTypes['WorkspaceInviteInfo']> = ResolversObject<{
@@ -4488,6 +4492,8 @@ export type WorkspaceMemberResolvers<ContextType = ServiceContext, ParentType ex
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   joinedAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   role?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  roleId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  roleRank?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   user?: Resolver<ResolversTypes['User'], ParentType, ContextType>;
 }>;
 

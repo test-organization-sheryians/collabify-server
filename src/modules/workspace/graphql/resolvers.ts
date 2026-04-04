@@ -218,7 +218,7 @@ export const resolvers: Resolvers = {
       const data = UpdateMemberRoleSchema.parse({
         workspaceId: args.workspaceId,
         memberId: args.memberId,
-        role: args.role,
+        roleId: args.roleId,
         actorUserId: ctx.auth.userId,
       });
       return updateMemberRole(data, ctx);

@@ -109,7 +109,6 @@ export async function sendInvites(
         ]);
 
         const link = `${env.FRONTEND_URL}/workspace/join?token=${token}`;
-        console.log(link)
 
         // Log the link for debugging regardless of provider
         logger.info(`[INVITE] Sending to: ${email}`, { email, workspaceId });

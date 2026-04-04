@@ -3,6 +3,7 @@ export const getWorkspaceInvitesTypeDefs = `
     id: ID!
     email: String!
     role: String!
+    roleId: ID!
     expiresAt: String!
     createdAt: String!
   }

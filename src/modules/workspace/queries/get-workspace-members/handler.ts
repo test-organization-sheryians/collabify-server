@@ -32,5 +32,7 @@ export const getWorkspaceMembers = async (
   return members.map((m) => ({
     ...m,
     role: m.assignedRole.name,
+    roleId: m.assignedRole.id,
+    roleRank: m.assignedRole.rank,
   }));
 };
