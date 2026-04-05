@@ -79,8 +79,8 @@ export async function setRolePerms(
     keys.rolePerms(roleId),
     JSON.stringify(perms),
     "EX",
-    ROLEPERMS_TTL,
-    "NX"
+    ROLEPERMS_TTL
+    // NOTE: NX intentionally removed — always overwrite so invalidated caches don't re-populate with stale data
   );
 }
 

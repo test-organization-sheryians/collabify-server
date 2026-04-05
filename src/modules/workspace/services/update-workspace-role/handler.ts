@@ -31,7 +31,15 @@ export const updateWorkspaceRole = async (
     ctx.db
   );
 
-  // TODO: invalidate roleperms:{roleId} cache once AuthGateInvalidator is wired to ServiceContext
+  // Invalidate permission cache for all members of this role
+  const roleMembers = await ctx.db.workspaceMember.findMany({
+    where: { roleId },
+    select: { userId: true },
+  });
+  await ctx.permissions.invalidate.invalidateRole(
+    roleId,
+    roleMembers.map((m) => m.userId)
+  );
 
   return {
     ...updated,

@@ -25,6 +25,15 @@ export const removeRolePermission = async (
   const scope = { type: "workspace" as const, id: workspaceId };
   await ctx.permissions.assert("workspace:role:assign-permission", scope);
 
+  // Guard: system roles are immutable — their permissions cannot be removed
+  const role = await ctx.db.role.findUnique({
+    where: { id: roleId },
+    select: { isSystem: true },
+  });
+  if (role?.isSystem) {
+    throw AppError.forbidden("Cannot remove permissions from a system role");
+  }
+
   // Invalidate cached role permission set + all members holding this role
   // Must be done BEFORE deletion so we can still fetch members by roleId
   const roleMembers = await ctx.db.workspaceMember.findMany({

@@ -11,15 +11,21 @@
     "killall": "pkill -9 bun || true",
     "db:seed": "bun run prisma/seeds/index.ts",
     "db:seed:permissions": "bun run prisma/seeds/seed-permissions.ts",
-    "db:seed:roles": "bun run prisma/seeds/seed-role-permissions.ts",
     "db:seed:auth": "bun run prisma/seeds/seed-auth.ts",
+    "db:repair": "bun run prisma/seeds/repair-role-permissions.ts",
+    "db:flush-cache": "bun run scripts/db/flush-permission-cache.ts",
+    "db:purge-ws-perms": "bun run scripts/db/purge-dead-workspace-role-permissions.ts",
+    "db:migrate-perms": "bun run scripts/db/migrate-permissions.ts",
+    "db:backfill:plugins": "bun run scripts/db/backfill-project-plugins.ts",
+    "db:check-perms": "bun run scripts/db/check-workspace-perms.ts",
     "test": "bun test ./src",
     "test:watch": "bun test --watch ./src",
     "test:module": "bun test",
     "sync-permissions": "bun run scripts/sync-permissions.ts",
     "check-permissions": "bun run scripts/sync-permissions.ts --check",
     "reset-rbac": "bun run scripts/reset-rbac.ts",
-    "reset-rbac:dry": "bun run scripts/reset-rbac.ts --dry-run"
+    "reset-rbac:dry": "bun run scripts/reset-rbac.ts --dry-run",
+    "clear-redis": "bun run scripts/clear-registry.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1000.0",

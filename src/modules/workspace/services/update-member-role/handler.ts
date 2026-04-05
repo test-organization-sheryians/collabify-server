@@ -1,22 +1,10 @@
-/**
- * updateMemberRole — Service Handler (thin orchestrator)
- *
- * Auth:
- *   - permissions.assert("workspace:member:role-update") — OWNER+ only (RBAC)
- * Steps:
- *   1. [auth] assert("workspace:member:role-update")
- *   2. fetchActorAndTarget — load both members with role ranks from DB
- *   3. guardSelf — actor !== target
- *   4. guardHierarchy — actor.rank > target.currentRank && actor.rank > newRole.rank
- *   5. guardLastOwner (only if target is currently OWNER and being demoted)
- *   6. updateRole — update by roleId; return updated member
- */
 import { AppError } from "@/shared/errors";
 import type { UpdateMemberRoleInput } from "./types";
 import type { ServiceContext } from "@/graphql/types";
 import { updateRole } from "./steps/update-role";
 import { guardSelf } from "./steps/guard-self";
 import { guardHierarchy } from "./steps/guard-hierarchy";
+import { addRoleMember, removeRoleMember } from "@/modules/authorization";
 
 export const updateMemberRole = async (
   input: UpdateMemberRoleInput,
@@ -75,5 +63,22 @@ export const updateMemberRole = async (
     }
   }
 
-  return updateRole(memberId, workspaceId, roleId, db);
+  const updated = await updateRole(memberId, workspaceId, roleId, db);
+
+  // ── Cache Invalidation ───────────────────────────────────────────────────────
+  // Role change must propagate instantly — clear all stale Redis entries for this user.
+  const targetUserId = targetMember.userId;
+  const oldRoleId = targetMember.assignedRole.id;
+
+  await Promise.all([
+    // 1. Clear all perm:* and granted-perms:* entries tracked in perm-index (emits WS push)
+    ctx.permissions.invalidate.invalidateUserAll(targetUserId),
+    // 2. Clear workspace membership cache, owner-bypass, and role-at-scope
+    ctx.authGate.invalidate.workspaceMember(workspaceId, targetUserId),
+    // 3. Maintain role-member index so future permission changes invalidate correctly
+    removeRoleMember(oldRoleId, targetUserId, ctx.redis),
+    addRoleMember(roleId, targetUserId, ctx.redis),
+  ]);
+
+  return updated;
 };

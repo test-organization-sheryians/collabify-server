@@ -11,8 +11,9 @@
 import type { WorkspaceScope, ProjectScope, ResourceScope } from "./permission-types";
 
 // Workspace
+// NOTE: "workspace:create" is intentionally absent — it is a platform-level action
+// checked via session auth only, not an RBAC role permission.
 type WorkspacePermission =
-  | "workspace:create"
   | "workspace:read"
   | "workspace:update"
   | "workspace:delete"
@@ -137,7 +138,7 @@ export type AppPermission =
  */
 export interface PermissionScopeMap {
   // Workspace
-  "workspace:create": WorkspaceScope;
+  // NOTE: "workspace:create" intentionally absent — platform-level action, not RBAC.
   "workspace:read": WorkspaceScope;
   "workspace:update": WorkspaceScope;
   "workspace:delete": WorkspaceScope;
@@ -156,7 +157,10 @@ export interface PermissionScopeMap {
   "workspace:settings:view": WorkspaceScope;
 
   // Project
-  "project:create": WorkspaceScope | ProjectScope;
+  // project:create — WorkspaceScope only: creating a project is a workspace-level action.
+  // Handlers always call assert("project:create", { type:"workspace", id: workspaceId }).
+  "project:create": WorkspaceScope;
+  // project:read — dual scope: WorkspaceScope for listing projects, ProjectScope for reading one.
   "project:read": WorkspaceScope | ProjectScope;
   "project:update": ProjectScope;
   "project:delete": ProjectScope;

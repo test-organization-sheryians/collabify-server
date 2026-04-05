@@ -5,7 +5,6 @@ node_modules/
 .env
 .gitignore
 test/
-scripts/
 dist/
 ssl/server.crt
 ssl/server.key

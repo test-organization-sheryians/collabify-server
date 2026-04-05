@@ -82,14 +82,16 @@ export async function generatePresignedPut(
 // ── Presigned GET ──────────────────────────────────────────────────────────────
 
 /**
- * Returns a short-lived presigned GET URL for downloading/previewing a file.
- * TTL: 5 minutes — short enough to limit URL leakage window.
+ * Returns a presigned GET URL for downloading/previewing a file.
+ * Default TTL: 5 minutes — short enough to limit URL leakage window.
+ * Pass an explicit `expiresIn` for long-lived use cases (e.g. workspace logos).
  */
-export async function generatePresignedGet(s3Key: string): Promise<string> {
+export async function generatePresignedGet(
+  s3Key: string,
+  expiresIn: number = VAULT_S3.PRESIGNED_GET_TTL_SECONDS
+): Promise<string> {
   const command = new GetObjectCommand({ Bucket: BUCKET, Key: s3Key });
-  return getSignedUrl(s3Client, command, {
-    expiresIn: VAULT_S3.PRESIGNED_GET_TTL_SECONDS,
-  });
+  return getSignedUrl(s3Client, command, { expiresIn });
 }
 
 // ── Head Object ────────────────────────────────────────────────────────────────

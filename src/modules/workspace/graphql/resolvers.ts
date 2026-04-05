@@ -40,6 +40,10 @@ import {
   AssignRolePermissionSchema,
   removeRolePermission,
   RemoveRolePermissionSchema,
+  renameWorkspaceSlug,
+  RenameWorkspaceSlugSchema,
+  requestWorkspaceLogoUpload,
+  RequestWorkspaceLogoUploadSchema,
 } from "../services";
 
 // Queries
@@ -64,6 +68,8 @@ import {
   GetRolePermissionsSchema,
   getWorkspaceOverview,
   GetWorkspaceOverviewSchema,
+  getWorkspacePermissions,
+  GetWorkspacePermissionsSchema,
 } from "../queries";
 
 export const resolvers: Resolvers = {
@@ -152,6 +158,14 @@ export const resolvers: Resolvers = {
         actorUserId: ctx.auth.userId,
       });
       return getRolePermissions(data, ctx);
+    },
+
+    workspacePermissions: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = GetWorkspacePermissionsSchema.parse({
+        workspaceId: args.workspaceId,
+      });
+      return getWorkspacePermissions(data, ctx);
     },
 
     workspaceOverview: async (_root, args, ctx) => {
@@ -345,6 +359,27 @@ export const resolvers: Resolvers = {
         actorUserId: ctx.auth.userId,
       });
       return removeRolePermission(data, ctx);
+    },
+
+    renameWorkspaceSlug: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = RenameWorkspaceSlugSchema.parse({
+        workspaceId: args.workspaceId,
+        actorUserId: ctx.auth.userId,
+        slug: args.slug,
+      });
+      return renameWorkspaceSlug(data, ctx);
+    },
+
+    requestWorkspaceLogoUpload: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = RequestWorkspaceLogoUploadSchema.parse({
+        workspaceId: args.workspaceId,
+        actorUserId: ctx.auth.userId,
+        mimeType: args.mimeType,
+        sizeBytes: args.sizeBytes,
+      });
+      return requestWorkspaceLogoUpload(data, ctx);
     },
   },
 };

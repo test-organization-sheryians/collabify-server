@@ -17,6 +17,8 @@ import {
   deleteWorkspaceRoleTypeDefs,
   assignRolePermissionTypeDefs,
   removeRolePermissionTypeDefs,
+  renameWorkspaceSlugTypeDefs,
+  requestWorkspaceLogoUploadTypeDefs,
 } from "../services";
 
 import {
@@ -30,6 +32,7 @@ import {
   getWorkspaceRolesTypeDefs,
   getRolePermissionsTypeDefs,
   getWorkspaceOverviewTypeDefs,
+  getWorkspacePermissionsTypeDefs,
 } from "../queries";
 
 const baseTypeDefs = `
@@ -94,6 +97,8 @@ export const typeDefs = [
   deleteWorkspaceRoleTypeDefs,
   assignRolePermissionTypeDefs,
   removeRolePermissionTypeDefs,
+  renameWorkspaceSlugTypeDefs,
+  requestWorkspaceLogoUploadTypeDefs,
 
   // Queries
   getInviteInfoTypeDefs,
@@ -106,4 +111,5 @@ export const typeDefs = [
   getWorkspaceRolesTypeDefs,
   getRolePermissionsTypeDefs,
   getWorkspaceOverviewTypeDefs,
+  getWorkspacePermissionsTypeDefs,
 ];

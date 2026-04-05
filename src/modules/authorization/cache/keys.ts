@@ -64,4 +64,7 @@ export const keys = {
 
   /** Role-member index for bulk invalidation — no DB join needed on role permission change */
   roleMembersIndex: (roleId: string) => `role-members:${roleId}`,
+
+  /** Full granted-permissions set for activeContext — tracked in perm-index for auto-invalidation */
+  grantedPerms: (uid: string, scopeId: string) => `granted-perms:${uid}:${scopeId}`,
 } as const;

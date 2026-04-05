@@ -8,13 +8,9 @@
  */
 export const WORKSPACE_PERMISSIONS = [
   // ── Core workspace ───────────────────────────────────────────────────────────
-  {
-    resource: "workspace",
-    action: "create",
-    module: "workspace",
-    description: "Create a workspace",
-    hasConditions: false,
-  },
+  // NOTE: workspace:create intentionally omitted — it is a platform-level action
+  // (you cannot be a workspace member to create a workspace). Auth is enforced
+  // via session checks in the create-workspace handler, not RBAC role permissions.
   {
     resource: "workspace",
     action: "read",

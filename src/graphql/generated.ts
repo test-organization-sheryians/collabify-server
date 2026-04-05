@@ -843,6 +843,7 @@ export type Mutation = {
   /** Renames a file. S3 key is unchanged — only the display name is updated. */
   renameVaultFile: RenameFileResult;
   renameVaultFolder: RenameFolderResult;
+  renameWorkspaceSlug: Workspace;
   reopenThread: ReopenThreadResult;
   reorderIssue: ReorderIssueResult;
   reorderIssueStatus: ReorderIssueStatusResult;
@@ -859,6 +860,7 @@ export type Mutation = {
    * The client must PUT the file directly to S3 using this URL, then call confirmVaultUpload.
    */
   requestVaultUpload: RequestUploadResult;
+  requestWorkspaceLogoUpload: WorkspaceLogoUploadPayload;
   resendWorkspaceInvite: Scalars['Boolean']['output'];
   subscribeThread: SubscribeThreadResult;
   syncUser: User;
@@ -1306,6 +1308,12 @@ export type MutationRenameVaultFolderArgs = {
 };
 
 
+export type MutationRenameWorkspaceSlugArgs = {
+  slug: Scalars['String']['input'];
+  workspaceId: Scalars['ID']['input'];
+};
+
+
 export type MutationReopenThreadArgs = {
   threadId: Scalars['ID']['input'];
   workspaceId: Scalars['ID']['input'];
@@ -1334,6 +1342,13 @@ export type MutationRequestIssueDescriptionUploadArgs = {
 
 export type MutationRequestVaultUploadArgs = {
   input: RequestVaultUploadInput;
+};
+
+
+export type MutationRequestWorkspaceLogoUploadArgs = {
+  mimeType: Scalars['String']['input'];
+  sizeBytes: Scalars['Int']['input'];
+  workspaceId: Scalars['ID']['input'];
 };
 
 
@@ -1874,6 +1889,7 @@ export type Query = {
   workspaceInvites: Array<WorkspaceInvite>;
   workspaceMembers: Array<WorkspaceMember>;
   workspaceOverview: WorkspaceOverview;
+  workspacePermissions: Array<Permission>;
   workspaceRoles: Array<WorkspaceRole>;
   workspaceUser?: Maybe<WorkspaceMember>;
 };
@@ -2206,6 +2222,11 @@ export type QueryWorkspaceMembersArgs = {
 
 
 export type QueryWorkspaceOverviewArgs = {
+  workspaceId: Scalars['ID']['input'];
+};
+
+
+export type QueryWorkspacePermissionsArgs = {
   workspaceId: Scalars['ID']['input'];
 };
 
@@ -2794,6 +2815,14 @@ export type WorkspaceInviteInfo = {
   workspaceName: Scalars['String']['output'];
 };
 
+export type WorkspaceLogoUploadPayload = {
+  __typename?: 'WorkspaceLogoUploadPayload';
+  expiresAt: Scalars['String']['output'];
+  /** The final S3 URL to store in Workspace.logoUrl after PUT succeeds. */
+  logoUrl: Scalars['String']['output'];
+  presignedUrl: Scalars['String']['output'];
+};
+
 export type WorkspaceMember = {
   __typename?: 'WorkspaceMember';
   id: Scalars['ID']['output'];
@@ -3153,6 +3182,7 @@ export type ResolversTypes = ResolversObject<{
   WorkspaceHomeEntry: ResolverTypeWrapper<WorkspaceHomeEntry>;
   WorkspaceInvite: ResolverTypeWrapper<WorkspaceInvite>;
   WorkspaceInviteInfo: ResolverTypeWrapper<WorkspaceInviteInfo>;
+  WorkspaceLogoUploadPayload: ResolverTypeWrapper<WorkspaceLogoUploadPayload>;
   WorkspaceMember: ResolverTypeWrapper<PrismaWorkspaceMember>;
   WorkspaceOverview: ResolverTypeWrapper<WorkspaceOverview>;
   WorkspaceOverviewIssue: ResolverTypeWrapper<WorkspaceOverviewIssue>;
@@ -3362,6 +3392,7 @@ export type ResolversParentTypes = ResolversObject<{
   WorkspaceHomeEntry: WorkspaceHomeEntry;
   WorkspaceInvite: WorkspaceInvite;
   WorkspaceInviteInfo: WorkspaceInviteInfo;
+  WorkspaceLogoUploadPayload: WorkspaceLogoUploadPayload;
   WorkspaceMember: PrismaWorkspaceMember;
   WorkspaceOverview: WorkspaceOverview;
   WorkspaceOverviewIssue: WorkspaceOverviewIssue;
@@ -3862,12 +3893,14 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   renamePage?: Resolver<ResolversTypes['RenamePageResult'], ParentType, ContextType, RequireFields<MutationRenamePageArgs, 'input'>>;
   renameVaultFile?: Resolver<ResolversTypes['RenameFileResult'], ParentType, ContextType, RequireFields<MutationRenameVaultFileArgs, 'input'>>;
   renameVaultFolder?: Resolver<ResolversTypes['RenameFolderResult'], ParentType, ContextType, RequireFields<MutationRenameVaultFolderArgs, 'input'>>;
+  renameWorkspaceSlug?: Resolver<ResolversTypes['Workspace'], ParentType, ContextType, RequireFields<MutationRenameWorkspaceSlugArgs, 'slug' | 'workspaceId'>>;
   reopenThread?: Resolver<ResolversTypes['ReopenThreadResult'], ParentType, ContextType, RequireFields<MutationReopenThreadArgs, 'threadId' | 'workspaceId'>>;
   reorderIssue?: Resolver<ResolversTypes['ReorderIssueResult'], ParentType, ContextType, RequireFields<MutationReorderIssueArgs, 'input'>>;
   reorderIssueStatus?: Resolver<ResolversTypes['ReorderIssueStatusResult'], ParentType, ContextType, RequireFields<MutationReorderIssueStatusArgs, 'input'>>;
   reorderPage?: Resolver<ResolversTypes['ReorderPageResult'], ParentType, ContextType, RequireFields<MutationReorderPageArgs, 'input'>>;
   requestIssueDescriptionUpload?: Resolver<ResolversTypes['RequestIssueDescriptionUploadResult'], ParentType, ContextType, RequireFields<MutationRequestIssueDescriptionUploadArgs, 'input'>>;
   requestVaultUpload?: Resolver<ResolversTypes['RequestUploadResult'], ParentType, ContextType, RequireFields<MutationRequestVaultUploadArgs, 'input'>>;
+  requestWorkspaceLogoUpload?: Resolver<ResolversTypes['WorkspaceLogoUploadPayload'], ParentType, ContextType, RequireFields<MutationRequestWorkspaceLogoUploadArgs, 'mimeType' | 'sizeBytes' | 'workspaceId'>>;
   resendWorkspaceInvite?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationResendWorkspaceInviteArgs, 'inviteId' | 'workspaceId'>>;
   subscribeThread?: Resolver<ResolversTypes['SubscribeThreadResult'], ParentType, ContextType, RequireFields<MutationSubscribeThreadArgs, 'threadId'>>;
   syncUser?: Resolver<ResolversTypes['User'], ParentType, ContextType, RequireFields<MutationSyncUserArgs, 'clerkId' | 'email'>>;
@@ -4145,6 +4178,7 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   workspaceInvites?: Resolver<Array<ResolversTypes['WorkspaceInvite']>, ParentType, ContextType, RequireFields<QueryWorkspaceInvitesArgs, 'workspaceId'>>;
   workspaceMembers?: Resolver<Array<ResolversTypes['WorkspaceMember']>, ParentType, ContextType, RequireFields<QueryWorkspaceMembersArgs, 'workspaceId'>>;
   workspaceOverview?: Resolver<ResolversTypes['WorkspaceOverview'], ParentType, ContextType, RequireFields<QueryWorkspaceOverviewArgs, 'workspaceId'>>;
+  workspacePermissions?: Resolver<Array<ResolversTypes['Permission']>, ParentType, ContextType, RequireFields<QueryWorkspacePermissionsArgs, 'workspaceId'>>;
   workspaceRoles?: Resolver<Array<ResolversTypes['WorkspaceRole']>, ParentType, ContextType, RequireFields<QueryWorkspaceRolesArgs, 'workspaceId'>>;
   workspaceUser?: Resolver<Maybe<ResolversTypes['WorkspaceMember']>, ParentType, ContextType, RequireFields<QueryWorkspaceUserArgs, 'userId' | 'workspaceId'>>;
 }>;
@@ -4488,6 +4522,12 @@ export type WorkspaceInviteInfoResolvers<ContextType = ServiceContext, ParentTyp
   workspaceName?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 }>;
 
+export type WorkspaceLogoUploadPayloadResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['WorkspaceLogoUploadPayload'] = ResolversParentTypes['WorkspaceLogoUploadPayload']> = ResolversObject<{
+  expiresAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  logoUrl?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  presignedUrl?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+}>;
+
 export type WorkspaceMemberResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['WorkspaceMember'] = ResolversParentTypes['WorkspaceMember']> = ResolversObject<{
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   joinedAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
@@ -4690,6 +4730,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   WorkspaceHomeEntry?: WorkspaceHomeEntryResolvers<ContextType>;
   WorkspaceInvite?: WorkspaceInviteResolvers<ContextType>;
   WorkspaceInviteInfo?: WorkspaceInviteInfoResolvers<ContextType>;
+  WorkspaceLogoUploadPayload?: WorkspaceLogoUploadPayloadResolvers<ContextType>;
   WorkspaceMember?: WorkspaceMemberResolvers<ContextType>;
   WorkspaceOverview?: WorkspaceOverviewResolvers<ContextType>;
   WorkspaceOverviewIssue?: WorkspaceOverviewIssueResolvers<ContextType>;

@@ -170,7 +170,7 @@ export class PermissionEngine {
       scope.type === "project"   ? scope.id :
       scope.id;
 
-    const cacheKey = `granted-perms:${this.userId}:${scopeId}`;
+    const cacheKey = keys.grantedPerms(this.userId, scopeId);
     const cached = await this.redis.smembers(cacheKey);
     if (cached.length > 0) return cached;
 
@@ -184,9 +184,11 @@ export class PermissionEngine {
       });
       const permStrings = allPerms.map((p) => `${p.resource}:${p.action}`);
       if (permStrings.length > 0) {
+        const indexKey = keys.permIndex(this.userId);
         const pipeline = this.redis.pipeline();
         pipeline.sadd(cacheKey, ...permStrings);
         pipeline.expire(cacheKey, 300); // 5 min
+        pipeline.sadd(indexKey, cacheKey); // track in perm-index for auto-invalidation
         await pipeline.exec();
       }
       return permStrings;
@@ -233,9 +235,11 @@ export class PermissionEngine {
     }
 
     if (permStrings.length > 0) {
+      const indexKey = keys.permIndex(this.userId);
       const pipeline = this.redis.pipeline();
       pipeline.sadd(cacheKey, ...permStrings);
       pipeline.expire(cacheKey, 300); // 5 min
+      pipeline.sadd(indexKey, cacheKey); // track in perm-index for auto-invalidation
       await pipeline.exec();
     }
 
