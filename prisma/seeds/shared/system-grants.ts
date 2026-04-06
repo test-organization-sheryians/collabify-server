@@ -94,6 +94,7 @@ export const PROJECT_GRANTS: Array<{ resource: string; action: string; roles: st
   { resource: "project:role",             action: "create",            roles: ["MANAGER"] },
   { resource: "project:role",             action: "update",            roles: ["MANAGER"] },
   { resource: "project:role",             action: "delete",            roles: ["MANAGER"] },
+  { resource: "project:role",             action: "assign-permission", roles: ["MANAGER"] },
   { resource: "project:settings",         action: "view",              roles: ["MANAGER"] },
 
   // ── Issues ────────────────────────────────────────────────────────────────

@@ -45,6 +45,7 @@ type ProjectPermission =
   | "project:role:create"
   | "project:role:update"
   | "project:role:delete"
+  | "project:role:assign-permission"
   | "project:settings:view"
 
 // Issues
@@ -172,6 +173,7 @@ export interface PermissionScopeMap {
   "project:role:create": ProjectScope;
   "project:role:update": ProjectScope;
   "project:role:delete": ProjectScope;
+  "project:role:assign-permission": ProjectScope;
   "project:settings:view": ProjectScope;
 
   // Issues — always live inside a project; WorkspaceScope skips project-role

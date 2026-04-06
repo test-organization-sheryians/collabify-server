@@ -7,15 +7,17 @@ export async function upsertRolePermission(
   permissionId: string,
   effect: "ALLOW" | "DENY",
   conditionsJson: string | undefined,
-  db: PrismaClient
+  db: PrismaClient,
+  projectId?: string
 ) {
-  // Verify role belongs to this workspace
+  // Verify role ownership — accepts both workspace roles and project roles
   const role = await db.role.findUnique({
     where: { id: roleId },
-    select: { workspaceId: true },
+    select: { workspaceId: true, projectId: true },
   });
   if (!role) throw AppError.notFound("Role not found");
   if (role.workspaceId !== workspaceId) throw AppError.forbidden("Role does not belong to this workspace");
+  if (projectId && role.projectId !== projectId) throw AppError.forbidden("Role does not belong to this project");
 
   // Verify permission exists
   const permission = await db.permission.findUnique({

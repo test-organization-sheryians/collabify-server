@@ -94,6 +94,13 @@ export const PROJECT_PERMISSIONS = [
     description: "Delete a custom project role",
     hasConditions: false,
   },
+  {
+    resource: "project:role",
+    action: "assign-permission",
+    module: "project",
+    description: "Assign or revoke permissions on a project role",
+    hasConditions: false,
+  },
   // ── Settings access ──────────────────────────────────────────────────────────
   {
     resource: "project:settings",

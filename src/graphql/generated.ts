@@ -1875,6 +1875,7 @@ export type Query = {
   projectBySlug?: Maybe<Project>;
   projectMembers: Array<ProjectMember>;
   projectOverview: ProjectOverview;
+  projectPermissions: Array<Permission>;
   projectRoles: Array<ProjectRole>;
   reactionUsers: ReactionUsersConnection;
   rolePermissions: Array<RolePermission>;
@@ -2158,6 +2159,12 @@ export type QueryProjectMembersArgs = {
 
 export type QueryProjectOverviewArgs = {
   projectId: Scalars['ID']['input'];
+};
+
+
+export type QueryProjectPermissionsArgs = {
+  projectId: Scalars['ID']['input'];
+  workspaceId: Scalars['ID']['input'];
 };
 
 
@@ -4165,6 +4172,7 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   projectBySlug?: Resolver<Maybe<ResolversTypes['Project']>, ParentType, ContextType, RequireFields<QueryProjectBySlugArgs, 'slug' | 'workspaceId'>>;
   projectMembers?: Resolver<Array<ResolversTypes['ProjectMember']>, ParentType, ContextType, RequireFields<QueryProjectMembersArgs, 'projectId'>>;
   projectOverview?: Resolver<ResolversTypes['ProjectOverview'], ParentType, ContextType, RequireFields<QueryProjectOverviewArgs, 'projectId'>>;
+  projectPermissions?: Resolver<Array<ResolversTypes['Permission']>, ParentType, ContextType, RequireFields<QueryProjectPermissionsArgs, 'projectId' | 'workspaceId'>>;
   projectRoles?: Resolver<Array<ResolversTypes['ProjectRole']>, ParentType, ContextType, RequireFields<QueryProjectRolesArgs, 'projectId' | 'workspaceId'>>;
   reactionUsers?: Resolver<ResolversTypes['ReactionUsersConnection'], ParentType, ContextType, RequireFields<QueryReactionUsersArgs, 'emoji' | 'messageId'>>;
   rolePermissions?: Resolver<Array<ResolversTypes['RolePermission']>, ParentType, ContextType, RequireFields<QueryRolePermissionsArgs, 'roleId' | 'workspaceId'>>;

@@ -47,6 +47,8 @@ import {
   GetProjectOverviewSchema,
   getAllPermissions,
   GetAllPermissionsSchema,
+  getProjectPermissions,
+  GetProjectPermissionsSchema,
 } from "../queries";
 
 export const resolvers: Resolvers = {
@@ -122,6 +124,15 @@ export const resolvers: Resolvers = {
       if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
       const data = GetAllPermissionsSchema.parse({ workspaceId: args.workspaceId });
       return getAllPermissions(data, ctx);
+    },
+
+    projectPermissions: async (_, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = GetProjectPermissionsSchema.parse({
+        workspaceId: args.workspaceId,
+        projectId: args.projectId,
+      });
+      return getProjectPermissions(data, ctx);
     },
   },
   Mutation: {

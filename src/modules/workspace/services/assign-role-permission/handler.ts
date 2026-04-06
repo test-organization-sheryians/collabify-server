@@ -4,8 +4,9 @@
  * Assigns (or updates) a permission grant/deny on a role.
  * Works for both workspace roles and project roles — roleId identifies the role.
  *
- * Auth:
- *   - permissions.assert("workspace:role:assign-permission") — ADMIN+ only (RBAC)
+ * Auth (scope-aware):
+ *   - Project role → assert("project:role:assign-permission", ProjectScope)
+ *   - Workspace role → assert("workspace:role:assign-permission", WorkspaceScope)
  * Anti-escalation guards:
  *   - Caller must possess the permission they are granting (ALLOW effect only)
  *   - Caller's role rank must be strictly greater than target role's rank
@@ -25,37 +26,46 @@ export const assignRolePermission = async (
 ) => {
   const { roleId, workspaceId, permissionId, effect, conditions } = input;
   if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
-  const scope = { type: "workspace" as const, id: workspaceId };
-  await ctx.permissions.assert("workspace:role:assign-permission", scope);
 
-  // Guard: system roles are immutable — their permissions cannot be modified
-  const [role, targetRole, actorMember] = await Promise.all([
-    ctx.db.role.findUnique({
-      where: { id: roleId },
-      select: { isSystem: true, rank: true },
-    }),
-    ctx.db.role.findUnique({
-      where: { id: roleId },
-      select: { rank: true },
-    }),
-    ctx.db.workspaceMember.findUnique({
-      where: { workspaceId_userId: { workspaceId, userId: ctx.auth.userId! } },
-      select: { assignedRole: { select: { rank: true } } },
-    }),
-  ]);
-
-  if (role?.isSystem) {
+  // Step 1: Determine role scope (project vs workspace) and lookup role metadata
+  const roleContext = await ctx.db.role.findUnique({
+    where: { id: roleId },
+    select: { isSystem: true, rank: true, projectId: true, workspaceId: true },
+  });
+  if (!roleContext) throw AppError.notFound("Role not found");
+  if (roleContext.isSystem) {
     throw AppError.forbidden("Cannot assign permissions to a system role");
   }
-  if (!actorMember) {
-    throw AppError.forbidden("Actor is not a workspace member");
-  }
-  if (!targetRole) {
-    throw AppError.notFound("Target role not found");
+
+  // Step 2: Scope-aware permission assertion + actor membership lookup
+  let actorRank: number;
+  if (roleContext.projectId) {
+    // Project role — assert project:role:assign-permission at ProjectScope
+    const projectScope = { type: "project" as const, id: roleContext.projectId, workspaceId };
+    await ctx.permissions.assert("project:role:assign-permission", projectScope);
+
+    const actorMember = await ctx.db.projectMember.findUnique({
+      where: { projectId_userId: { projectId: roleContext.projectId, userId: ctx.auth.userId! } },
+      select: { projectRole: { select: { rank: true } } },
+    });
+    if (!actorMember) throw AppError.forbidden("Actor is not a project member");
+    // If actor has no project-specific role, skip rank check (workspace owner fallback)
+    actorRank = actorMember.projectRole?.rank ?? 0;
+  } else {
+    // Workspace role — assert workspace:role:assign-permission at WorkspaceScope
+    const workspaceScope = { type: "workspace" as const, id: workspaceId };
+    await ctx.permissions.assert("workspace:role:assign-permission", workspaceScope);
+
+    const actorMember = await ctx.db.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId, userId: ctx.auth.userId! } },
+      select: { assignedRole: { select: { rank: true } } },
+    });
+    if (!actorMember) throw AppError.forbidden("Actor is not a workspace member");
+    actorRank = actorMember.assignedRole.rank;
   }
 
   // Anti-escalation Guard 1: caller's rank must be strictly greater than the target role's rank
-  if (actorMember.assignedRole.rank <= targetRole.rank) {
+  if (actorRank <= roleContext.rank) {
     throw AppError.forbidden(
       "You can only assign permissions to roles with a lower rank than your own"
     );
@@ -71,7 +81,11 @@ export const assignRolePermission = async (
     if (!permRow) throw AppError.notFound("Permission not found");
 
     const permString = `${permRow.resource}:${permRow.action}` as AppPermission;
-    const callerHasPerm = await ctx.permissions.can(permString, scope as any);
+    // Use the correct scope for the permission check
+    const checkScope = roleContext.projectId
+      ? { type: "project" as const, id: roleContext.projectId, workspaceId }
+      : { type: "workspace" as const, id: workspaceId };
+    const callerHasPerm = await ctx.permissions.can(permString, checkScope as any);
     if (!callerHasPerm) {
       throw AppError.forbidden(
         `You cannot grant a permission you do not possess: ${permString}`
@@ -85,22 +99,29 @@ export const assignRolePermission = async (
     permissionId,
     effect,
     conditions,
-    ctx.db
+    ctx.db,
+    roleContext.projectId ?? undefined
   );
 
   // Invalidate cached role permission set + all members holding this role
-  const roleMembers = await ctx.db.workspaceMember.findMany({
-    where: { roleId },
-    select: { userId: true },
-  });
-  await ctx.permissions.invalidate.invalidateRole(
-    roleId,
-    roleMembers.map((m) => m.userId)
-  );
+  let memberUserIds: string[];
+  if (roleContext.projectId) {
+    const projectMembers = await ctx.db.projectMember.findMany({
+      where: { projectId: roleContext.projectId, projectRoleId: roleId },
+      select: { userId: true },
+    });
+    memberUserIds = projectMembers.map((m) => m.userId);
+  } else {
+    const workspaceMembers = await ctx.db.workspaceMember.findMany({
+      where: { roleId },
+      select: { userId: true },
+    });
+    memberUserIds = workspaceMembers.map((m) => m.userId);
+  }
+  await ctx.permissions.invalidate.invalidateRole(roleId, memberUserIds);
 
   return {
     ...result,
     conditions: result.conditions != null ? JSON.stringify(result.conditions) : null,
   };
 };
-

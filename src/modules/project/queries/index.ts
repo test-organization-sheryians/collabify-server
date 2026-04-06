@@ -5,6 +5,7 @@ import { getProjectMembersTypeDefs } from "./get-project-members";
 import { getProjectRolesTypeDefs } from "./get-project-roles";
 import { getProjectOverviewTypeDefs } from "./get-project-overview";
 import { getAllPermissionsTypeDefs } from "./get-all-permissions";
+import { getProjectPermissionsTypeDefs } from "./get-project-permissions";
 
 export const typeDefs = [
   GetMyProjectsTypeDefs,
@@ -14,6 +15,7 @@ export const typeDefs = [
   getProjectRolesTypeDefs,
   getProjectOverviewTypeDefs,
   getAllPermissionsTypeDefs,
+  getProjectPermissionsTypeDefs,
 ].join("\n");
 
 export * from "./get-my-projects";
@@ -23,3 +25,4 @@ export * from "./get-project-members";
 export * from "./get-project-roles";
 export * from "./get-project-overview";
 export * from "./get-all-permissions";
+export * from "./get-project-permissions";

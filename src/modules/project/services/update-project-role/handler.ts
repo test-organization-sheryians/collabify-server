@@ -6,6 +6,7 @@
  * Steps:
  *   1. [auth] assert("project:role:update")
  *   2. updateProjectRoleData — guard isSystem + rank escalation, then partial update
+ *   3. [cache] invalidateRole — clear roleperms:{roleId} + all project members with this role
  */
 import { AppError } from "@/shared/errors";
 import type { UpdateProjectRoleInput } from "./schema";
@@ -30,7 +31,15 @@ export const updateProjectRole = async (
     ctx.db
   );
 
-  // TODO: invalidate roleperms:{roleId} cache once AuthGateInvalidator is wired to ServiceContext
+  // Invalidate cached role permission set + all project members holding this role
+  const roleMembers = await ctx.db.projectMember.findMany({
+    where: { projectId, projectRoleId: roleId },
+    select: { userId: true },
+  });
+  await ctx.permissions.invalidate.invalidateRole(
+    roleId,
+    roleMembers.map((m) => m.userId)
+  );
 
   return {
     ...updated,
