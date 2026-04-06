@@ -31,6 +31,8 @@ import {
   DeleteProjectRoleSchema,
   toggleProjectPlugin,
   ToggleProjectPluginSchema,
+  requestProjectLogoUpload,
+  RequestProjectLogoUploadSchema,
 } from "../services";
 import {
   getMyProjects,
@@ -280,6 +282,17 @@ export const resolvers: Resolvers = {
         actorUserId: ctx.auth.userId,
       });
       return toggleProjectPlugin(data, ctx);
+    },
+
+    requestProjectLogoUpload: async (_, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized('Unauthorized');
+      const data = RequestProjectLogoUploadSchema.parse({
+        projectId: args.projectId,
+        mimeType: args.mimeType,
+        sizeBytes: args.sizeBytes,
+        actorUserId: ctx.auth.userId,
+      });
+      return requestProjectLogoUpload(data, ctx);
     },
   },
 };

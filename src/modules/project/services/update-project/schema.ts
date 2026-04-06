@@ -6,6 +6,13 @@ export const UpdateProjectSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().nullable().optional(),
   isPrivate: z.boolean().optional(),
+  logoUrl: z.string().url().nullable().optional(),
+  key: z
+    .string()
+    .min(2)
+    .max(32)
+    .regex(/^[a-z0-9-]+$/, "Key must be lowercase letters, numbers, or hyphens only")
+    .optional(),
 });
 
 export type UpdateProjectInput = z.infer<typeof UpdateProjectSchema>;

@@ -12,6 +12,7 @@ import { createProjectRoleTypeDefs } from "./create-project-role";
 import { updateProjectRoleTypeDefs } from "./update-project-role";
 import { deleteProjectRoleTypeDefs } from "./delete-project-role";
 import { toggleProjectPluginTypeDefs } from "./toggle-project-plugin";
+import { requestProjectLogoUploadTypeDefs } from "./request-project-logo-upload";
 
 export const typeDefs = [
   CreateProjectTypeDefs,
@@ -28,6 +29,7 @@ export const typeDefs = [
   updateProjectRoleTypeDefs,
   deleteProjectRoleTypeDefs,
   toggleProjectPluginTypeDefs,
+  requestProjectLogoUploadTypeDefs,
 ].join("\n");
 
 export * from "./create-project";
@@ -44,3 +46,4 @@ export * from "./create-project-role";
 export * from "./update-project-role";
 export * from "./delete-project-role";
 export * from "./toggle-project-plugin";
+export * from "./request-project-logo-upload";

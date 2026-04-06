@@ -298,6 +298,7 @@ model Project {
   description String?
   isPrivate   Boolean @default(true) @map("is_private")
   isArchived  Boolean @default(false) @map("is_archived")
+  logoUrl     String? @map("logo_url")
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")

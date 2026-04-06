@@ -18,6 +18,7 @@ export const typeDefs = `
     description: String
     isPrivate: Boolean
     isArchived: Boolean
+    logoUrl: String
     createdAt: String!
     updatedAt: String!
     members: [ProjectMember!]!

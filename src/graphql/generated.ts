@@ -854,6 +854,7 @@ export type Mutation = {
   reorderPage: ReorderPageResult;
   /** Step 1 of 2: reserves an S3 slot and returns a presigned PUT URL. */
   requestIssueDescriptionUpload: RequestIssueDescriptionUploadResult;
+  requestProjectLogoUpload: ProjectLogoUploadPayload;
   /**
    * Step 1 of 2 for uploading a file to Vault.
    * Checks quota, creates a PENDING VaultFile row, returns a presigned PUT URL.
@@ -1340,6 +1341,13 @@ export type MutationRequestIssueDescriptionUploadArgs = {
 };
 
 
+export type MutationRequestProjectLogoUploadArgs = {
+  mimeType: Scalars['String']['input'];
+  projectId: Scalars['ID']['input'];
+  sizeBytes: Scalars['Int']['input'];
+};
+
+
 export type MutationRequestVaultUploadArgs = {
   input: RequestVaultUploadInput;
 };
@@ -1697,6 +1705,7 @@ export type Project = {
   isArchived?: Maybe<Scalars['Boolean']['output']>;
   isPrivate?: Maybe<Scalars['Boolean']['output']>;
   key: Scalars['String']['output'];
+  logoUrl?: Maybe<Scalars['String']['output']>;
   members: Array<ProjectMember>;
   name: Scalars['String']['output'];
   updatedAt: Scalars['String']['output'];
@@ -1713,6 +1722,16 @@ export type ProjectDmItem = {
   otherUser: DmUserProfile;
   unreadCount: Scalars['Int']['output'];
   updatedAt: Scalars['DateTime']['output'];
+};
+
+export type ProjectLogoUploadPayload = {
+  __typename?: 'ProjectLogoUploadPayload';
+  /** ISO timestamp after which the presigned PUT URL expires. */
+  expiresAt: Scalars['String']['output'];
+  /** The final S3 URL to store in Project.logoUrl after PUT succeeds. */
+  logoUrl: Scalars['String']['output'];
+  /** The presigned S3 PUT URL the client uses to upload directly. */
+  presignedUrl: Scalars['String']['output'];
 };
 
 export type ProjectMember = {
@@ -2580,6 +2599,8 @@ export type UpdateProfileInput = {
 export type UpdateProjectInput = {
   description?: InputMaybe<Scalars['String']['input']>;
   isPrivate?: InputMaybe<Scalars['Boolean']['input']>;
+  key?: InputMaybe<Scalars['String']['input']>;
+  logoUrl?: InputMaybe<Scalars['String']['input']>;
   name?: InputMaybe<Scalars['String']['input']>;
 };
 
@@ -3105,6 +3126,7 @@ export type ResolversTypes = ResolversObject<{
   PresenceStatus: PresenceStatus;
   Project: ResolverTypeWrapper<PrismaProject>;
   ProjectDmItem: ResolverTypeWrapper<ProjectDmItem>;
+  ProjectLogoUploadPayload: ResolverTypeWrapper<ProjectLogoUploadPayload>;
   ProjectMember: ResolverTypeWrapper<PrismaProjectMember>;
   ProjectOverview: ResolverTypeWrapper<ProjectOverview>;
   ProjectRole: ResolverTypeWrapper<ProjectRole>;
@@ -3319,6 +3341,7 @@ export type ResolversParentTypes = ResolversObject<{
   PinVaultFolderInput: PinVaultFolderInput;
   Project: PrismaProject;
   ProjectDmItem: ProjectDmItem;
+  ProjectLogoUploadPayload: ProjectLogoUploadPayload;
   ProjectMember: PrismaProjectMember;
   ProjectOverview: ProjectOverview;
   ProjectRole: ProjectRole;
@@ -3906,6 +3929,7 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   reorderIssueStatus?: Resolver<ResolversTypes['ReorderIssueStatusResult'], ParentType, ContextType, RequireFields<MutationReorderIssueStatusArgs, 'input'>>;
   reorderPage?: Resolver<ResolversTypes['ReorderPageResult'], ParentType, ContextType, RequireFields<MutationReorderPageArgs, 'input'>>;
   requestIssueDescriptionUpload?: Resolver<ResolversTypes['RequestIssueDescriptionUploadResult'], ParentType, ContextType, RequireFields<MutationRequestIssueDescriptionUploadArgs, 'input'>>;
+  requestProjectLogoUpload?: Resolver<ResolversTypes['ProjectLogoUploadPayload'], ParentType, ContextType, RequireFields<MutationRequestProjectLogoUploadArgs, 'mimeType' | 'projectId' | 'sizeBytes'>>;
   requestVaultUpload?: Resolver<ResolversTypes['RequestUploadResult'], ParentType, ContextType, RequireFields<MutationRequestVaultUploadArgs, 'input'>>;
   requestWorkspaceLogoUpload?: Resolver<ResolversTypes['WorkspaceLogoUploadPayload'], ParentType, ContextType, RequireFields<MutationRequestWorkspaceLogoUploadArgs, 'mimeType' | 'sizeBytes' | 'workspaceId'>>;
   resendWorkspaceInvite?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationResendWorkspaceInviteArgs, 'inviteId' | 'workspaceId'>>;
@@ -4068,6 +4092,7 @@ export type ProjectResolvers<ContextType = ServiceContext, ParentType extends Re
   isArchived?: Resolver<Maybe<ResolversTypes['Boolean']>, ParentType, ContextType>;
   isPrivate?: Resolver<Maybe<ResolversTypes['Boolean']>, ParentType, ContextType>;
   key?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  logoUrl?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   members?: Resolver<Array<ResolversTypes['ProjectMember']>, ParentType, ContextType>;
   name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   updatedAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
@@ -4079,6 +4104,12 @@ export type ProjectDmItemResolvers<ContextType = ServiceContext, ParentType exte
   otherUser?: Resolver<ResolversTypes['DmUserProfile'], ParentType, ContextType>;
   unreadCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+}>;
+
+export type ProjectLogoUploadPayloadResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ProjectLogoUploadPayload'] = ResolversParentTypes['ProjectLogoUploadPayload']> = ResolversObject<{
+  expiresAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  logoUrl?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  presignedUrl?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 }>;
 
 export type ProjectMemberResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ProjectMember'] = ResolversParentTypes['ProjectMember']> = ResolversObject<{
@@ -4682,6 +4713,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   PinFolderResult?: PinFolderResultResolvers<ContextType>;
   Project?: ProjectResolvers<ContextType>;
   ProjectDmItem?: ProjectDmItemResolvers<ContextType>;
+  ProjectLogoUploadPayload?: ProjectLogoUploadPayloadResolvers<ContextType>;
   ProjectMember?: ProjectMemberResolvers<ContextType>;
   ProjectOverview?: ProjectOverviewResolvers<ContextType>;
   ProjectRole?: ProjectRoleResolvers<ContextType>;

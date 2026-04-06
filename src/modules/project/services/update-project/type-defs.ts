@@ -3,6 +3,8 @@ export const updateProjectTypeDefs = `
     name: String
     description: String
     isPrivate: Boolean
+    logoUrl: String
+    key: String
   }
 
   extend type Mutation {

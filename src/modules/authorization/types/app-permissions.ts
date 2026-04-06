@@ -5,14 +5,12 @@
  * Run: bun run scripts/sync-permissions.ts
  *
  * Source: server/src/modules/[module]/permissions.ts
- * Last generated: 2026-04-01
+ * Last generated: 2026-04-06
  */
 
 import type { WorkspaceScope, ProjectScope, ResourceScope } from "./permission-types";
 
 // Workspace
-// NOTE: "workspace:create" is intentionally absent — it is a platform-level action
-// checked via session auth only, not an RBAC role permission.
 type WorkspacePermission =
   | "workspace:read"
   | "workspace:update"
@@ -139,7 +137,6 @@ export type AppPermission =
  */
 export interface PermissionScopeMap {
   // Workspace
-  // NOTE: "workspace:create" intentionally absent — platform-level action, not RBAC.
   "workspace:read": WorkspaceScope;
   "workspace:update": WorkspaceScope;
   "workspace:delete": WorkspaceScope;
@@ -158,10 +155,7 @@ export interface PermissionScopeMap {
   "workspace:settings:view": WorkspaceScope;
 
   // Project
-  // project:create — WorkspaceScope only: creating a project is a workspace-level action.
-  // Handlers always call assert("project:create", { type:"workspace", id: workspaceId }).
-  "project:create": WorkspaceScope;
-  // project:read — dual scope: WorkspaceScope for listing projects, ProjectScope for reading one.
+  "project:create": WorkspaceScope | ProjectScope;
   "project:read": WorkspaceScope | ProjectScope;
   "project:update": ProjectScope;
   "project:delete": ProjectScope;
@@ -176,45 +170,42 @@ export interface PermissionScopeMap {
   "project:role:assign-permission": ProjectScope;
   "project:settings:view": ProjectScope;
 
-  // Issues — always live inside a project; WorkspaceScope skips project-role
-  // evaluation in the resolver and will produce false 403s for project members.
-  "issue:create": ProjectScope | ResourceScope;
-  "issue:read": ProjectScope | ResourceScope;
-  "issue:update": ProjectScope | ResourceScope;
-  "issue:delete": ProjectScope | ResourceScope;
-  "issue:assign": ProjectScope | ResourceScope;
-  "issue:status:manage": ProjectScope | ResourceScope;
-  "issue:label:manage": ProjectScope | ResourceScope;
-  "issue:comment:create": ProjectScope | ResourceScope;
-  "issue:comment:delete": ProjectScope | ResourceScope;
-  "issue:comment:delete-any": ProjectScope | ResourceScope;
+  // Issues
+  "issue:create": WorkspaceScope | ProjectScope | ResourceScope;
+  "issue:read": WorkspaceScope | ProjectScope | ResourceScope;
+  "issue:update": WorkspaceScope | ProjectScope | ResourceScope;
+  "issue:delete": WorkspaceScope | ProjectScope | ResourceScope;
+  "issue:assign": WorkspaceScope | ProjectScope | ResourceScope;
+  "issue:status:manage": WorkspaceScope | ProjectScope | ResourceScope;
+  "issue:label:manage": WorkspaceScope | ProjectScope | ResourceScope;
+  "issue:comment:create": WorkspaceScope | ProjectScope | ResourceScope;
+  "issue:comment:delete": WorkspaceScope | ProjectScope | ResourceScope;
+  "issue:comment:delete-any": WorkspaceScope | ProjectScope | ResourceScope;
 
-  // Pages — always live inside a project; WorkspaceScope skips project-role
-  // evaluation in the resolver and will produce false 403s for project members.
-  "page:create": ProjectScope | ResourceScope;
-  "page:read": ProjectScope | ResourceScope;
-  "page:update": ProjectScope | ResourceScope;
-  "page:delete": ProjectScope | ResourceScope;
-  "page:archive": ProjectScope | ResourceScope;
-  "page:lock": ProjectScope | ResourceScope;
-  "page:share": ProjectScope | ResourceScope;
-  "page:collaborator:read": ProjectScope | ResourceScope;
-  "page:collaborator:add": ProjectScope | ResourceScope;
-  "page:collaborator:remove": ProjectScope | ResourceScope;
+  // Pages
+  "page:create": WorkspaceScope | ProjectScope | ResourceScope;
+  "page:read": WorkspaceScope | ProjectScope | ResourceScope;
+  "page:update": WorkspaceScope | ProjectScope | ResourceScope;
+  "page:delete": WorkspaceScope | ProjectScope | ResourceScope;
+  "page:archive": WorkspaceScope | ProjectScope | ResourceScope;
+  "page:lock": WorkspaceScope | ProjectScope | ResourceScope;
+  "page:share": WorkspaceScope | ProjectScope | ResourceScope;
+  "page:collaborator:read": WorkspaceScope | ProjectScope | ResourceScope;
+  "page:collaborator:add": WorkspaceScope | ProjectScope | ResourceScope;
+  "page:collaborator:remove": WorkspaceScope | ProjectScope | ResourceScope;
 
-  // Whiteboard — always live inside a project; WorkspaceScope skips project-role
-  // evaluation in the resolver and will produce false 403s for project members.
-  "whiteboard:create": ProjectScope | ResourceScope;
-  "whiteboard:read": ProjectScope | ResourceScope;
-  "whiteboard:edit": ProjectScope | ResourceScope;
-  "whiteboard:update": ProjectScope | ResourceScope;
-  "whiteboard:delete": ProjectScope | ResourceScope;
-  "whiteboard:archive": ProjectScope | ResourceScope;
-  "whiteboard:lock": ProjectScope | ResourceScope;
-  "whiteboard:share": ProjectScope | ResourceScope;
-  "whiteboard:collaborator:read": ProjectScope | ResourceScope;
-  "whiteboard:collaborator:add": ProjectScope | ResourceScope;
-  "whiteboard:collaborator:remove": ProjectScope | ResourceScope;
+  // Whiteboard
+  "whiteboard:create": WorkspaceScope | ProjectScope | ResourceScope;
+  "whiteboard:read": WorkspaceScope | ProjectScope | ResourceScope;
+  "whiteboard:edit": WorkspaceScope | ProjectScope | ResourceScope;
+  "whiteboard:update": WorkspaceScope | ProjectScope | ResourceScope;
+  "whiteboard:delete": WorkspaceScope | ProjectScope | ResourceScope;
+  "whiteboard:archive": WorkspaceScope | ProjectScope | ResourceScope;
+  "whiteboard:lock": WorkspaceScope | ProjectScope | ResourceScope;
+  "whiteboard:share": WorkspaceScope | ProjectScope | ResourceScope;
+  "whiteboard:collaborator:read": WorkspaceScope | ProjectScope | ResourceScope;
+  "whiteboard:collaborator:add": WorkspaceScope | ProjectScope | ResourceScope;
+  "whiteboard:collaborator:remove": WorkspaceScope | ProjectScope | ResourceScope;
 
   // Chat
   "chat:channel:create": ProjectScope;
