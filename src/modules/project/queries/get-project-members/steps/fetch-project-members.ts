@@ -11,7 +11,7 @@ export async function fetchProjectMembers(projectId: string, db: PrismaClient) {
     where: { projectId },
     include: {
       user: true,
-      projectRole: { select: { name: true } },
+      projectRole: { select: { id: true, name: true } },
     },
     orderBy: { joinedAt: "asc" },
   });
@@ -19,5 +19,6 @@ export async function fetchProjectMembers(projectId: string, db: PrismaClient) {
   return members.map((m) => ({
     ...m,
     role: m.projectRole?.name ?? null,
+    roleId: m.projectRole?.id ?? null,
   }));
 }

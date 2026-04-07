@@ -38,5 +38,12 @@ export const addProjectMember = async (
     { mode: "add" }
   );
 
-  return createProjectMember(projectId, workspaceId, targetUserId, db, effectiveRoleId);
+  const member = await createProjectMember(projectId, workspaceId, targetUserId, db, effectiveRoleId);
+
+  await Promise.all([
+    ctx.permissions.invalidate.invalidateUser(targetUserId, projectId),
+    ctx.authGate.invalidate.projectMember(projectId, targetUserId),
+  ]);
+
+  return member;
 };

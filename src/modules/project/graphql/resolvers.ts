@@ -77,6 +77,10 @@ export const resolvers: Resolvers = {
     // SDL declares joinedAt as String! — this is the correct place for Date→string serialization.
     joinedAt: (parent) => (parent.joinedAt as unknown as Date).toISOString(),
     role: (parent) => (parent as any).role ?? (parent as any).projectRole?.name ?? null,
+    // Map Prisma's `projectRoleId` FK to the GQL `roleId` field.
+    // Falls back to projectRole.id when the relation is included (e.g. from mutation responses).
+    roleId: (parent) =>
+      (parent as any).projectRoleId ?? (parent as any).projectRole?.id ?? null,
   },
   Query: {
     myProjects: async (_, args, ctx) => {

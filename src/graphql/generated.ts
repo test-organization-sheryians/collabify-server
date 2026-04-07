@@ -1739,6 +1739,7 @@ export type ProjectMember = {
   id: Scalars['ID']['output'];
   joinedAt: Scalars['String']['output'];
   role?: Maybe<Scalars['String']['output']>;
+  roleId?: Maybe<Scalars['ID']['output']>;
   user: User;
   userId: Scalars['ID']['output'];
 };
@@ -4116,6 +4117,7 @@ export type ProjectMemberResolvers<ContextType = ServiceContext, ParentType exte
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   joinedAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   role?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  roleId?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
   user?: Resolver<ResolversTypes['User'], ParentType, ContextType>;
   userId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
 }>;

@@ -7,6 +7,7 @@ export const typeDefs = `
     user: User!
     userId: ID!
     role: String
+    roleId: ID
     joinedAt: String!
   }
 

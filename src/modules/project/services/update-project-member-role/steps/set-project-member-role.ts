@@ -26,7 +26,7 @@ export async function setProjectMemberRole(
     data: { projectRoleId: roleId },
     include: {
       user: true,
-      projectRole: { select: { name: true } },
+      projectRole: { select: { id: true, name: true } },
     },
   });
 }

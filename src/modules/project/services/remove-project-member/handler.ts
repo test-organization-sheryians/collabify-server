@@ -63,5 +63,11 @@ export const removeProjectMember = async (
   }
 
   await deleteProjectMember(projectId, targetUserId, db);
+
+  await Promise.all([
+    ctx.permissions.invalidate.invalidateUser(targetUserId, projectId),
+    ctx.authGate.invalidate.projectMember(projectId, targetUserId),
+  ]);
+
   return true;
 };

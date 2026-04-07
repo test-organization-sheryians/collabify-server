@@ -13,7 +13,10 @@ export async function createProjectMember(
   try {
     return await db.projectMember.create({
       data: { projectId, workspaceId, userId, ...(projectRoleId ? { projectRoleId } : {}) },
-      include: { user: true },
+      include: {
+        user: true,
+        projectRole: { select: { id: true, name: true } },
+      },
     });
   } catch (err) {
     if (

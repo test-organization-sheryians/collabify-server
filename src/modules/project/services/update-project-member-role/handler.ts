@@ -13,6 +13,7 @@ import type { UpdateProjectMemberRoleInput } from "./schema";
 import type { ServiceContext } from "@/graphql/types";
 import { enforceWorkspaceGuestCeiling } from "../add-project-member/steps/enforce-workspace-guest-ceiling";
 import { setProjectMemberRole } from "./steps/set-project-member-role";
+import { keys } from "@/modules/authorization/cache/keys";
 
 export const updateProjectMemberRole = async (
   input: UpdateProjectMemberRoleInput,
@@ -31,5 +32,28 @@ export const updateProjectMemberRole = async (
     mode: "update",
   });
 
-  return setProjectMemberRole(projectId, targetUserId, roleId, db);
+  // Fetch current roleId before update for role-member index maintenance
+  const currentMember = await db.projectMember.findUnique({
+    where: { projectId_userId: { projectId, userId: targetUserId } },
+    select: { projectRoleId: true },
+  });
+  const oldRoleId = currentMember?.projectRoleId ?? null;
+
+  const member = await setProjectMemberRole(projectId, targetUserId, roleId, db);
+
+  // Build role-member index ops — srem old role if present, always sadd new role
+  const indexOps: Promise<unknown>[] = [
+    ctx.redis.sadd(keys.roleMembersIndex(roleId), targetUserId),
+  ];
+  if (oldRoleId) {
+    indexOps.push(ctx.redis.srem(keys.roleMembersIndex(oldRoleId), targetUserId));
+  }
+
+  await Promise.all([
+    ctx.permissions.invalidate.invalidateUser(targetUserId, projectId),
+    ctx.authGate.invalidate.projectMember(projectId, targetUserId),
+    ...indexOps,
+  ]);
+
+  return member;
 };
