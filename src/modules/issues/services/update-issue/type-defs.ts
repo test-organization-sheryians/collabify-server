@@ -6,6 +6,7 @@ export const typeDefs = /* GraphQL */ `
   input UpdateIssueInput {
     issueId: ID!
     title: String
+    statusId: ID
     priority: IssuePriority
     assigneeId: ID
     labelIds: [ID!]

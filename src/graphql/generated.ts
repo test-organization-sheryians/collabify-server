@@ -154,6 +154,14 @@ export type ChannelMemberInfo = {
   userId: Scalars['ID']['output'];
 };
 
+export type ChannelPreview = {
+  __typename?: 'ChannelPreview';
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  topic?: Maybe<Scalars['String']['output']>;
+  updatedAt: Scalars['String']['output'];
+};
+
 export type ChatMemberRecord = {
   __typename?: 'ChatMemberRecord';
   conversationId: Scalars['ID']['output'];
@@ -212,6 +220,15 @@ export type ConfirmUploadResult = {
 
 export type ConfirmVaultUploadInput = {
   fileId: Scalars['ID']['input'];
+};
+
+export type ContributorStats = {
+  __typename?: 'ContributorStats';
+  assigned: Scalars['Int']['output'];
+  avatarUrl?: Maybe<Scalars['String']['output']>;
+  completed: Scalars['Int']['output'];
+  name: Scalars['String']['output'];
+  userId: Scalars['ID']['output'];
 };
 
 export type Conversation = {
@@ -1643,6 +1660,15 @@ export type PageInfo = {
   hasNextPage: Scalars['Boolean']['output'];
 };
 
+export type PagePreview = {
+  __typename?: 'PagePreview';
+  createdByName?: Maybe<Scalars['String']['output']>;
+  emojiIcon?: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  title: Scalars['String']['output'];
+  updatedAt: Scalars['String']['output'];
+};
+
 export enum PageRole {
   Commenter = 'COMMENTER',
   Editor = 'EDITOR',
@@ -1696,6 +1722,12 @@ export enum PresenceStatus {
   Online = 'ONLINE'
 }
 
+export type PriorityCount = {
+  __typename?: 'PriorityCount';
+  count: Scalars['Int']['output'];
+  priority: Scalars['String']['output'];
+};
+
 export type Project = {
   __typename?: 'Project';
   activePlugins: Array<Scalars['String']['output']>;
@@ -1747,13 +1779,21 @@ export type ProjectMember = {
 export type ProjectOverview = {
   __typename?: 'ProjectOverview';
   completedIssues: Scalars['Int']['output'];
+  issuesByPriority: Array<PriorityCount>;
   issuesByStatus: Array<IssueStatusCount>;
+  memberCount: Scalars['Int']['output'];
   members: Array<OverviewMember>;
   openIssues: Scalars['Int']['output'];
   overdueIssues: Scalars['Int']['output'];
   pageCount: Scalars['Int']['output'];
+  projectChannels: Array<ChannelPreview>;
   recentIssues: Array<OverviewIssue>;
+  recentPages: Array<PagePreview>;
+  recentVaultFiles: Array<VaultFilePreview>;
+  recentWhiteboards: Array<WhiteboardPreview>;
   totalIssues: Scalars['Int']['output'];
+  upcomingIssues: Array<UpcomingIssue>;
+  vaultUsage: VaultUsageSummary;
 };
 
 export type ProjectRole = {
@@ -1893,10 +1933,12 @@ export type Query = {
   onboardingStatus: OnboardingStatus;
   project?: Maybe<Project>;
   projectBySlug?: Maybe<Project>;
+  projectContributorStats: Array<ContributorStats>;
   projectMembers: Array<ProjectMember>;
   projectOverview: ProjectOverview;
   projectPermissions: Array<Permission>;
   projectRoles: Array<ProjectRole>;
+  projectVelocity: Array<VelocityData>;
   reactionUsers: ReactionUsersConnection;
   rolePermissions: Array<RolePermission>;
   /** Get count of unread notifications. */
@@ -2172,6 +2214,11 @@ export type QueryProjectBySlugArgs = {
 };
 
 
+export type QueryProjectContributorStatsArgs = {
+  projectId: Scalars['ID']['input'];
+};
+
+
 export type QueryProjectMembersArgs = {
   projectId: Scalars['ID']['input'];
 };
@@ -2191,6 +2238,12 @@ export type QueryProjectPermissionsArgs = {
 export type QueryProjectRolesArgs = {
   projectId: Scalars['ID']['input'];
   workspaceId: Scalars['ID']['input'];
+};
+
+
+export type QueryProjectVelocityArgs = {
+  days?: InputMaybe<Scalars['Int']['input']>;
+  projectId: Scalars['ID']['input'];
 };
 
 
@@ -2538,6 +2591,18 @@ export type UnsubscribeThreadResult = {
   threadId: Scalars['ID']['output'];
 };
 
+export type UpcomingIssue = {
+  __typename?: 'UpcomingIssue';
+  assigneeAvatar?: Maybe<Scalars['String']['output']>;
+  assigneeName?: Maybe<Scalars['String']['output']>;
+  dueDate: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  number: Scalars['Int']['output'];
+  statusColor: Scalars['String']['output'];
+  statusName: Scalars['String']['output'];
+  title: Scalars['String']['output'];
+};
+
 export type UpdateChannelDescriptionResult = {
   __typename?: 'UpdateChannelDescriptionResult';
   channelId: Scalars['ID']['output'];
@@ -2725,6 +2790,16 @@ export type VaultFile = {
   workspaceId: Scalars['ID']['output'];
 };
 
+export type VaultFilePreview = {
+  __typename?: 'VaultFilePreview';
+  createdAt: Scalars['String']['output'];
+  createdByName?: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  mimeType: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  sizeBytes: Scalars['Float']['output'];
+};
+
 export enum VaultFileSource {
   Chat = 'CHAT',
   Page = 'PAGE',
@@ -2787,6 +2862,19 @@ export type VaultUsage = {
   workspaceUsedBytes: Scalars['Float']['output'];
 };
 
+export type VaultUsageSummary = {
+  __typename?: 'VaultUsageSummary';
+  fileCount: Scalars['Int']['output'];
+  usedBytes: Scalars['Float']['output'];
+};
+
+export type VelocityData = {
+  __typename?: 'VelocityData';
+  completed: Scalars['Int']['output'];
+  created: Scalars['Int']['output'];
+  date: Scalars['String']['output'];
+};
+
 export type Whiteboard = {
   __typename?: 'Whiteboard';
   collaborators?: Maybe<Array<BoardCollaborator>>;
@@ -2804,6 +2892,15 @@ export type Whiteboard = {
   title: Scalars['String']['output'];
   updatedAt: Scalars['DateTime']['output'];
   workspaceId: Scalars['ID']['output'];
+};
+
+export type WhiteboardPreview = {
+  __typename?: 'WhiteboardPreview';
+  elementCount: Scalars['Int']['output'];
+  id: Scalars['ID']['output'];
+  isLocked: Scalars['Boolean']['output'];
+  title: Scalars['String']['output'];
+  updatedAt: Scalars['String']['output'];
 };
 
 export type Workspace = {
@@ -3023,6 +3120,7 @@ export type ResolversTypes = ResolversObject<{
   Boolean: ResolverTypeWrapper<Scalars['Boolean']['output']>;
   ChannelAvailabilityResponse: ResolverTypeWrapper<ChannelAvailabilityResponse>;
   ChannelMemberInfo: ResolverTypeWrapper<ChannelMemberInfo>;
+  ChannelPreview: ResolverTypeWrapper<ChannelPreview>;
   ChatMemberRecord: ResolverTypeWrapper<PrismaChatMember>;
   ChatMessage: ResolverTypeWrapper<PrismaChatMessage>;
   CheckChannelAvailabilityInput: CheckChannelAvailabilityInput;
@@ -3031,6 +3129,7 @@ export type ResolversTypes = ResolversObject<{
   ConfirmIssueDescriptionUploadResult: ResolverTypeWrapper<Omit<ConfirmIssueDescriptionUploadResult, 'issue'> & { issue: ResolversTypes['Issue'] }>;
   ConfirmUploadResult: ResolverTypeWrapper<Omit<ConfirmUploadResult, 'file'> & { file: ResolversTypes['VaultFile'] }>;
   ConfirmVaultUploadInput: ConfirmVaultUploadInput;
+  ContributorStats: ResolverTypeWrapper<ContributorStats>;
   Conversation: ResolverTypeWrapper<Omit<Conversation, 'members'> & { members?: Maybe<Array<ResolversTypes['ConversationMember']>> }>;
   ConversationConnection: ResolverTypeWrapper<Omit<ConversationConnection, 'edges'> & { edges: Array<ResolversTypes['Conversation']> }>;
   ConversationMember: ResolverTypeWrapper<PrismaChatMember>;
@@ -3118,6 +3217,7 @@ export type ResolversTypes = ResolversObject<{
   PageCollaborator: ResolverTypeWrapper<PageCollaborator>;
   PageCollaboratorInput: PageCollaboratorInput;
   PageInfo: ResolverTypeWrapper<PageInfo>;
+  PagePreview: ResolverTypeWrapper<PagePreview>;
   PageRole: PageRole;
   PageSnapshot: ResolverTypeWrapper<PageSnapshot>;
   PendingInviteEntry: ResolverTypeWrapper<PendingInviteEntry>;
@@ -3125,6 +3225,7 @@ export type ResolversTypes = ResolversObject<{
   PinFolderResult: ResolverTypeWrapper<Omit<PinFolderResult, 'folder'> & { folder: ResolversTypes['VaultFolder'] }>;
   PinVaultFolderInput: PinVaultFolderInput;
   PresenceStatus: PresenceStatus;
+  PriorityCount: ResolverTypeWrapper<PriorityCount>;
   Project: ResolverTypeWrapper<PrismaProject>;
   ProjectDmItem: ResolverTypeWrapper<ProjectDmItem>;
   ProjectLogoUploadPayload: ResolverTypeWrapper<ProjectLogoUploadPayload>;
@@ -3177,6 +3278,7 @@ export type ResolversTypes = ResolversObject<{
   UnpinVaultFolderInput: UnpinVaultFolderInput;
   UnreadCountsResponse: ResolverTypeWrapper<UnreadCountsResponse>;
   UnsubscribeThreadResult: ResolverTypeWrapper<UnsubscribeThreadResult>;
+  UpcomingIssue: ResolverTypeWrapper<UpcomingIssue>;
   UpdateChannelDescriptionResult: ResolverTypeWrapper<UpdateChannelDescriptionResult>;
   UpdateChannelVisibilityResult: ResolverTypeWrapper<UpdateChannelVisibilityResult>;
   UpdateIssueInput: UpdateIssueInput;
@@ -3199,6 +3301,7 @@ export type ResolversTypes = ResolversObject<{
   VaultChildrenResult: ResolverTypeWrapper<Omit<VaultChildrenResult, 'files' | 'folders'> & { files: Array<ResolversTypes['VaultFile']>, folders: Array<ResolversTypes['VaultFolder']> }>;
   VaultDownloadUrl: ResolverTypeWrapper<VaultDownloadUrl>;
   VaultFile: ResolverTypeWrapper<GraphQLVaultFile>;
+  VaultFilePreview: ResolverTypeWrapper<VaultFilePreview>;
   VaultFileSource: VaultFileSource;
   VaultFolder: ResolverTypeWrapper<GraphQLVaultFolder>;
   VaultNode: ResolverTypeWrapper<ResolversUnionTypes<ResolversTypes>['VaultNode']>;
@@ -3207,7 +3310,10 @@ export type ResolversTypes = ResolversObject<{
   VaultSortField: VaultSortField;
   VaultUploader: ResolverTypeWrapper<VaultUploader>;
   VaultUsage: ResolverTypeWrapper<VaultUsage>;
+  VaultUsageSummary: ResolverTypeWrapper<VaultUsageSummary>;
+  VelocityData: ResolverTypeWrapper<VelocityData>;
   Whiteboard: ResolverTypeWrapper<Whiteboard>;
+  WhiteboardPreview: ResolverTypeWrapper<WhiteboardPreview>;
   Workspace: ResolverTypeWrapper<PrismaWorkspace>;
   WorkspaceHomeEntry: ResolverTypeWrapper<WorkspaceHomeEntry>;
   WorkspaceInvite: ResolverTypeWrapper<WorkspaceInvite>;
@@ -3243,6 +3349,7 @@ export type ResolversParentTypes = ResolversObject<{
   Boolean: Scalars['Boolean']['output'];
   ChannelAvailabilityResponse: ChannelAvailabilityResponse;
   ChannelMemberInfo: ChannelMemberInfo;
+  ChannelPreview: ChannelPreview;
   ChatMemberRecord: PrismaChatMember;
   ChatMessage: PrismaChatMessage;
   CheckChannelAvailabilityInput: CheckChannelAvailabilityInput;
@@ -3251,6 +3358,7 @@ export type ResolversParentTypes = ResolversObject<{
   ConfirmIssueDescriptionUploadResult: Omit<ConfirmIssueDescriptionUploadResult, 'issue'> & { issue: ResolversParentTypes['Issue'] };
   ConfirmUploadResult: Omit<ConfirmUploadResult, 'file'> & { file: ResolversParentTypes['VaultFile'] };
   ConfirmVaultUploadInput: ConfirmVaultUploadInput;
+  ContributorStats: ContributorStats;
   Conversation: Omit<Conversation, 'members'> & { members?: Maybe<Array<ResolversParentTypes['ConversationMember']>> };
   ConversationConnection: Omit<ConversationConnection, 'edges'> & { edges: Array<ResolversParentTypes['Conversation']> };
   ConversationMember: PrismaChatMember;
@@ -3335,11 +3443,13 @@ export type ResolversParentTypes = ResolversObject<{
   PageCollaborator: PageCollaborator;
   PageCollaboratorInput: PageCollaboratorInput;
   PageInfo: PageInfo;
+  PagePreview: PagePreview;
   PageSnapshot: PageSnapshot;
   PendingInviteEntry: PendingInviteEntry;
   Permission: Permission;
   PinFolderResult: Omit<PinFolderResult, 'folder'> & { folder: ResolversParentTypes['VaultFolder'] };
   PinVaultFolderInput: PinVaultFolderInput;
+  PriorityCount: PriorityCount;
   Project: PrismaProject;
   ProjectDmItem: ProjectDmItem;
   ProjectLogoUploadPayload: ProjectLogoUploadPayload;
@@ -3391,6 +3501,7 @@ export type ResolversParentTypes = ResolversObject<{
   UnpinVaultFolderInput: UnpinVaultFolderInput;
   UnreadCountsResponse: UnreadCountsResponse;
   UnsubscribeThreadResult: UnsubscribeThreadResult;
+  UpcomingIssue: UpcomingIssue;
   UpdateChannelDescriptionResult: UpdateChannelDescriptionResult;
   UpdateChannelVisibilityResult: UpdateChannelVisibilityResult;
   UpdateIssueInput: UpdateIssueInput;
@@ -3413,12 +3524,16 @@ export type ResolversParentTypes = ResolversObject<{
   VaultChildrenResult: Omit<VaultChildrenResult, 'files' | 'folders'> & { files: Array<ResolversParentTypes['VaultFile']>, folders: Array<ResolversParentTypes['VaultFolder']> };
   VaultDownloadUrl: VaultDownloadUrl;
   VaultFile: GraphQLVaultFile;
+  VaultFilePreview: VaultFilePreview;
   VaultFolder: GraphQLVaultFolder;
   VaultNode: ResolversUnionTypes<ResolversParentTypes>['VaultNode'];
   VaultSidebar: Omit<VaultSidebar, 'pinnedFolders' | 'systemFolders'> & { pinnedFolders: Array<ResolversParentTypes['VaultFolder']>, systemFolders: Array<ResolversParentTypes['VaultFolder']> };
   VaultUploader: VaultUploader;
   VaultUsage: VaultUsage;
+  VaultUsageSummary: VaultUsageSummary;
+  VelocityData: VelocityData;
   Whiteboard: Whiteboard;
+  WhiteboardPreview: WhiteboardPreview;
   Workspace: PrismaWorkspace;
   WorkspaceHomeEntry: WorkspaceHomeEntry;
   WorkspaceInvite: WorkspaceInvite;
@@ -3525,6 +3640,13 @@ export type ChannelMemberInfoResolvers<ContextType = ServiceContext, ParentType 
   userId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
 }>;
 
+export type ChannelPreviewResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ChannelPreview'] = ResolversParentTypes['ChannelPreview']> = ResolversObject<{
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  topic?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+}>;
+
 export type ChatMemberRecordResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ChatMemberRecord'] = ResolversParentTypes['ChatMemberRecord']> = ResolversObject<{
   conversationId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
@@ -3565,6 +3687,14 @@ export type ConfirmIssueDescriptionUploadResultResolvers<ContextType = ServiceCo
 
 export type ConfirmUploadResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ConfirmUploadResult'] = ResolversParentTypes['ConfirmUploadResult']> = ResolversObject<{
   file?: Resolver<ResolversTypes['VaultFile'], ParentType, ContextType>;
+}>;
+
+export type ContributorStatsResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ContributorStats'] = ResolversParentTypes['ContributorStats']> = ResolversObject<{
+  assigned?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  avatarUrl?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  completed?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  userId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
 }>;
 
 export type ConversationResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Conversation'] = ResolversParentTypes['Conversation']> = ResolversObject<{
@@ -4060,6 +4190,14 @@ export type PageInfoResolvers<ContextType = ServiceContext, ParentType extends R
   hasNextPage?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
 }>;
 
+export type PagePreviewResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['PagePreview'] = ResolversParentTypes['PagePreview']> = ResolversObject<{
+  createdByName?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  emojiIcon?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+}>;
+
 export type PageSnapshotResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['PageSnapshot'] = ResolversParentTypes['PageSnapshot']> = ResolversObject<{
   lastStreamId?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   snapshot?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
@@ -4083,6 +4221,11 @@ export type PermissionResolvers<ContextType = ServiceContext, ParentType extends
 
 export type PinFolderResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['PinFolderResult'] = ResolversParentTypes['PinFolderResult']> = ResolversObject<{
   folder?: Resolver<ResolversTypes['VaultFolder'], ParentType, ContextType>;
+}>;
+
+export type PriorityCountResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['PriorityCount'] = ResolversParentTypes['PriorityCount']> = ResolversObject<{
+  count?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  priority?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 }>;
 
 export type ProjectResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Project'] = ResolversParentTypes['Project']> = ResolversObject<{
@@ -4124,13 +4267,21 @@ export type ProjectMemberResolvers<ContextType = ServiceContext, ParentType exte
 
 export type ProjectOverviewResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ProjectOverview'] = ResolversParentTypes['ProjectOverview']> = ResolversObject<{
   completedIssues?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  issuesByPriority?: Resolver<Array<ResolversTypes['PriorityCount']>, ParentType, ContextType>;
   issuesByStatus?: Resolver<Array<ResolversTypes['IssueStatusCount']>, ParentType, ContextType>;
+  memberCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   members?: Resolver<Array<ResolversTypes['OverviewMember']>, ParentType, ContextType>;
   openIssues?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   overdueIssues?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   pageCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  projectChannels?: Resolver<Array<ResolversTypes['ChannelPreview']>, ParentType, ContextType>;
   recentIssues?: Resolver<Array<ResolversTypes['OverviewIssue']>, ParentType, ContextType>;
+  recentPages?: Resolver<Array<ResolversTypes['PagePreview']>, ParentType, ContextType>;
+  recentVaultFiles?: Resolver<Array<ResolversTypes['VaultFilePreview']>, ParentType, ContextType>;
+  recentWhiteboards?: Resolver<Array<ResolversTypes['WhiteboardPreview']>, ParentType, ContextType>;
   totalIssues?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  upcomingIssues?: Resolver<Array<ResolversTypes['UpcomingIssue']>, ParentType, ContextType>;
+  vaultUsage?: Resolver<ResolversTypes['VaultUsageSummary'], ParentType, ContextType>;
 }>;
 
 export type ProjectRoleResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ProjectRole'] = ResolversParentTypes['ProjectRole']> = ResolversObject<{
@@ -4203,10 +4354,12 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   onboardingStatus?: Resolver<ResolversTypes['OnboardingStatus'], ParentType, ContextType>;
   project?: Resolver<Maybe<ResolversTypes['Project']>, ParentType, ContextType, RequireFields<QueryProjectArgs, 'id'>>;
   projectBySlug?: Resolver<Maybe<ResolversTypes['Project']>, ParentType, ContextType, RequireFields<QueryProjectBySlugArgs, 'slug' | 'workspaceId'>>;
+  projectContributorStats?: Resolver<Array<ResolversTypes['ContributorStats']>, ParentType, ContextType, RequireFields<QueryProjectContributorStatsArgs, 'projectId'>>;
   projectMembers?: Resolver<Array<ResolversTypes['ProjectMember']>, ParentType, ContextType, RequireFields<QueryProjectMembersArgs, 'projectId'>>;
   projectOverview?: Resolver<ResolversTypes['ProjectOverview'], ParentType, ContextType, RequireFields<QueryProjectOverviewArgs, 'projectId'>>;
   projectPermissions?: Resolver<Array<ResolversTypes['Permission']>, ParentType, ContextType, RequireFields<QueryProjectPermissionsArgs, 'projectId' | 'workspaceId'>>;
   projectRoles?: Resolver<Array<ResolversTypes['ProjectRole']>, ParentType, ContextType, RequireFields<QueryProjectRolesArgs, 'projectId' | 'workspaceId'>>;
+  projectVelocity?: Resolver<Array<ResolversTypes['VelocityData']>, ParentType, ContextType, RequireFields<QueryProjectVelocityArgs, 'projectId'>>;
   reactionUsers?: Resolver<ResolversTypes['ReactionUsersConnection'], ParentType, ContextType, RequireFields<QueryReactionUsersArgs, 'emoji' | 'messageId'>>;
   rolePermissions?: Resolver<Array<ResolversTypes['RolePermission']>, ParentType, ContextType, RequireFields<QueryRolePermissionsArgs, 'roleId' | 'workspaceId'>>;
   unreadNotificationCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
@@ -4364,6 +4517,17 @@ export type UnsubscribeThreadResultResolvers<ContextType = ServiceContext, Paren
   threadId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
 }>;
 
+export type UpcomingIssueResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['UpcomingIssue'] = ResolversParentTypes['UpcomingIssue']> = ResolversObject<{
+  assigneeAvatar?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  assigneeName?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  dueDate?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  number?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  statusColor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  statusName?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+}>;
+
 export type UpdateChannelDescriptionResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['UpdateChannelDescriptionResult'] = ResolversParentTypes['UpdateChannelDescriptionResult']> = ResolversObject<{
   channelId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
@@ -4470,6 +4634,15 @@ export type VaultFileResolvers<ContextType = ServiceContext, ParentType extends 
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 }>;
 
+export type VaultFilePreviewResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['VaultFilePreview'] = ResolversParentTypes['VaultFilePreview']> = ResolversObject<{
+  createdAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  createdByName?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  mimeType?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  sizeBytes?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+}>;
+
 export type VaultFolderResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['VaultFolder'] = ResolversParentTypes['VaultFolder']> = ResolversObject<{
   createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
   deletedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
@@ -4511,6 +4684,17 @@ export type VaultUsageResolvers<ContextType = ServiceContext, ParentType extends
   workspaceUsedBytes?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
 }>;
 
+export type VaultUsageSummaryResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['VaultUsageSummary'] = ResolversParentTypes['VaultUsageSummary']> = ResolversObject<{
+  fileCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  usedBytes?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+}>;
+
+export type VelocityDataResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['VelocityData'] = ResolversParentTypes['VelocityData']> = ResolversObject<{
+  completed?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  created?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  date?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+}>;
+
 export type WhiteboardResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Whiteboard'] = ResolversParentTypes['Whiteboard']> = ResolversObject<{
   collaborators?: Resolver<Maybe<Array<ResolversTypes['BoardCollaborator']>>, ParentType, ContextType>;
   createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
@@ -4527,6 +4711,14 @@ export type WhiteboardResolvers<ContextType = ServiceContext, ParentType extends
   title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
   workspaceId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+}>;
+
+export type WhiteboardPreviewResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['WhiteboardPreview'] = ResolversParentTypes['WhiteboardPreview']> = ResolversObject<{
+  elementCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  isLocked?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 }>;
 
 export type WorkspaceResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Workspace'] = ResolversParentTypes['Workspace']> = ResolversObject<{
@@ -4649,11 +4841,13 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   BoardSnapshot?: BoardSnapshotResolvers<ContextType>;
   ChannelAvailabilityResponse?: ChannelAvailabilityResponseResolvers<ContextType>;
   ChannelMemberInfo?: ChannelMemberInfoResolvers<ContextType>;
+  ChannelPreview?: ChannelPreviewResolvers<ContextType>;
   ChatMemberRecord?: ChatMemberRecordResolvers<ContextType>;
   ChatMessage?: ChatMessageResolvers<ContextType>;
   CloseThreadResult?: CloseThreadResultResolvers<ContextType>;
   ConfirmIssueDescriptionUploadResult?: ConfirmIssueDescriptionUploadResultResolvers<ContextType>;
   ConfirmUploadResult?: ConfirmUploadResultResolvers<ContextType>;
+  ContributorStats?: ContributorStatsResolvers<ContextType>;
   Conversation?: ConversationResolvers<ContextType>;
   ConversationConnection?: ConversationConnectionResolvers<ContextType>;
   ConversationMember?: ConversationMemberResolvers<ContextType>;
@@ -4709,10 +4903,12 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   Page?: PageResolvers<ContextType>;
   PageCollaborator?: PageCollaboratorResolvers<ContextType>;
   PageInfo?: PageInfoResolvers<ContextType>;
+  PagePreview?: PagePreviewResolvers<ContextType>;
   PageSnapshot?: PageSnapshotResolvers<ContextType>;
   PendingInviteEntry?: PendingInviteEntryResolvers<ContextType>;
   Permission?: PermissionResolvers<ContextType>;
   PinFolderResult?: PinFolderResultResolvers<ContextType>;
+  PriorityCount?: PriorityCountResolvers<ContextType>;
   Project?: ProjectResolvers<ContextType>;
   ProjectDmItem?: ProjectDmItemResolvers<ContextType>;
   ProjectLogoUploadPayload?: ProjectLogoUploadPayloadResolvers<ContextType>;
@@ -4748,6 +4944,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   UnlockPageResult?: UnlockPageResultResolvers<ContextType>;
   UnreadCountsResponse?: UnreadCountsResponseResolvers<ContextType>;
   UnsubscribeThreadResult?: UnsubscribeThreadResultResolvers<ContextType>;
+  UpcomingIssue?: UpcomingIssueResolvers<ContextType>;
   UpdateChannelDescriptionResult?: UpdateChannelDescriptionResultResolvers<ContextType>;
   UpdateChannelVisibilityResult?: UpdateChannelVisibilityResultResolvers<ContextType>;
   UpdateIssueLabelResult?: UpdateIssueLabelResultResolvers<ContextType>;
@@ -4762,12 +4959,16 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   VaultChildrenResult?: VaultChildrenResultResolvers<ContextType>;
   VaultDownloadUrl?: VaultDownloadUrlResolvers<ContextType>;
   VaultFile?: VaultFileResolvers<ContextType>;
+  VaultFilePreview?: VaultFilePreviewResolvers<ContextType>;
   VaultFolder?: VaultFolderResolvers<ContextType>;
   VaultNode?: VaultNodeResolvers<ContextType>;
   VaultSidebar?: VaultSidebarResolvers<ContextType>;
   VaultUploader?: VaultUploaderResolvers<ContextType>;
   VaultUsage?: VaultUsageResolvers<ContextType>;
+  VaultUsageSummary?: VaultUsageSummaryResolvers<ContextType>;
+  VelocityData?: VelocityDataResolvers<ContextType>;
   Whiteboard?: WhiteboardResolvers<ContextType>;
+  WhiteboardPreview?: WhiteboardPreviewResolvers<ContextType>;
   Workspace?: WorkspaceResolvers<ContextType>;
   WorkspaceHomeEntry?: WorkspaceHomeEntryResolvers<ContextType>;
   WorkspaceInvite?: WorkspaceInviteResolvers<ContextType>;

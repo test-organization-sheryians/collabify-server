@@ -51,6 +51,8 @@ import {
   GetAllPermissionsSchema,
   getProjectPermissions,
   GetProjectPermissionsSchema,
+  projectContributorStats,
+  ProjectContributorStatsSchema,
 } from "../queries";
 
 export const resolvers: Resolvers = {
