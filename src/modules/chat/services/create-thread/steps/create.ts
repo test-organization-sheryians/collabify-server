@@ -56,7 +56,6 @@ export const create = async (
         where: { conversationId },
         select: {
           userId: true,
-          role: true,
         },
       });
 
@@ -80,7 +79,6 @@ export const create = async (
             createMany: {
               data: parentMembers.map((m) => ({
                 userId: m.userId,
-                role: m.role, // Preserve roles from parent
               })),
             },
           },

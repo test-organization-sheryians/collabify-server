@@ -27,7 +27,6 @@ export async function validateConversationMembership(
       conversationId: true,
       userId: true,
       isMuted: true,
-      role: true,
     },
   });
 }
@@ -139,13 +138,11 @@ export async function validateEditMessage(
     };
   }
 
-  // Allow: message author OR conversation admin/owner (moderation delete).
-  // membership.role is already fetched above — no extra DB round-trip needed.
-  // deleterUserId in MessageDeleteOutbox records who acted for the audit trail.
+  // Allow: message author only.
+  // Moderator delete is handled via the ABAC authGate at the request level.
   const isAuthor = validateMessageOwnership(message, userId);
-  const isModerator = membership.role === 'ADMIN' || membership.role === 'OWNER';
 
-  if (!isAuthor && !isModerator) {
+  if (!isAuthor) {
     return {
       valid: false,
       error: { code: "FORBIDDEN", message: "Not the message author" },

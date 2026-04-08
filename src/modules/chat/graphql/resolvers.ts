@@ -241,9 +241,10 @@ export const resolvers: Resolvers = {
     // Field resolvers: Use dataloaders when parent doesn't have the data.
     // If handler populated fields, return them directly (already resolved).
 
-    // Compute isPublic from type field
+    // isPublic: prefer DB-stored value; fall back to type derivation for
+    // legacy rows created before the column was added.
     isPublic: (parent) => {
-      return parent.type === "CHANNEL";
+      return parent.isPublic !== undefined ? parent.isPublic : parent.type === "CHANNEL";
     },
 
     // Compute unreadCount

@@ -74,13 +74,10 @@ export const create = async (
           members: {
             createMany: {
               data: [
-                // Creator is always OWNER
-                { userId, role: "MANAGER" },
-                // All project members + explicit invitees as MEMBER
-                ...memberIdsToAdd.map((id) => ({
-                  userId: id,
-                  role: "MEMBER" as const,
-                })),
+                // Creator
+                { userId },
+                // All project members + explicit invitees
+                ...memberIdsToAdd.map((id) => ({ userId: id })),
               ],
             },
           },

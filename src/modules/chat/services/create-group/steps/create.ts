@@ -90,13 +90,10 @@ export const create = async (
           members: {
             createMany: {
               data: [
-                // Creator as OWNER
-                { userId, role: "OWNER" },
-                // Other members as MEMBER (sorted for deterministic order)
-                ...otherMembers.sort().map((id: string) => ({
-                  userId: id,
-                  role: "MEMBER" as const,
-                })),
+                // Creator
+                { userId },
+                // Other members (sorted for deterministic order)
+                ...otherMembers.sort().map((id: string) => ({ userId: id })),
               ],
             },
           },

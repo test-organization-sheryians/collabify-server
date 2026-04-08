@@ -1938,7 +1938,6 @@ export type Query = {
   projectOverview: ProjectOverview;
   projectPermissions: Array<Permission>;
   projectRoles: Array<ProjectRole>;
-  projectVelocity: Array<VelocityData>;
   reactionUsers: ReactionUsersConnection;
   rolePermissions: Array<RolePermission>;
   /** Get count of unread notifications. */
@@ -2238,12 +2237,6 @@ export type QueryProjectPermissionsArgs = {
 export type QueryProjectRolesArgs = {
   projectId: Scalars['ID']['input'];
   workspaceId: Scalars['ID']['input'];
-};
-
-
-export type QueryProjectVelocityArgs = {
-  days?: InputMaybe<Scalars['Int']['input']>;
-  projectId: Scalars['ID']['input'];
 };
 
 
@@ -2623,6 +2616,7 @@ export type UpdateIssueInput = {
   issueId: Scalars['ID']['input'];
   labelIds?: InputMaybe<Array<Scalars['ID']['input']>>;
   priority?: InputMaybe<IssuePriority>;
+  statusId?: InputMaybe<Scalars['ID']['input']>;
   title?: InputMaybe<Scalars['String']['input']>;
 };
 
@@ -2866,13 +2860,6 @@ export type VaultUsageSummary = {
   __typename?: 'VaultUsageSummary';
   fileCount: Scalars['Int']['output'];
   usedBytes: Scalars['Float']['output'];
-};
-
-export type VelocityData = {
-  __typename?: 'VelocityData';
-  completed: Scalars['Int']['output'];
-  created: Scalars['Int']['output'];
-  date: Scalars['String']['output'];
 };
 
 export type Whiteboard = {
@@ -3311,7 +3298,6 @@ export type ResolversTypes = ResolversObject<{
   VaultUploader: ResolverTypeWrapper<VaultUploader>;
   VaultUsage: ResolverTypeWrapper<VaultUsage>;
   VaultUsageSummary: ResolverTypeWrapper<VaultUsageSummary>;
-  VelocityData: ResolverTypeWrapper<VelocityData>;
   Whiteboard: ResolverTypeWrapper<Whiteboard>;
   WhiteboardPreview: ResolverTypeWrapper<WhiteboardPreview>;
   Workspace: ResolverTypeWrapper<PrismaWorkspace>;
@@ -3531,7 +3517,6 @@ export type ResolversParentTypes = ResolversObject<{
   VaultUploader: VaultUploader;
   VaultUsage: VaultUsage;
   VaultUsageSummary: VaultUsageSummary;
-  VelocityData: VelocityData;
   Whiteboard: Whiteboard;
   WhiteboardPreview: WhiteboardPreview;
   Workspace: PrismaWorkspace;
@@ -4359,7 +4344,6 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   projectOverview?: Resolver<ResolversTypes['ProjectOverview'], ParentType, ContextType, RequireFields<QueryProjectOverviewArgs, 'projectId'>>;
   projectPermissions?: Resolver<Array<ResolversTypes['Permission']>, ParentType, ContextType, RequireFields<QueryProjectPermissionsArgs, 'projectId' | 'workspaceId'>>;
   projectRoles?: Resolver<Array<ResolversTypes['ProjectRole']>, ParentType, ContextType, RequireFields<QueryProjectRolesArgs, 'projectId' | 'workspaceId'>>;
-  projectVelocity?: Resolver<Array<ResolversTypes['VelocityData']>, ParentType, ContextType, RequireFields<QueryProjectVelocityArgs, 'projectId'>>;
   reactionUsers?: Resolver<ResolversTypes['ReactionUsersConnection'], ParentType, ContextType, RequireFields<QueryReactionUsersArgs, 'emoji' | 'messageId'>>;
   rolePermissions?: Resolver<Array<ResolversTypes['RolePermission']>, ParentType, ContextType, RequireFields<QueryRolePermissionsArgs, 'roleId' | 'workspaceId'>>;
   unreadNotificationCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
@@ -4689,12 +4673,6 @@ export type VaultUsageSummaryResolvers<ContextType = ServiceContext, ParentType 
   usedBytes?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
 }>;
 
-export type VelocityDataResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['VelocityData'] = ResolversParentTypes['VelocityData']> = ResolversObject<{
-  completed?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-  created?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-  date?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-}>;
-
 export type WhiteboardResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Whiteboard'] = ResolversParentTypes['Whiteboard']> = ResolversObject<{
   collaborators?: Resolver<Maybe<Array<ResolversTypes['BoardCollaborator']>>, ParentType, ContextType>;
   createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
@@ -4966,7 +4944,6 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   VaultUploader?: VaultUploaderResolvers<ContextType>;
   VaultUsage?: VaultUsageResolvers<ContextType>;
   VaultUsageSummary?: VaultUsageSummaryResolvers<ContextType>;
-  VelocityData?: VelocityDataResolvers<ContextType>;
   Whiteboard?: WhiteboardResolvers<ContextType>;
   WhiteboardPreview?: WhiteboardPreviewResolvers<ContextType>;
   Workspace?: WorkspaceResolvers<ContextType>;

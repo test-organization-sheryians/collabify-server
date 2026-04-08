@@ -39,13 +39,11 @@ const now = new Date();
 /** Minimal ChatMember row matching ChannelMemberRow shape */
 const makeMember = (
   id: string,
-  role: string,
   joinedAt = now
 ) => ({
   id,
   conversationId: CHANNEL_ID,
   userId: `user_${id}`,
-  role,
   isMuted: false,
   joinedAt,
   lastReadMsgId: null,
@@ -54,10 +52,10 @@ const makeMember = (
   lastReadAt: now,
 });
 
-const OWNER_MEMBER  = makeMember("m1", "OWNER",  new Date("2024-01-01"));
-const ADMIN_MEMBER  = makeMember("m2", "ADMIN",  new Date("2024-01-02"));
-const MEMBER_MEMBER = makeMember("m3", "MEMBER", new Date("2024-01-03"));
-const GUEST_MEMBER  = makeMember("m4", "GUEST",  new Date("2024-01-04"));
+const OWNER_MEMBER  = makeMember("m1", new Date("2024-01-01"));
+const ADMIN_MEMBER  = makeMember("m2", new Date("2024-01-02"));
+const MEMBER_MEMBER = makeMember("m3", new Date("2024-01-03"));
+const GUEST_MEMBER  = makeMember("m4", new Date("2024-01-04"));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONTEXT BUILDER
@@ -199,50 +197,29 @@ describe("getChannelMembers", () => {
     });
   });
 
-  // ── Section 3: Role Sort (BL1 fix) ───────────────────────────────────────
+  // ── Section 3: Join Order ─────────────────────────────────────────────────
   //
-  // Derived from audit finding [LOGIC_ERROR] BL1:
-  //  { role: "asc" } alphabetical sort produced ADMIN→GUEST→MEMBER→OWNER (wrong).
-  //  Fixed by in-memory sort using ROLE_ORDER rank map.
+  // Channel-level role was removed from ChatMember. Members are returned in
+  // DB joinedAt ASC order (handled by the DB query, no in-memory sort needed).
 
-  describe("3. Role Priority Sort", () => {
-    it("3.1 returns OWNER before MEMBER regardless of DB order", async () => {
-      // DB returns MEMBER first (simulating DB's arbitrary order)
+  describe("3. Join Order", () => {
+    it("3.1 members are returned in joinedAt ascending order", async () => {
       (db.chatMember.findMany as any).mockResolvedValueOnce([
-        MEMBER_MEMBER,
         OWNER_MEMBER,
-      ]);
-      const ctx = buildCtx();
-      const result = await handler(validInput, ctx);
-      expect(result[0].role).toBe("OWNER");
-      expect(result[1].role).toBe("MEMBER");
-    });
-
-    it("3.2 sorts full hierarchy: OWNER → ADMIN → MEMBER → GUEST", async () => {
-      // DB returns in worst-case reverse order
-      (db.chatMember.findMany as any).mockResolvedValueOnce([
-        GUEST_MEMBER,
-        MEMBER_MEMBER,
         ADMIN_MEMBER,
-        OWNER_MEMBER,
+        MEMBER_MEMBER,
       ]);
       const ctx = buildCtx();
       const result = await handler(validInput, ctx);
-      expect(result.map((m) => m.role)).toEqual([
-        "OWNER",
-        "ADMIN",
-        "MEMBER",
-        "GUEST",
-      ]);
+      expect(result[0].id).toBe("m1");
+      expect(result[1].id).toBe("m2");
+      expect(result[2].id).toBe("m3");
     });
 
-    it("3.3 members with same role are sorted by joinedAt ascending", async () => {
-      const earlyMember = makeMember("early", "MEMBER", new Date("2024-01-01"));
-      const lateMember  = makeMember("late",  "MEMBER", new Date("2024-06-01"));
-      (db.chatMember.findMany as any).mockResolvedValueOnce([
-        lateMember,
-        earlyMember,
-      ]);
+    it("3.2 members with same joinedAt are returned in DB order", async () => {
+      const early = makeMember("early", new Date("2024-01-01"));
+      const late  = makeMember("late",  new Date("2024-06-01"));
+      (db.chatMember.findMany as any).mockResolvedValueOnce([early, late]);
       const ctx = buildCtx();
       const result = await handler(validInput, ctx);
       expect(result[0].id).toBe("early");

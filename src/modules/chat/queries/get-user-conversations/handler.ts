@@ -57,7 +57,7 @@ export const handler = async (
           type: conv.type as ConversationType,
           name: conv.name,
           topic: conv.topic,
-          isPublic: conv.type === "CHANNEL" && !conv.name?.startsWith("#private-"),
+          isPublic: conv.isPublic ?? conv.type === "CHANNEL",
           workspaceId: conv.workspaceId,
           projectId: conv.projectId,
           parentMessageId: conv.parentMessageId,

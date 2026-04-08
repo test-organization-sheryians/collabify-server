@@ -32,7 +32,6 @@ export const addMembers = async (
         data: {
           conversationId: groupId,
           userId: uid,
-          role: "MEMBER",
         },
         include: {
           user: {

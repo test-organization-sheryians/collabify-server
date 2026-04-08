@@ -16,7 +16,6 @@ export async function executeSubscribe(
     data: {
       conversationId: threadId,
       userId: actorId,
-      role: "MEMBER",
     },
   });
 

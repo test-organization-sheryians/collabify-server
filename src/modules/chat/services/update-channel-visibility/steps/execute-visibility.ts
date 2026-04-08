@@ -2,7 +2,8 @@ import type { ServiceContext } from "@/graphql/types";
 import type { UpdateChannelVisibilityInput, UpdateChannelVisibilityOutput } from "../types";
 
 /**
- * executeVisibility handles DB updates wrapping Prisma placeholders correctly resolving target drops efficiently cleanly mapped natively.
+ * executeVisibility persists the isPublic flag to the DB and fans out a
+ * visibility-changed event to all channel members via Redis pub/sub.
  */
 export async function executeVisibility(
   input: UpdateChannelVisibilityInput,
@@ -12,19 +13,18 @@ export async function executeVisibility(
   const { channelId, isPublic } = input;
   const actorId = ctx.auth?.userId as string;
 
-  // TODO: Add isPublic field to Prisma schema and update here
-  // For now, we'll just fanout the event mimicking the DB structure bounds faithfully
-  // const updated = await ctx.db.chatConversation.update({
-  //   where: { id: channelId },
-  //   data: { isPublic },
-  // });
+  // Persist visibility change to DB
+  await ctx.db.chatConversation.update({
+    where: { id: channelId },
+    data: { isPublic },
+  });
 
-  // FLUSH EXPLICITLY THE CACHED TARGET RESOLVING WS LEAKS ACROSS RECONNECTIONS PROMPTLY
+  // Invalidate permission cache for the actor
   if (ctx.authGate) {
     await ctx.authGate.invalidate.channelMember(channelId, actorId);
   }
 
-  // Fanout visibility update mapped directly down redis
+  // Fan out visibility update to all channel members via Redis
   await Promise.all(
     channel.members.map(async (member) => {
       await ctx.redis.publish(
