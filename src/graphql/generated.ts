@@ -904,6 +904,7 @@ export type Mutation = {
   updateIssue: UpdateIssueResult;
   updateIssueLabel: UpdateIssueLabelResult;
   updateIssueStatus: UpdateIssueStatusResult;
+  updatePageDetails: UpdatePageDetailsResult;
   updateProfile: User;
   updateProject: Project;
   updateProjectMemberRole: ProjectMember;
@@ -1489,6 +1490,11 @@ export type MutationUpdateIssueLabelArgs = {
 
 export type MutationUpdateIssueStatusArgs = {
   input: UpdateIssueStatusInput;
+};
+
+
+export type MutationUpdatePageDetailsArgs = {
+  input: UpdatePageDetailsInput;
 };
 
 
@@ -2648,6 +2654,19 @@ export type UpdateIssueStatusResult = {
   status: IssueStatus;
 };
 
+export type UpdatePageDetailsInput = {
+  /** Permanent vault proxy URL for the cover image. Pass null to remove. */
+  coverImageUrl?: InputMaybe<Scalars['String']['input']>;
+  /** Emoji character to set as the page icon. Pass null to remove. */
+  emoji?: InputMaybe<Scalars['String']['input']>;
+  pageId: Scalars['ID']['input'];
+};
+
+export type UpdatePageDetailsResult = {
+  __typename?: 'UpdatePageDetailsResult';
+  page: Page;
+};
+
 export type UpdateProfileInput = {
   avatarUrl?: InputMaybe<Scalars['String']['input']>;
   bio?: InputMaybe<Scalars['String']['input']>;
@@ -3274,6 +3293,8 @@ export type ResolversTypes = ResolversObject<{
   UpdateIssueResult: ResolverTypeWrapper<Omit<UpdateIssueResult, 'issue'> & { issue: ResolversTypes['Issue'] }>;
   UpdateIssueStatusInput: UpdateIssueStatusInput;
   UpdateIssueStatusResult: ResolverTypeWrapper<Omit<UpdateIssueStatusResult, 'status'> & { status: ResolversTypes['IssueStatus'] }>;
+  UpdatePageDetailsInput: UpdatePageDetailsInput;
+  UpdatePageDetailsResult: ResolverTypeWrapper<Omit<UpdatePageDetailsResult, 'page'> & { page: ResolversTypes['Page'] }>;
   UpdateProfileInput: UpdateProfileInput;
   UpdateProjectInput: UpdateProjectInput;
   UpdateProjectRoleInput: UpdateProjectRoleInput;
@@ -3496,6 +3517,8 @@ export type ResolversParentTypes = ResolversObject<{
   UpdateIssueResult: Omit<UpdateIssueResult, 'issue'> & { issue: ResolversParentTypes['Issue'] };
   UpdateIssueStatusInput: UpdateIssueStatusInput;
   UpdateIssueStatusResult: Omit<UpdateIssueStatusResult, 'status'> & { status: ResolversParentTypes['IssueStatus'] };
+  UpdatePageDetailsInput: UpdatePageDetailsInput;
+  UpdatePageDetailsResult: Omit<UpdatePageDetailsResult, 'page'> & { page: ResolversParentTypes['Page'] };
   UpdateProfileInput: UpdateProfileInput;
   UpdateProjectInput: UpdateProjectInput;
   UpdateProjectRoleInput: UpdateProjectRoleInput;
@@ -4068,6 +4091,7 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   updateIssue?: Resolver<ResolversTypes['UpdateIssueResult'], ParentType, ContextType, RequireFields<MutationUpdateIssueArgs, 'input'>>;
   updateIssueLabel?: Resolver<ResolversTypes['UpdateIssueLabelResult'], ParentType, ContextType, RequireFields<MutationUpdateIssueLabelArgs, 'input'>>;
   updateIssueStatus?: Resolver<ResolversTypes['UpdateIssueStatusResult'], ParentType, ContextType, RequireFields<MutationUpdateIssueStatusArgs, 'input'>>;
+  updatePageDetails?: Resolver<ResolversTypes['UpdatePageDetailsResult'], ParentType, ContextType, RequireFields<MutationUpdatePageDetailsArgs, 'input'>>;
   updateProfile?: Resolver<ResolversTypes['User'], ParentType, ContextType, RequireFields<MutationUpdateProfileArgs, 'input'>>;
   updateProject?: Resolver<ResolversTypes['Project'], ParentType, ContextType, RequireFields<MutationUpdateProjectArgs, 'input' | 'projectId'>>;
   updateProjectMemberRole?: Resolver<ResolversTypes['ProjectMember'], ParentType, ContextType, RequireFields<MutationUpdateProjectMemberRoleArgs, 'projectId' | 'roleId' | 'userId' | 'workspaceId'>>;
@@ -4536,6 +4560,10 @@ export type UpdateIssueStatusResultResolvers<ContextType = ServiceContext, Paren
   status?: Resolver<ResolversTypes['IssueStatus'], ParentType, ContextType>;
 }>;
 
+export type UpdatePageDetailsResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['UpdatePageDetailsResult'] = ResolversParentTypes['UpdatePageDetailsResult']> = ResolversObject<{
+  page?: Resolver<ResolversTypes['Page'], ParentType, ContextType>;
+}>;
+
 export type UserResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['User'] = ResolversParentTypes['User']> = ResolversObject<{
   avatarUrl?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   bio?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
@@ -4928,6 +4956,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   UpdateIssueLabelResult?: UpdateIssueLabelResultResolvers<ContextType>;
   UpdateIssueResult?: UpdateIssueResultResolvers<ContextType>;
   UpdateIssueStatusResult?: UpdateIssueStatusResultResolvers<ContextType>;
+  UpdatePageDetailsResult?: UpdatePageDetailsResultResolvers<ContextType>;
   User?: UserResolvers<ContextType>;
   UserBasic?: UserBasicResolvers<ContextType>;
   UserHomeData?: UserHomeDataResolvers<ContextType>;

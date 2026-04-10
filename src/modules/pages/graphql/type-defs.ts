@@ -23,6 +23,7 @@ import { typeDefs as unlockPageTypeDefs } from "../services/unlock-page/type-def
 import { typeDefs as reorderPageTypeDefs } from "../services/reorder-page/type-defs";
 import { typeDefs as addPageCollaboratorsTypeDefs } from "../services/add-page-collaborators/type-defs";
 import { typeDefs as removePageCollaboratorTypeDefs } from "../services/remove-page-collaborator/type-defs";
+import { typeDefs as updatePageDetailsTypeDefs } from "../services/update-page-details/type-defs";
 
 // ─── Queries ─────────────────────────────────────────────────────────────────
 
@@ -124,6 +125,7 @@ export const typeDefs = [
   reorderPageTypeDefs,
   addPageCollaboratorsTypeDefs,
   removePageCollaboratorTypeDefs,
+  updatePageDetailsTypeDefs,
   // Queries
   getPageTypeDefs,
   getPageSnapshotTypeDefs,

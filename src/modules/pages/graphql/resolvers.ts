@@ -139,6 +139,13 @@ export const resolvers: Resolvers = {
       const input = services.removePageCollaborator.schema.parse(args.input);
       return services.removePageCollaborator.handler(input, ctx);
     },
+
+    updatePageDetails: async (_, args, ctx) => {
+      await requireUser(ctx);
+      const input = services.updatePageDetails.schema.parse(args.input);
+      const result = await services.updatePageDetails.handler(input, ctx);
+      return { page: toGraphQLPage(result.page) };
+    },
   },
 
   // ── Field Resolvers ───────────────────────────────────────────────────────────
