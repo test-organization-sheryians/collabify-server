@@ -1,6 +1,7 @@
 import { Resolvers } from "@/graphql/generated";
 import { AppError } from "@/shared/errors";
 import { requireUser } from "@/shared/utils/graphql-helpers";
+import * as prefWriter from "@/modules/notification/shared/preferences/preference-writer";
 import type { PluginType } from "@prisma/client";
 import {
   createProject,
@@ -33,6 +34,8 @@ import {
   ToggleProjectPluginSchema,
   requestProjectLogoUpload,
   RequestProjectLogoUploadSchema,
+  updateProjectNotifPrefs,
+  UpdateProjectNotifPrefsSchema,
 } from "../services";
 import {
   getMyProjects,
@@ -299,6 +302,30 @@ export const resolvers: Resolvers = {
         actorUserId: ctx.auth.userId,
       });
       return requestProjectLogoUpload(data, ctx);
+    },
+    // @ts-expect-error - NotificationCategory from events/types vs graphql/generated are structurally identical strings
+    updateProjectNotifPrefs: async (_, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = UpdateProjectNotifPrefsSchema.parse({
+        userId: ctx.auth.userId,
+        projectId: args.projectId,
+        ...args.input,
+      });
+      return updateProjectNotifPrefs(data, ctx);
+    },
+    muteProject: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      await prefWriter.updateProject(ctx.auth.userId, args.projectId, {
+        muteUntil: args.until ? new Date(args.until) : null,
+      });
+      return true;
+    },
+    unmuteProject: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      await prefWriter.updateProject(ctx.auth.userId, args.projectId, {
+        muteUntil: null,
+      });
+      return true;
     },
   },
 };

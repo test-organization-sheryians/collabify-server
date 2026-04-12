@@ -17,6 +17,7 @@ export * as removeChannelMember from "./remove-channel-member";
 // Phase 3 services
 export * as deleteDm from "./delete-dm";
 export * as muteConversation from "./mute-conversation";
+export * as setConversationNotifMode from "./set-conversation-notif-mode";
 export * as renameGroup from "./rename-group";
 export * as deleteGroup from "./delete-group";
 export * as addGroupMembers from "./add-group-members";

@@ -16,6 +16,7 @@ import { AppError } from "@/shared/errors";
 import type { RemoveProjectMemberInput } from "./schema";
 import type { ServiceContext } from "@/graphql/types";
 import { deleteProjectMember } from "./steps/delete-project-member";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 export const removeProjectMember = async (
   input: RemoveProjectMemberInput,
@@ -68,6 +69,16 @@ export const removeProjectMember = async (
     ctx.permissions.invalidate.invalidateUser(targetUserId, projectId),
     ctx.authGate.invalidate.projectMember(projectId, targetUserId),
   ]);
+
+  await emit(db as any, {
+    type: "project.member.removed",
+    payload: {
+      projectId,
+      workspaceId,
+      targetUserId,
+      actorId: actorUserId,
+    },
+  }).catch(() => { /* non-fatal */ });
 
   return true;
 };

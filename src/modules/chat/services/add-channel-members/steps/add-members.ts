@@ -1,6 +1,7 @@
 import type { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
 import type { AddChannelMembersInput, AddChannelMembersOutput } from "../types";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 export const addMembers = async (
   input: AddChannelMembersInput,
@@ -25,29 +26,47 @@ export const addMembers = async (
     throw AppError.badRequest("All users are already members");
   }
 
-  // Bind structural insert records into identical timeline batch
-  const newMembers = await ctx.db.$transaction(
+  // Bind structural insert records and emit outbox notification in one transaction per member
+  const newMembers = await Promise.all(
     newUserIds.map((uid) =>
-      ctx.db.chatMember.create({
-        data: {
-          conversationId: channelId,
-          userId: uid,
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              fullName: true,
-              email: true,
-              avatarUrl: true,
+      ctx.db.$transaction(async (tx) => {
+        const member = await tx.chatMember.create({
+          data: {
+            conversationId: channelId,
+            userId: uid,
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+                avatarUrl: true,
+              },
             },
           },
-        },
+        });
+
+        // Notification pipeline — routes through Decider → IN_APP + REALTIME workers
+        await emit(tx, {
+          type: "chat.channel.member.added",
+          payload: {
+            conversationId:   channelId,
+            conversationName: channelName,
+            workspaceId:      input.workspaceId,
+            workspaceSlug:    "", // not available at this layer; unused by handler
+            newMemberId:      uid,
+            actorId:          ctx.auth?.userId ?? "",
+            actorName:        "Someone", // resolved in handler via actorId if needed
+          },
+        });
+
+        return member;
       })
     )
   );
 
-  // Distribute event payloads to exactly the newly provisioned peers
+  // WS gateway event — separate concern: updates real-time channel membership UI
   await Promise.all(
     newMembers.map(async (member) => {
       await ctx.redis.publish(

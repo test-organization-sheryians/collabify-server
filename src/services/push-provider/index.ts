@@ -1,4 +1,6 @@
+import { env } from "@/shared/config/env";
 import { sendToConsole } from "./console.adapter";
+import { sendWithFCM } from "./fcm.adapter";
 
 export interface PushProvider {
   send: (
@@ -11,8 +13,8 @@ export interface PushProvider {
 
 export const pushProvider: PushProvider = {
   send: async (to, title, body, data) => {
-    // Logic to switch providers would go here (e.g. check env.PUSH_PROVIDER)
-    // For Phase 1, strictly console/mock
-    return sendToConsole(to, title, body, data);
+    if (env.PUSH_PROVIDER === "fcm") return sendWithFCM(to, title, body, data);
+    return sendToConsole(to, title, body, data); // explicit console fallback
   },
 };
+

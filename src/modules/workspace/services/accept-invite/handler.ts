@@ -18,6 +18,7 @@ import type { AcceptInviteInput } from "./types";
 import type { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
 import { addRoleMember } from "@/modules/authorization";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 export const acceptInvite = async (
   input: AcceptInviteInput,
@@ -78,14 +79,24 @@ export const acceptInvite = async (
   // Post-tx: cache invalidation — runs outside transaction so Redis errors don't roll back DB writes
   if (ctx.authGate) {
     await Promise.all([
-      // Clear workspace membership, role-at-scope, and owner-bypass caches
       ctx.authGate.invalidate.workspaceMember(result.workspaceId, userId),
-      // Track new member in role-member index for future bulk invalidation
       addRoleMember(result.roleId, userId, ctx.redis),
     ]).catch((err) => {
-      // Non-fatal: membership is committed in DB; index will re-populate on next invalidateRole call
       console.warn("acceptInvite: post-tx cache update failed (non-fatal):", err);
     });
+  }
+
+  // Emit notification only for new members (not for already-member case)
+  if (result.message !== "You are already a member.") {
+    await emit(db as any, {
+      type: "workspace.invite.accepted",
+      payload: {
+        workspaceId: result.workspaceId,
+        joinedUserId: userId,
+        actorId: userId,
+      },
+      deduplicationId: `workspace.invite.accepted:${result.workspaceId}:${userId}`,
+    }).catch(() => { /* non-fatal */ });
   }
 
   return {

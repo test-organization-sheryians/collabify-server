@@ -15,6 +15,7 @@ import type { ServiceContext } from "@/graphql/types";
 import { verifyTargetIsWorkspaceMember } from "./steps/verify-target-is-workspace-member";
 import { enforceWorkspaceGuestCeiling } from "./steps/enforce-workspace-guest-ceiling";
 import { createProjectMember } from "./steps/create-project-member";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 export const addProjectMember = async (
   input: AddProjectMemberInput,
@@ -44,6 +45,16 @@ export const addProjectMember = async (
     ctx.permissions.invalidate.invalidateUser(targetUserId, projectId),
     ctx.authGate.invalidate.projectMember(projectId, targetUserId),
   ]);
+
+  await emit(db as any, {
+    type: "project.member.added",
+    payload: {
+      projectId,
+      workspaceId,
+      targetUserId,
+      actorId: actorUserId,
+    },
+  }).catch(() => { /* non-fatal */ });
 
   return member;
 };

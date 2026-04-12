@@ -17,6 +17,7 @@ import type { CreateIssueResult } from "./types";
 import { validateStatus } from "./steps/validate-status";
 import { validateLabels } from "./steps/validate-labels";
 import { insertIssue } from "./steps/insert-issue";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 const logger = createLogger("issues:services:create-issue");
 
@@ -48,6 +49,22 @@ export const createIssueHandler = async (
   await validateStatus(input.statusId, input.projectId, ctx.db);
   await validateLabels(input.labelIds, input.projectId, ctx.db);
   const issue = await insertIssue(input, project.workspaceId, userId, ctx.db);
+
+  // Notify when an issue is created with an assignee (don't notify self-assignment)
+  if (issue.assigneeId && issue.assigneeId !== userId) {
+    await emit(ctx.db as any, {
+      type: "issue.created",
+      payload: {
+        issueId:     issue.id,
+        projectId:   input.projectId,
+        workspaceId: project.workspaceId,
+        assigneeId:  issue.assigneeId,
+        actorId:     userId,
+        title:       issue.title,
+      },
+      deduplicationId: `issue.created:${issue.id}`,
+    }).catch(() => { /* non-fatal */ });
+  }
 
   logger.info("createIssue done", { issueId: issue.id, number: issue.number });
   return { issue };

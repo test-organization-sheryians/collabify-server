@@ -8,6 +8,7 @@ import { env } from "@/shared/config/env";
 import { randomBytes } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { emailProvider } from "@/services/email-provider";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 const logger = createLogger("workspace:services:invite-to-workspace");
 
@@ -80,7 +81,7 @@ export async function sendInvites(
   // Fetch workspace name once — used in every invite email
   const workspace = await db.workspace.findUniqueOrThrow({
     where: { id: workspaceId },
-    select: { name: true },
+    select: { name: true, slug: true },
   });
 
   const results = (
@@ -94,7 +95,7 @@ export async function sendInvites(
 
         const token = randomBytes(16).toString("hex");
 
-        await db.$transaction([
+        const [, invite] = await db.$transaction([
           db.workspaceInvite.deleteMany({ where: { workspaceId, email } }),
           db.workspaceInvite.create({
             data: {
@@ -108,7 +109,37 @@ export async function sendInvites(
           }),
         ]);
 
+        // Look up the role name for the notification payload
+        const role = await db.role.findUnique({
+          where: { id: roleId },
+          select: { name: true },
+        });
+
+        // Look up actor name for notification
+        const actor = await db.user.findUnique({
+          where: { id: actorUserId },
+          select: { fullName: true },
+        });
+
         const link = `${env.FRONTEND_URL}/workspace/join?token=${token}`;
+
+        // Emit notification outbox event (best-effort, non-transactional)
+        await db.$transaction((tx) => emit(tx, {
+          type: "workspace.invite.sent",
+          payload: {
+            inviteId:      invite.id,
+            workspaceId,
+            workspaceSlug: workspace.slug,
+            inviteeEmail:  email,
+            inviteeUserId: null,
+            actorId:       actorUserId,
+            actorName:     actor?.fullName ?? "A workspace admin",
+            workspaceName: workspace.name,
+            roleName:      role?.name ?? "Member",
+            inviteToken:   token,
+          },
+          deduplicationId: `workspace.invite.sent:${invite.id}`,
+        })).catch(() => { /* non-fatal — email already sent above */});
 
         // Log the link for debugging regardless of provider
         logger.info(`[INVITE] Sending to: ${email}`, { email, workspaceId });

@@ -12,6 +12,7 @@ import { AppError } from "@/shared/errors";
 import type { ArchiveProjectInput } from "./schema";
 import type { ServiceContext } from "@/graphql/types";
 import { setArchived } from "./steps/set-archived";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 export const archiveProject = async (
   input: ArchiveProjectInput,
@@ -32,5 +33,17 @@ export const archiveProject = async (
   };
   await ctx.permissions.assert("project:archive", scope);
 
-  return setArchived(projectId, db);
+  const archived = await setArchived(projectId, db);
+
+  await emit(db as any, {
+    type: "project.archived",
+    payload: {
+      projectId,
+      workspaceId: project.workspaceId,
+      actorId: actorUserId,
+      projectName: project.name,
+    },
+  }).catch(() => { /* non-fatal */ });
+
+  return archived;
 };

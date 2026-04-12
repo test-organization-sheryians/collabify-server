@@ -1,6 +1,7 @@
 import { Resolvers } from "@/graphql/generated";
 import { AppError } from "@/shared/errors";
 import { requireUser } from "@/shared/utils/graphql-helpers";
+import * as prefWriter from "@/modules/notification/shared/preferences/preference-writer";
 
 // Features (Mutations)
 import {
@@ -44,6 +45,8 @@ import {
   RenameWorkspaceSlugSchema,
   requestWorkspaceLogoUpload,
   RequestWorkspaceLogoUploadSchema,
+  updateWorkspaceNotifPrefs,
+  UpdateWorkspaceNotifPrefsSchema,
 } from "../services";
 
 // Queries
@@ -380,6 +383,30 @@ export const resolvers: Resolvers = {
         sizeBytes: args.sizeBytes,
       });
       return requestWorkspaceLogoUpload(data, ctx);
+    },
+    // @ts-expect-error - NotificationCategory from events/types vs graphql/generated are structurally identical strings
+    updateWorkspaceNotifPrefs: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = UpdateWorkspaceNotifPrefsSchema.parse({
+        userId: ctx.auth.userId,
+        workspaceId: args.workspaceId,
+        ...args.input,
+      });
+      return updateWorkspaceNotifPrefs(data, ctx);
+    },
+    muteWorkspace: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      await prefWriter.updateWorkspace(ctx.auth.userId, args.workspaceId, {
+        muteUntil: args.until ? new Date(args.until) : null,
+      });
+      return true;
+    },
+    unmuteWorkspace: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      await prefWriter.updateWorkspace(ctx.auth.userId, args.workspaceId, {
+        muteUntil: null,
+      });
+      return true;
     },
   },
 };

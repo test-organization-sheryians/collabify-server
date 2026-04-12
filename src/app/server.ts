@@ -28,9 +28,9 @@ void checkConnection(); // Check DB
 // Non-fatal: server starts even if bootstrap fails (logs error)
 void runAuthBootstrap(db, redis);
 
-// NotificationModule.startEngine().catch((err) => {
-//   logger.error("Failed to start Notification Engine", { err });
-// });
+NotificationModule.startEngine().catch((err: Error) => {
+  logger.error("Failed to start Notification Engine", { err });
+});
 
 ChatModule.startEngine().catch((err: Error) => {
   logger.error("Failed to start Chat Engine", { err });

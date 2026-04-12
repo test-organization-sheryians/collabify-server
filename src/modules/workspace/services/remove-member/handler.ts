@@ -15,6 +15,7 @@ import type { ServiceContext } from "@/graphql/types";
 import { guardLastOwner } from "./steps/guard-last-owner";
 import { deleteMember } from "./steps/delete-member";
 import { fetchMembers } from "./steps/fetch-members";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 export const removeMember = async (
   input: RemoveMemberInput,
@@ -32,6 +33,25 @@ export const removeMember = async (
 
   await guardLastOwner(workspaceId, targetMember, db);
   await deleteMember(memberId, workspaceId, targetMember.userId, db);
+
+  // Fetch names needed for notification payload (non-blocking)
+  const [workspace, actor] = await Promise.all([
+    db.workspace.findUnique({ where: { id: workspaceId }, select: { name: true, slug: true } }),
+    db.user.findUnique({ where: { id: actorUserId }, select: { fullName: true } }),
+  ]);
+
+  // Notify the removed member
+  await db.$transaction((tx) => emit(tx, {
+    type: "workspace.member.removed",
+    payload: {
+      workspaceId,
+      workspaceName:  workspace?.name ?? "",
+      workspaceSlug:  workspace?.slug ?? "",
+      removedUserId:  targetMember.userId,
+      actorId:        actorUserId,
+      actorName:      actor?.fullName ?? "A workspace admin",
+    },
+  })).catch(() => { /* non-fatal */ });
 
   return { success: true, message: "Member removed", invitedCount: 0 };
 };

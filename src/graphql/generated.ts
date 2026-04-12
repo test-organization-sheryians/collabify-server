@@ -140,6 +140,21 @@ export type BoardSnapshot = {
   snapshotTimestamp?: Maybe<Scalars['DateTime']['output']>;
 };
 
+export type CategoryPreferenceInput = {
+  category: NotificationCategory;
+  email: Scalars['Boolean']['input'];
+  inApp: Scalars['Boolean']['input'];
+  push: Scalars['Boolean']['input'];
+};
+
+export type CategoryPreferenceSetting = {
+  __typename?: 'CategoryPreferenceSetting';
+  category: NotificationCategory;
+  email: Scalars['Boolean']['output'];
+  inApp: Scalars['Boolean']['output'];
+  push: Scalars['Boolean']['output'];
+};
+
 export type ChannelAvailabilityResponse = {
   __typename?: 'ChannelAvailabilityResponse';
   available: Scalars['Boolean']['output'];
@@ -238,10 +253,12 @@ export type Conversation = {
   deletedAt?: Maybe<Scalars['DateTime']['output']>;
   id: Scalars['ID']['output'];
   isArchived: Scalars['Boolean']['output'];
+  isMuted: Scalars['Boolean']['output'];
   isPublic: Scalars['Boolean']['output'];
   lastMessage?: Maybe<LastMessagePreview>;
   memberCount: Scalars['Int']['output'];
   members?: Maybe<Array<ConversationMember>>;
+  myNotifMode?: Maybe<ConversationNotifMode>;
   name?: Maybe<Scalars['String']['output']>;
   parentMessageId?: Maybe<Scalars['ID']['output']>;
   projectId?: Maybe<Scalars['ID']['output']>;
@@ -265,6 +282,21 @@ export type ConversationMember = {
   role: Scalars['String']['output'];
   user: UserBasic;
   userId: Scalars['ID']['output'];
+};
+
+export enum ConversationNotifMode {
+  AllMessages = 'ALL_MESSAGES',
+  MentionsOnly = 'MENTIONS_ONLY',
+  Nothing = 'NOTHING'
+}
+
+export type ConversationNotificationPreference = {
+  __typename?: 'ConversationNotificationPreference';
+  conversationId: Scalars['String']['output'];
+  emailEnabled?: Maybe<Scalars['Boolean']['output']>;
+  mode: ConversationNotifMode;
+  muteUntil?: Maybe<Scalars['DateTime']['output']>;
+  pushEnabled?: Maybe<Scalars['Boolean']['output']>;
 };
 
 export enum ConversationType {
@@ -542,6 +574,21 @@ export type GetPageSnapshotResult = {
   snapshotTimestamp: Scalars['Float']['output'];
 };
 
+export enum GlobalNotifMode {
+  All = 'ALL',
+  MentionsOnly = 'MENTIONS_ONLY',
+  Nothing = 'NOTHING'
+}
+
+export type GlobalNotificationPreference = {
+  __typename?: 'GlobalNotificationPreference';
+  categories: Array<CategoryPreferenceSetting>;
+  emailEnabled: Scalars['Boolean']['output'];
+  globalMode: GlobalNotifMode;
+  inAppEnabled: Scalars['Boolean']['output'];
+  pushEnabled: Scalars['Boolean']['output'];
+};
+
 export type GroupMemberInfo = {
   __typename?: 'GroupMemberInfo';
   user: UserBasic;
@@ -817,7 +864,6 @@ export type Mutation = {
    * Lock auto-releases after 1 hour (safety net for crashed clients).
    */
   lockPage: LockPageResult;
-  /** Mark all notifications as read. */
   markAllNotificationsRead: Scalars['Boolean']['output'];
   /**
    * Called by the editor on save when one or more vault://fileId references
@@ -827,12 +873,14 @@ export type Mutation = {
    * process after a grace period (default 30 min), preserving in-session undo.
    */
   markFilesUnreferenced: MarkFilesUnreferencedResult;
-  /** Mark specific notifications as read. */
   markNotificationRead: Scalars['Boolean']['output'];
   moveIssueStatus: MoveIssueStatusResult;
   moveVaultFile: MoveFileResult;
   moveVaultFolder: MoveFolderResult;
   muteConversation: MuteConversationResult;
+  muteProject: Scalars['Boolean']['output'];
+  muteWorkspace: Scalars['Boolean']['output'];
+  pauseNotifications: Scalars['Boolean']['output'];
   pinVaultFolder: PinFolderResult;
   /**
    * Register a file upload initiated outside the standard Vault UI flow.
@@ -880,6 +928,9 @@ export type Mutation = {
   requestVaultUpload: RequestUploadResult;
   requestWorkspaceLogoUpload: WorkspaceLogoUploadPayload;
   resendWorkspaceInvite: Scalars['Boolean']['output'];
+  resumeNotifications: Scalars['Boolean']['output'];
+  setConversationNotifMode: ConversationNotificationPreference;
+  setGlobalNotifMode: Scalars['Boolean']['output'];
   subscribeThread: SubscribeThreadResult;
   syncUser: User;
   toggleFeatureFlag: ToggleFlagResult;
@@ -896,11 +947,14 @@ export type Mutation = {
   unlockBoard: Whiteboard;
   /** Lock owner or workspace ADMIN can unlock. */
   unlockPage: UnlockPageResult;
+  unmuteProject: Scalars['Boolean']['output'];
+  unmuteWorkspace: Scalars['Boolean']['output'];
   unpinVaultFolder: DeleteResult;
   unsubscribeThread: UnsubscribeThreadResult;
   updateBoardDescription: Whiteboard;
   updateChannelDescription: UpdateChannelDescriptionResult;
   updateChannelVisibility: UpdateChannelVisibilityResult;
+  updateGlobalNotifPrefs: GlobalNotificationPreference;
   updateIssue: UpdateIssueResult;
   updateIssueLabel: UpdateIssueLabelResult;
   updateIssueStatus: UpdateIssueStatusResult;
@@ -908,9 +962,11 @@ export type Mutation = {
   updateProfile: User;
   updateProject: Project;
   updateProjectMemberRole: ProjectMember;
+  updateProjectNotifPrefs: ScopedNotificationPreference;
   updateProjectRole: ProjectRole;
   updateWorkspace: Workspace;
   updateWorkspaceMemberRole: WorkspaceMember;
+  updateWorkspaceNotifPrefs: ScopedNotificationPreference;
   updateWorkspaceRole: WorkspaceRole;
 };
 
@@ -1239,6 +1295,23 @@ export type MutationMuteConversationArgs = {
 };
 
 
+export type MutationMuteProjectArgs = {
+  projectId: Scalars['String']['input'];
+  until?: InputMaybe<Scalars['String']['input']>;
+};
+
+
+export type MutationMuteWorkspaceArgs = {
+  until?: InputMaybe<Scalars['String']['input']>;
+  workspaceId: Scalars['String']['input'];
+};
+
+
+export type MutationPauseNotificationsArgs = {
+  until: Scalars['String']['input'];
+};
+
+
 export type MutationPinVaultFolderArgs = {
   input: PinVaultFolderInput;
 };
@@ -1384,6 +1457,18 @@ export type MutationResendWorkspaceInviteArgs = {
 };
 
 
+export type MutationSetConversationNotifModeArgs = {
+  conversationId: Scalars['String']['input'];
+  mode: ConversationNotifMode;
+  muteUntil?: InputMaybe<Scalars['String']['input']>;
+};
+
+
+export type MutationSetGlobalNotifModeArgs = {
+  mode: GlobalNotifMode;
+};
+
+
 export type MutationSubscribeThreadArgs = {
   threadId: Scalars['ID']['input'];
 };
@@ -1448,6 +1533,16 @@ export type MutationUnlockPageArgs = {
 };
 
 
+export type MutationUnmuteProjectArgs = {
+  projectId: Scalars['String']['input'];
+};
+
+
+export type MutationUnmuteWorkspaceArgs = {
+  workspaceId: Scalars['String']['input'];
+};
+
+
 export type MutationUnpinVaultFolderArgs = {
   input: UnpinVaultFolderInput;
 };
@@ -1475,6 +1570,11 @@ export type MutationUpdateChannelVisibilityArgs = {
   channelId: Scalars['ID']['input'];
   isPublic: Scalars['Boolean']['input'];
   workspaceId: Scalars['ID']['input'];
+};
+
+
+export type MutationUpdateGlobalNotifPrefsArgs = {
+  input: UpdateGlobalNotifPrefsInput;
 };
 
 
@@ -1517,6 +1617,12 @@ export type MutationUpdateProjectMemberRoleArgs = {
 };
 
 
+export type MutationUpdateProjectNotifPrefsArgs = {
+  input: UpdateScopedPreferencesInput;
+  projectId: Scalars['String']['input'];
+};
+
+
 export type MutationUpdateProjectRoleArgs = {
   input: UpdateProjectRoleInput;
   projectId: Scalars['ID']['input'];
@@ -1538,6 +1644,12 @@ export type MutationUpdateWorkspaceMemberRoleArgs = {
 };
 
 
+export type MutationUpdateWorkspaceNotifPrefsArgs = {
+  input: UpdateScopedPreferencesInput;
+  workspaceId: Scalars['String']['input'];
+};
+
+
 export type MutationUpdateWorkspaceRoleArgs = {
   input: UpdateWorkspaceRoleInput;
   roleId: Scalars['ID']['input'];
@@ -1556,20 +1668,30 @@ export type Notification = {
   actor?: Maybe<User>;
   actorId?: Maybe<Scalars['String']['output']>;
   category: Scalars['String']['output'];
-  chatMessage?: Maybe<ChatMessage>;
   createdAt: Scalars['DateTime']['output'];
-  data?: Maybe<Scalars['JSON']['output']>;
+  data: Scalars['JSON']['output'];
   entityId: Scalars['String']['output'];
   entityType: Scalars['String']['output'];
   id: Scalars['ID']['output'];
   isArchived: Scalars['Boolean']['output'];
   isRead: Scalars['Boolean']['output'];
-  page?: Maybe<Page>;
   project?: Maybe<Project>;
+  projectId?: Maybe<Scalars['String']['output']>;
   recipientUserId: Scalars['String']['output'];
-  task?: Maybe<Task>;
   workspace?: Maybe<Workspace>;
+  workspaceId?: Maybe<Scalars['String']['output']>;
 };
+
+export enum NotificationCategory {
+  AccessChanges = 'access_changes',
+  Assignments = 'assignments',
+  ChatMessages = 'chat_messages',
+  Collaboration = 'collaboration',
+  Deadlines = 'deadlines',
+  Mentions = 'mentions',
+  Reactions = 'reactions',
+  SystemAdmin = 'system_admin'
+}
 
 export type NotificationConnection = {
   __typename?: 'NotificationConnection';
@@ -1581,6 +1703,16 @@ export type NotificationEdge = {
   __typename?: 'NotificationEdge';
   cursor: Scalars['String']['output'];
   node: Notification;
+};
+
+export type NotificationSummary = {
+  __typename?: 'NotificationSummary';
+  categories: Array<CategoryPreferenceSetting>;
+  dndUntil?: Maybe<Scalars['DateTime']['output']>;
+  emailEnabled: Scalars['Boolean']['output'];
+  globalMode: GlobalNotifMode;
+  isDndActive: Scalars['Boolean']['output'];
+  pushEnabled: Scalars['Boolean']['output'];
 };
 
 export type OnboardingStatus = {
@@ -1932,9 +2064,9 @@ export type Query = {
   me?: Maybe<User>;
   messageReactions: Array<MessageReaction>;
   messagesDelta: MessagesDelta;
+  myNotificationSummary: NotificationSummary;
   myProjects: Array<Project>;
   myWorkspaces: Array<Workspace>;
-  /** Get paginated notifications for the current user. */
   notifications: NotificationConnection;
   onboardingStatus: OnboardingStatus;
   project?: Maybe<Project>;
@@ -1946,7 +2078,6 @@ export type Query = {
   projectRoles: Array<ProjectRole>;
   reactionUsers: ReactionUsersConnection;
   rolePermissions: Array<RolePermission>;
-  /** Get count of unread notifications. */
   unreadNotificationCount: Scalars['Int']['output'];
   user?: Maybe<PublicUser>;
   userBoards: BoardConnection;
@@ -2516,6 +2647,13 @@ export type RolePermission = {
   roleId: Scalars['ID']['output'];
 };
 
+export type ScopedNotificationPreference = {
+  __typename?: 'ScopedNotificationPreference';
+  categories: Array<CategoryPreferenceSetting>;
+  emailEnabled?: Maybe<Scalars['Boolean']['output']>;
+  pushEnabled?: Maybe<Scalars['Boolean']['output']>;
+};
+
 export enum SortDirection {
   Asc = 'ASC',
   Desc = 'DESC'
@@ -2526,13 +2664,6 @@ export type SubscribeThreadResult = {
   isSubscribed: Scalars['Boolean']['output'];
   success: Scalars['Boolean']['output'];
   threadId: Scalars['ID']['output'];
-};
-
-export type Task = {
-  __typename?: 'Task';
-  id: Scalars['ID']['output'];
-  statusName: Scalars['String']['output'];
-  title: Scalars['String']['output'];
 };
 
 export type ToggleFeatureFlagInput = {
@@ -2616,6 +2747,14 @@ export type UpdateChannelVisibilityResult = {
   success: Scalars['Boolean']['output'];
 };
 
+export type UpdateGlobalNotifPrefsInput = {
+  categories?: InputMaybe<Array<CategoryPreferenceInput>>;
+  emailEnabled?: InputMaybe<Scalars['Boolean']['input']>;
+  globalMode?: InputMaybe<GlobalNotifMode>;
+  muteUntil?: InputMaybe<Scalars['String']['input']>;
+  pushEnabled?: InputMaybe<Scalars['Boolean']['input']>;
+};
+
 export type UpdateIssueInput = {
   assigneeId?: InputMaybe<Scalars['ID']['input']>;
   dueDate?: InputMaybe<Scalars['DateTime']['input']>;
@@ -2687,6 +2826,12 @@ export type UpdateProjectRoleInput = {
   description?: InputMaybe<Scalars['String']['input']>;
   name?: InputMaybe<Scalars['String']['input']>;
   rank?: InputMaybe<Scalars['Int']['input']>;
+};
+
+export type UpdateScopedPreferencesInput = {
+  categories?: InputMaybe<Array<CategoryPreferenceInput>>;
+  emailEnabled?: InputMaybe<Scalars['Boolean']['input']>;
+  pushEnabled?: InputMaybe<Scalars['Boolean']['input']>;
 };
 
 export type UpdateWorkspaceInput = {
@@ -3124,6 +3269,8 @@ export type ResolversTypes = ResolversObject<{
   BoardPayload: ResolverTypeWrapper<BoardPayload>;
   BoardSnapshot: ResolverTypeWrapper<BoardSnapshot>;
   Boolean: ResolverTypeWrapper<Scalars['Boolean']['output']>;
+  CategoryPreferenceInput: CategoryPreferenceInput;
+  CategoryPreferenceSetting: ResolverTypeWrapper<CategoryPreferenceSetting>;
   ChannelAvailabilityResponse: ResolverTypeWrapper<ChannelAvailabilityResponse>;
   ChannelMemberInfo: ResolverTypeWrapper<ChannelMemberInfo>;
   ChannelPreview: ResolverTypeWrapper<ChannelPreview>;
@@ -3139,6 +3286,8 @@ export type ResolversTypes = ResolversObject<{
   Conversation: ResolverTypeWrapper<Omit<Conversation, 'members'> & { members?: Maybe<Array<ResolversTypes['ConversationMember']>> }>;
   ConversationConnection: ResolverTypeWrapper<Omit<ConversationConnection, 'edges'> & { edges: Array<ResolversTypes['Conversation']> }>;
   ConversationMember: ResolverTypeWrapper<PrismaChatMember>;
+  ConversationNotifMode: ConversationNotifMode;
+  ConversationNotificationPreference: ResolverTypeWrapper<ConversationNotificationPreference>;
   ConversationType: ConversationType;
   ConversationUnreadCount: ResolverTypeWrapper<ConversationUnreadCount>;
   CreateBoardInput: CreateBoardInput;
@@ -3182,6 +3331,8 @@ export type ResolversTypes = ResolversObject<{
   FlagOverrideRecord: ResolverTypeWrapper<FlagOverrideRecord>;
   Float: ResolverTypeWrapper<Scalars['Float']['output']>;
   GetPageSnapshotResult: ResolverTypeWrapper<GetPageSnapshotResult>;
+  GlobalNotifMode: GlobalNotifMode;
+  GlobalNotificationPreference: ResolverTypeWrapper<GlobalNotificationPreference>;
   GroupMemberInfo: ResolverTypeWrapper<GroupMemberInfo>;
   HistoryPayload: ResolverTypeWrapper<Omit<HistoryPayload, 'messages'> & { messages: Array<ResolversTypes['ChatMessage']> }>;
   ID: ResolverTypeWrapper<Scalars['ID']['output']>;
@@ -3214,8 +3365,10 @@ export type ResolversTypes = ResolversObject<{
   Mutation: ResolverTypeWrapper<Record<PropertyKey, never>>;
   MuteConversationResult: ResolverTypeWrapper<MuteConversationResult>;
   Notification: ResolverTypeWrapper<PrismaNotification>;
+  NotificationCategory: NotificationCategory;
   NotificationConnection: ResolverTypeWrapper<Omit<NotificationConnection, 'edges'> & { edges: Array<ResolversTypes['NotificationEdge']> }>;
   NotificationEdge: ResolverTypeWrapper<Omit<NotificationEdge, 'node'> & { node: ResolversTypes['Notification'] }>;
+  NotificationSummary: ResolverTypeWrapper<NotificationSummary>;
   OnboardingStatus: ResolverTypeWrapper<OnboardingStatus>;
   OverviewIssue: ResolverTypeWrapper<OverviewIssue>;
   OverviewMember: ResolverTypeWrapper<OverviewMember>;
@@ -3270,10 +3423,10 @@ export type ResolversTypes = ResolversObject<{
   RequestUploadResult: ResolverTypeWrapper<RequestUploadResult>;
   RequestVaultUploadInput: RequestVaultUploadInput;
   RolePermission: ResolverTypeWrapper<RolePermission>;
+  ScopedNotificationPreference: ResolverTypeWrapper<ScopedNotificationPreference>;
   SortDirection: SortDirection;
   String: ResolverTypeWrapper<Scalars['String']['output']>;
   SubscribeThreadResult: ResolverTypeWrapper<SubscribeThreadResult>;
-  Task: ResolverTypeWrapper<Task>;
   ToggleFeatureFlagInput: ToggleFeatureFlagInput;
   ToggleFlagResult: ResolverTypeWrapper<ToggleFlagResult>;
   UnarchiveChannelResult: ResolverTypeWrapper<UnarchiveChannelResult>;
@@ -3287,6 +3440,7 @@ export type ResolversTypes = ResolversObject<{
   UpcomingIssue: ResolverTypeWrapper<UpcomingIssue>;
   UpdateChannelDescriptionResult: ResolverTypeWrapper<UpdateChannelDescriptionResult>;
   UpdateChannelVisibilityResult: ResolverTypeWrapper<UpdateChannelVisibilityResult>;
+  UpdateGlobalNotifPrefsInput: UpdateGlobalNotifPrefsInput;
   UpdateIssueInput: UpdateIssueInput;
   UpdateIssueLabelInput: UpdateIssueLabelInput;
   UpdateIssueLabelResult: ResolverTypeWrapper<Omit<UpdateIssueLabelResult, 'label'> & { label: ResolversTypes['IssueLabel'] }>;
@@ -3298,6 +3452,7 @@ export type ResolversTypes = ResolversObject<{
   UpdateProfileInput: UpdateProfileInput;
   UpdateProjectInput: UpdateProjectInput;
   UpdateProjectRoleInput: UpdateProjectRoleInput;
+  UpdateScopedPreferencesInput: UpdateScopedPreferencesInput;
   UpdateWorkspaceInput: UpdateWorkspaceInput;
   UpdateWorkspaceRoleInput: UpdateWorkspaceRoleInput;
   User: ResolverTypeWrapper<PrismaUser>;
@@ -3354,6 +3509,8 @@ export type ResolversParentTypes = ResolversObject<{
   BoardPayload: BoardPayload;
   BoardSnapshot: BoardSnapshot;
   Boolean: Scalars['Boolean']['output'];
+  CategoryPreferenceInput: CategoryPreferenceInput;
+  CategoryPreferenceSetting: CategoryPreferenceSetting;
   ChannelAvailabilityResponse: ChannelAvailabilityResponse;
   ChannelMemberInfo: ChannelMemberInfo;
   ChannelPreview: ChannelPreview;
@@ -3369,6 +3526,7 @@ export type ResolversParentTypes = ResolversObject<{
   Conversation: Omit<Conversation, 'members'> & { members?: Maybe<Array<ResolversParentTypes['ConversationMember']>> };
   ConversationConnection: Omit<ConversationConnection, 'edges'> & { edges: Array<ResolversParentTypes['Conversation']> };
   ConversationMember: PrismaChatMember;
+  ConversationNotificationPreference: ConversationNotificationPreference;
   ConversationUnreadCount: ConversationUnreadCount;
   CreateBoardInput: CreateBoardInput;
   CreateChannelInput: CreateChannelInput;
@@ -3410,6 +3568,7 @@ export type ResolversParentTypes = ResolversObject<{
   FlagOverrideRecord: FlagOverrideRecord;
   Float: Scalars['Float']['output'];
   GetPageSnapshotResult: GetPageSnapshotResult;
+  GlobalNotificationPreference: GlobalNotificationPreference;
   GroupMemberInfo: GroupMemberInfo;
   HistoryPayload: Omit<HistoryPayload, 'messages'> & { messages: Array<ResolversParentTypes['ChatMessage']> };
   ID: Scalars['ID']['output'];
@@ -3443,6 +3602,7 @@ export type ResolversParentTypes = ResolversObject<{
   Notification: PrismaNotification;
   NotificationConnection: Omit<NotificationConnection, 'edges'> & { edges: Array<ResolversParentTypes['NotificationEdge']> };
   NotificationEdge: Omit<NotificationEdge, 'node'> & { node: ResolversParentTypes['Notification'] };
+  NotificationSummary: NotificationSummary;
   OnboardingStatus: OnboardingStatus;
   OverviewIssue: OverviewIssue;
   OverviewMember: OverviewMember;
@@ -3495,9 +3655,9 @@ export type ResolversParentTypes = ResolversObject<{
   RequestUploadResult: RequestUploadResult;
   RequestVaultUploadInput: RequestVaultUploadInput;
   RolePermission: RolePermission;
+  ScopedNotificationPreference: ScopedNotificationPreference;
   String: Scalars['String']['output'];
   SubscribeThreadResult: SubscribeThreadResult;
-  Task: Task;
   ToggleFeatureFlagInput: ToggleFeatureFlagInput;
   ToggleFlagResult: ToggleFlagResult;
   UnarchiveChannelResult: UnarchiveChannelResult;
@@ -3511,6 +3671,7 @@ export type ResolversParentTypes = ResolversObject<{
   UpcomingIssue: UpcomingIssue;
   UpdateChannelDescriptionResult: UpdateChannelDescriptionResult;
   UpdateChannelVisibilityResult: UpdateChannelVisibilityResult;
+  UpdateGlobalNotifPrefsInput: UpdateGlobalNotifPrefsInput;
   UpdateIssueInput: UpdateIssueInput;
   UpdateIssueLabelInput: UpdateIssueLabelInput;
   UpdateIssueLabelResult: Omit<UpdateIssueLabelResult, 'label'> & { label: ResolversParentTypes['IssueLabel'] };
@@ -3522,6 +3683,7 @@ export type ResolversParentTypes = ResolversObject<{
   UpdateProfileInput: UpdateProfileInput;
   UpdateProjectInput: UpdateProjectInput;
   UpdateProjectRoleInput: UpdateProjectRoleInput;
+  UpdateScopedPreferencesInput: UpdateScopedPreferencesInput;
   UpdateWorkspaceInput: UpdateWorkspaceInput;
   UpdateWorkspaceRoleInput: UpdateWorkspaceRoleInput;
   User: PrismaUser;
@@ -3636,6 +3798,13 @@ export type BoardSnapshotResolvers<ContextType = ServiceContext, ParentType exte
   snapshotTimestamp?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
 }>;
 
+export type CategoryPreferenceSettingResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['CategoryPreferenceSetting'] = ResolversParentTypes['CategoryPreferenceSetting']> = ResolversObject<{
+  category?: Resolver<ResolversTypes['NotificationCategory'], ParentType, ContextType>;
+  email?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  inApp?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  push?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+}>;
+
 export type ChannelAvailabilityResponseResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ChannelAvailabilityResponse'] = ResolversParentTypes['ChannelAvailabilityResponse']> = ResolversObject<{
   available?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   message?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
@@ -3711,10 +3880,12 @@ export type ConversationResolvers<ContextType = ServiceContext, ParentType exten
   deletedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   isArchived?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  isMuted?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   isPublic?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   lastMessage?: Resolver<Maybe<ResolversTypes['LastMessagePreview']>, ParentType, ContextType>;
   memberCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   members?: Resolver<Maybe<Array<ResolversTypes['ConversationMember']>>, ParentType, ContextType>;
+  myNotifMode?: Resolver<Maybe<ResolversTypes['ConversationNotifMode']>, ParentType, ContextType>;
   name?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   parentMessageId?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
   projectId?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
@@ -3736,6 +3907,14 @@ export type ConversationMemberResolvers<ContextType = ServiceContext, ParentType
   role?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   user?: Resolver<ResolversTypes['UserBasic'], ParentType, ContextType>;
   userId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+}>;
+
+export type ConversationNotificationPreferenceResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ConversationNotificationPreference'] = ResolversParentTypes['ConversationNotificationPreference']> = ResolversObject<{
+  conversationId?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  emailEnabled?: Resolver<Maybe<ResolversTypes['Boolean']>, ParentType, ContextType>;
+  mode?: Resolver<ResolversTypes['ConversationNotifMode'], ParentType, ContextType>;
+  muteUntil?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  pushEnabled?: Resolver<Maybe<ResolversTypes['Boolean']>, ParentType, ContextType>;
 }>;
 
 export type ConversationUnreadCountResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ConversationUnreadCount'] = ResolversParentTypes['ConversationUnreadCount']> = ResolversObject<{
@@ -3851,6 +4030,14 @@ export type GetPageSnapshotResultResolvers<ContextType = ServiceContext, ParentT
   pageId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   snapshot?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   snapshotTimestamp?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+}>;
+
+export type GlobalNotificationPreferenceResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['GlobalNotificationPreference'] = ResolversParentTypes['GlobalNotificationPreference']> = ResolversObject<{
+  categories?: Resolver<Array<ResolversTypes['CategoryPreferenceSetting']>, ParentType, ContextType>;
+  emailEnabled?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  globalMode?: Resolver<ResolversTypes['GlobalNotifMode'], ParentType, ContextType>;
+  inAppEnabled?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  pushEnabled?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
 }>;
 
 export type GroupMemberInfoResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['GroupMemberInfo'] = ResolversParentTypes['GroupMemberInfo']> = ResolversObject<{
@@ -4047,6 +4234,9 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   moveVaultFile?: Resolver<ResolversTypes['MoveFileResult'], ParentType, ContextType, RequireFields<MutationMoveVaultFileArgs, 'input'>>;
   moveVaultFolder?: Resolver<ResolversTypes['MoveFolderResult'], ParentType, ContextType, RequireFields<MutationMoveVaultFolderArgs, 'input'>>;
   muteConversation?: Resolver<ResolversTypes['MuteConversationResult'], ParentType, ContextType, RequireFields<MutationMuteConversationArgs, 'conversationId' | 'isMuted'>>;
+  muteProject?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationMuteProjectArgs, 'projectId'>>;
+  muteWorkspace?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationMuteWorkspaceArgs, 'workspaceId'>>;
+  pauseNotifications?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationPauseNotificationsArgs, 'until'>>;
   pinVaultFolder?: Resolver<ResolversTypes['PinFolderResult'], ParentType, ContextType, RequireFields<MutationPinVaultFolderArgs, 'input'>>;
   registerExternalFile?: Resolver<ResolversTypes['RegisterExternalFileResult'], ParentType, ContextType, RequireFields<MutationRegisterExternalFileArgs, 'input'>>;
   removeBoardCollaborator?: Resolver<ResolversTypes['RemoveBoardCollaboratorResult'], ParentType, ContextType, RequireFields<MutationRemoveBoardCollaboratorArgs, 'boardId' | 'userId'>>;
@@ -4072,6 +4262,9 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   requestVaultUpload?: Resolver<ResolversTypes['RequestUploadResult'], ParentType, ContextType, RequireFields<MutationRequestVaultUploadArgs, 'input'>>;
   requestWorkspaceLogoUpload?: Resolver<ResolversTypes['WorkspaceLogoUploadPayload'], ParentType, ContextType, RequireFields<MutationRequestWorkspaceLogoUploadArgs, 'mimeType' | 'sizeBytes' | 'workspaceId'>>;
   resendWorkspaceInvite?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationResendWorkspaceInviteArgs, 'inviteId' | 'workspaceId'>>;
+  resumeNotifications?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  setConversationNotifMode?: Resolver<ResolversTypes['ConversationNotificationPreference'], ParentType, ContextType, RequireFields<MutationSetConversationNotifModeArgs, 'conversationId' | 'mode'>>;
+  setGlobalNotifMode?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationSetGlobalNotifModeArgs, 'mode'>>;
   subscribeThread?: Resolver<ResolversTypes['SubscribeThreadResult'], ParentType, ContextType, RequireFields<MutationSubscribeThreadArgs, 'threadId'>>;
   syncUser?: Resolver<ResolversTypes['User'], ParentType, ContextType, RequireFields<MutationSyncUserArgs, 'clerkId' | 'email'>>;
   toggleFeatureFlag?: Resolver<ResolversTypes['ToggleFlagResult'], ParentType, ContextType, RequireFields<MutationToggleFeatureFlagArgs, 'input'>>;
@@ -4083,11 +4276,14 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   unarchiveProject?: Resolver<ResolversTypes['Project'], ParentType, ContextType, RequireFields<MutationUnarchiveProjectArgs, 'projectId'>>;
   unlockBoard?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType, RequireFields<MutationUnlockBoardArgs, 'boardId'>>;
   unlockPage?: Resolver<ResolversTypes['UnlockPageResult'], ParentType, ContextType, RequireFields<MutationUnlockPageArgs, 'input'>>;
+  unmuteProject?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationUnmuteProjectArgs, 'projectId'>>;
+  unmuteWorkspace?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationUnmuteWorkspaceArgs, 'workspaceId'>>;
   unpinVaultFolder?: Resolver<ResolversTypes['DeleteResult'], ParentType, ContextType, RequireFields<MutationUnpinVaultFolderArgs, 'input'>>;
   unsubscribeThread?: Resolver<ResolversTypes['UnsubscribeThreadResult'], ParentType, ContextType, RequireFields<MutationUnsubscribeThreadArgs, 'threadId'>>;
   updateBoardDescription?: Resolver<ResolversTypes['Whiteboard'], ParentType, ContextType, RequireFields<MutationUpdateBoardDescriptionArgs, 'boardId'>>;
   updateChannelDescription?: Resolver<ResolversTypes['UpdateChannelDescriptionResult'], ParentType, ContextType, RequireFields<MutationUpdateChannelDescriptionArgs, 'channelId' | 'workspaceId'>>;
   updateChannelVisibility?: Resolver<ResolversTypes['UpdateChannelVisibilityResult'], ParentType, ContextType, RequireFields<MutationUpdateChannelVisibilityArgs, 'channelId' | 'isPublic' | 'workspaceId'>>;
+  updateGlobalNotifPrefs?: Resolver<ResolversTypes['GlobalNotificationPreference'], ParentType, ContextType, RequireFields<MutationUpdateGlobalNotifPrefsArgs, 'input'>>;
   updateIssue?: Resolver<ResolversTypes['UpdateIssueResult'], ParentType, ContextType, RequireFields<MutationUpdateIssueArgs, 'input'>>;
   updateIssueLabel?: Resolver<ResolversTypes['UpdateIssueLabelResult'], ParentType, ContextType, RequireFields<MutationUpdateIssueLabelArgs, 'input'>>;
   updateIssueStatus?: Resolver<ResolversTypes['UpdateIssueStatusResult'], ParentType, ContextType, RequireFields<MutationUpdateIssueStatusArgs, 'input'>>;
@@ -4095,9 +4291,11 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   updateProfile?: Resolver<ResolversTypes['User'], ParentType, ContextType, RequireFields<MutationUpdateProfileArgs, 'input'>>;
   updateProject?: Resolver<ResolversTypes['Project'], ParentType, ContextType, RequireFields<MutationUpdateProjectArgs, 'input' | 'projectId'>>;
   updateProjectMemberRole?: Resolver<ResolversTypes['ProjectMember'], ParentType, ContextType, RequireFields<MutationUpdateProjectMemberRoleArgs, 'projectId' | 'roleId' | 'userId' | 'workspaceId'>>;
+  updateProjectNotifPrefs?: Resolver<ResolversTypes['ScopedNotificationPreference'], ParentType, ContextType, RequireFields<MutationUpdateProjectNotifPrefsArgs, 'input' | 'projectId'>>;
   updateProjectRole?: Resolver<ResolversTypes['ProjectRole'], ParentType, ContextType, RequireFields<MutationUpdateProjectRoleArgs, 'input' | 'projectId' | 'roleId' | 'workspaceId'>>;
   updateWorkspace?: Resolver<ResolversTypes['Workspace'], ParentType, ContextType, RequireFields<MutationUpdateWorkspaceArgs, 'input' | 'workspaceId'>>;
   updateWorkspaceMemberRole?: Resolver<ResolversTypes['WorkspaceMember'], ParentType, ContextType, RequireFields<MutationUpdateWorkspaceMemberRoleArgs, 'memberId' | 'roleId' | 'workspaceId'>>;
+  updateWorkspaceNotifPrefs?: Resolver<ResolversTypes['ScopedNotificationPreference'], ParentType, ContextType, RequireFields<MutationUpdateWorkspaceNotifPrefsArgs, 'input' | 'workspaceId'>>;
   updateWorkspaceRole?: Resolver<ResolversTypes['WorkspaceRole'], ParentType, ContextType, RequireFields<MutationUpdateWorkspaceRoleArgs, 'input' | 'roleId' | 'workspaceId'>>;
 }>;
 
@@ -4111,19 +4309,18 @@ export type NotificationResolvers<ContextType = ServiceContext, ParentType exten
   actor?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
   actorId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   category?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  chatMessage?: Resolver<Maybe<ResolversTypes['ChatMessage']>, ParentType, ContextType>;
   createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
-  data?: Resolver<Maybe<ResolversTypes['JSON']>, ParentType, ContextType>;
+  data?: Resolver<ResolversTypes['JSON'], ParentType, ContextType>;
   entityId?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   entityType?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   isArchived?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   isRead?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
-  page?: Resolver<Maybe<ResolversTypes['Page']>, ParentType, ContextType>;
   project?: Resolver<Maybe<ResolversTypes['Project']>, ParentType, ContextType>;
+  projectId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   recipientUserId?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  task?: Resolver<Maybe<ResolversTypes['Task']>, ParentType, ContextType>;
   workspace?: Resolver<Maybe<ResolversTypes['Workspace']>, ParentType, ContextType>;
+  workspaceId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
 }>;
 
 export type NotificationConnectionResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['NotificationConnection'] = ResolversParentTypes['NotificationConnection']> = ResolversObject<{
@@ -4134,6 +4331,15 @@ export type NotificationConnectionResolvers<ContextType = ServiceContext, Parent
 export type NotificationEdgeResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['NotificationEdge'] = ResolversParentTypes['NotificationEdge']> = ResolversObject<{
   cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   node?: Resolver<ResolversTypes['Notification'], ParentType, ContextType>;
+}>;
+
+export type NotificationSummaryResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['NotificationSummary'] = ResolversParentTypes['NotificationSummary']> = ResolversObject<{
+  categories?: Resolver<Array<ResolversTypes['CategoryPreferenceSetting']>, ParentType, ContextType>;
+  dndUntil?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  emailEnabled?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  globalMode?: Resolver<ResolversTypes['GlobalNotifMode'], ParentType, ContextType>;
+  isDndActive?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  pushEnabled?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
 }>;
 
 export type OnboardingStatusResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['OnboardingStatus'] = ResolversParentTypes['OnboardingStatus']> = ResolversObject<{
@@ -4357,6 +4563,7 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   me?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
   messageReactions?: Resolver<Array<ResolversTypes['MessageReaction']>, ParentType, ContextType, RequireFields<QueryMessageReactionsArgs, 'messageId'>>;
   messagesDelta?: Resolver<ResolversTypes['MessagesDelta'], ParentType, ContextType, RequireFields<QueryMessagesDeltaArgs, 'conversationId'>>;
+  myNotificationSummary?: Resolver<ResolversTypes['NotificationSummary'], ParentType, ContextType>;
   myProjects?: Resolver<Array<ResolversTypes['Project']>, ParentType, ContextType, RequireFields<QueryMyProjectsArgs, 'workspaceId'>>;
   myWorkspaces?: Resolver<Array<ResolversTypes['Workspace']>, ParentType, ContextType>;
   notifications?: Resolver<ResolversTypes['NotificationConnection'], ParentType, ContextType, Partial<QueryNotificationsArgs>>;
@@ -4483,16 +4690,16 @@ export type RolePermissionResolvers<ContextType = ServiceContext, ParentType ext
   roleId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
 }>;
 
+export type ScopedNotificationPreferenceResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ScopedNotificationPreference'] = ResolversParentTypes['ScopedNotificationPreference']> = ResolversObject<{
+  categories?: Resolver<Array<ResolversTypes['CategoryPreferenceSetting']>, ParentType, ContextType>;
+  emailEnabled?: Resolver<Maybe<ResolversTypes['Boolean']>, ParentType, ContextType>;
+  pushEnabled?: Resolver<Maybe<ResolversTypes['Boolean']>, ParentType, ContextType>;
+}>;
+
 export type SubscribeThreadResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['SubscribeThreadResult'] = ResolversParentTypes['SubscribeThreadResult']> = ResolversObject<{
   isSubscribed?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   success?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   threadId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
-}>;
-
-export type TaskResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Task'] = ResolversParentTypes['Task']> = ResolversObject<{
-  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
-  statusName?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 }>;
 
 export type ToggleFlagResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ToggleFlagResult'] = ResolversParentTypes['ToggleFlagResult']> = ResolversObject<{
@@ -4845,6 +5052,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   BoardConnection?: BoardConnectionResolvers<ContextType>;
   BoardPayload?: BoardPayloadResolvers<ContextType>;
   BoardSnapshot?: BoardSnapshotResolvers<ContextType>;
+  CategoryPreferenceSetting?: CategoryPreferenceSettingResolvers<ContextType>;
   ChannelAvailabilityResponse?: ChannelAvailabilityResponseResolvers<ContextType>;
   ChannelMemberInfo?: ChannelMemberInfoResolvers<ContextType>;
   ChannelPreview?: ChannelPreviewResolvers<ContextType>;
@@ -4857,6 +5065,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   Conversation?: ConversationResolvers<ContextType>;
   ConversationConnection?: ConversationConnectionResolvers<ContextType>;
   ConversationMember?: ConversationMemberResolvers<ContextType>;
+  ConversationNotificationPreference?: ConversationNotificationPreferenceResolvers<ContextType>;
   ConversationUnreadCount?: ConversationUnreadCountResolvers<ContextType>;
   CreateFolderResult?: CreateFolderResultResolvers<ContextType>;
   CreateIssueLabelResult?: CreateIssueLabelResultResolvers<ContextType>;
@@ -4878,6 +5087,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   FeatureFlagRecord?: FeatureFlagRecordResolvers<ContextType>;
   FlagOverrideRecord?: FlagOverrideRecordResolvers<ContextType>;
   GetPageSnapshotResult?: GetPageSnapshotResultResolvers<ContextType>;
+  GlobalNotificationPreference?: GlobalNotificationPreferenceResolvers<ContextType>;
   GroupMemberInfo?: GroupMemberInfoResolvers<ContextType>;
   HistoryPayload?: HistoryPayloadResolvers<ContextType>;
   InviteResponse?: InviteResponseResolvers<ContextType>;
@@ -4903,6 +5113,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   Notification?: NotificationResolvers<ContextType>;
   NotificationConnection?: NotificationConnectionResolvers<ContextType>;
   NotificationEdge?: NotificationEdgeResolvers<ContextType>;
+  NotificationSummary?: NotificationSummaryResolvers<ContextType>;
   OnboardingStatus?: OnboardingStatusResolvers<ContextType>;
   OverviewIssue?: OverviewIssueResolvers<ContextType>;
   OverviewMember?: OverviewMemberResolvers<ContextType>;
@@ -4942,8 +5153,8 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   RequestIssueDescriptionUploadResult?: RequestIssueDescriptionUploadResultResolvers<ContextType>;
   RequestUploadResult?: RequestUploadResultResolvers<ContextType>;
   RolePermission?: RolePermissionResolvers<ContextType>;
+  ScopedNotificationPreference?: ScopedNotificationPreferenceResolvers<ContextType>;
   SubscribeThreadResult?: SubscribeThreadResultResolvers<ContextType>;
-  Task?: TaskResolvers<ContextType>;
   ToggleFlagResult?: ToggleFlagResultResolvers<ContextType>;
   UnarchiveChannelResult?: UnarchiveChannelResultResolvers<ContextType>;
   UnarchivePageResult?: UnarchivePageResultResolvers<ContextType>;

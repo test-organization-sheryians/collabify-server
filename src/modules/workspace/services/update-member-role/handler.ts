@@ -5,6 +5,7 @@ import { updateRole } from "./steps/update-role";
 import { guardSelf } from "./steps/guard-self";
 import { guardHierarchy } from "./steps/guard-hierarchy";
 import { addRoleMember, removeRoleMember } from "@/modules/authorization";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 export const updateMemberRole = async (
   input: UpdateMemberRoleInput,
@@ -32,7 +33,8 @@ export const updateMemberRole = async (
     }),
   ]);
 
-  if (!actorMember) throw AppError.forbidden("Actor is not a workspace member.");
+  if (!actorMember)
+    throw AppError.forbidden("Actor is not a workspace member.");
   if (!targetMember) throw AppError.notFound("Target member not found.");
   if (!newRole) throw AppError.notFound("Role not found in workspace.");
 
@@ -71,14 +73,37 @@ export const updateMemberRole = async (
   const oldRoleId = targetMember.assignedRole.id;
 
   await Promise.all([
-    // 1. Clear all perm:* and granted-perms:* entries tracked in perm-index (emits WS push)
     ctx.permissions.invalidate.invalidateUserAll(targetUserId),
-    // 2. Clear workspace membership cache, owner-bypass, and role-at-scope
     ctx.authGate.invalidate.workspaceMember(workspaceId, targetUserId),
-    // 3. Maintain role-member index so future permission changes invalidate correctly
     removeRoleMember(oldRoleId, targetUserId, ctx.redis),
     addRoleMember(roleId, targetUserId, ctx.redis),
   ]);
+
+  // Fetch workspace for notification payload (actor is already loaded)
+  const workspace = await db.workspace.findUnique({
+    where: { id: workspaceId },
+    select: { name: true, slug: true },
+  });
+
+  await db
+    .$transaction((tx) =>
+      emit(tx, {
+        type: "workspace.member.role_changed",
+        payload: {
+          workspaceId,
+          workspaceName: workspace?.name ?? "",
+          workspaceSlug: workspace?.slug ?? "",
+          memberId: targetUserId,
+          actorId: actorUserId,
+          actorName: actorMember.assignedRole.name ?? "A workspace admin",
+          newRoleName: newRole.name,
+          oldRoleName: targetMember.assignedRole.name,
+        },
+      })
+    )
+    .catch(() => {
+      /* non-fatal */
+    });
 
   return updated;
 };

@@ -17,6 +17,7 @@ import type { UpdateIssueResult } from "./types";
 import { fetchIssue } from "./steps/fetch-issue";
 import { validateLabels } from "./steps/validate-labels";
 import { updateIssue } from "./steps/update-issue";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 const logger = createLogger("issues:services:update-issue");
 
@@ -48,6 +49,51 @@ export const updateIssueHandler = async (
 
   await validateLabels(input.labelIds, existing.projectId, ctx.db);
   const issue = await updateIssue(input, ctx.db);
+
+  // Emit outbox events only for meaningful changes
+  const notifications: Promise<void>[] = [];
+
+  // Assignee changed and new assignee ≠ actor → issue.assigned
+  const assigneeChanged =
+    input.assigneeId !== undefined && input.assigneeId !== existing.assigneeId;
+  if (assigneeChanged && input.assigneeId && input.assigneeId !== userId) {
+    notifications.push(
+      emit(ctx.db as any, {
+        type: "issue.assigned",
+        payload: {
+          issueId:     issue.id,
+          projectId:   existing.projectId,
+          workspaceId: project.workspaceId,
+          assigneeId:  input.assigneeId,
+          actorId:     userId,
+          title:       issue.title,
+        },
+        deduplicationId: `issue.assigned:${issue.id}:${input.assigneeId}:${Date.now()}`,
+      }).catch(() => { /* non-fatal */ })
+    );
+  }
+
+  // Status changed → issue.status_changed (notify assignee if any, ≠ actor)
+  const statusChanged =
+    input.statusId !== undefined && input.statusId !== existing.statusId;
+  if (statusChanged && issue.assigneeId && issue.assigneeId !== userId) {
+    notifications.push(
+      emit(ctx.db as any, {
+        type: "issue.status_changed",
+        payload: {
+          issueId:     issue.id,
+          projectId:   existing.projectId,
+          workspaceId: project.workspaceId,
+          assigneeId:  issue.assigneeId,
+          actorId:     userId,
+          title:       issue.title,
+          statusId:    input.statusId,
+        },
+      }).catch(() => { /* non-fatal */ })
+    );
+  }
+
+  await Promise.all(notifications);
 
   logger.info("updateIssue done", { issueId: issue.id });
   return { issue };

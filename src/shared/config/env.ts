@@ -28,6 +28,13 @@ const envSchema = z.object({
     .enum(["ses", "console", "sendgrid", "nodemailer", "resend"])
     .default("console"),
 
+  // Push
+  PUSH_PROVIDER: z
+    .enum(["fcm", "console"])
+    .default("console"),
+  FIREBASE_PROJECT_ID:           z.string().optional(),
+  FIREBASE_SERVICE_ACCOUNT_JSON: z.string().optional(), // JSON string of service account key
+
   // SendGrid
   SENDGRID_API_KEY: z.string().optional(),
 

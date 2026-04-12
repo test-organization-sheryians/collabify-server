@@ -4,7 +4,7 @@
  * Logs all other errors but does NOT fail the sync.
  */
 import { createLogger } from "@/shared/lib/logger";
-import { OutboxWriter } from "@/modules/notification/lib/outbox.writer";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 import type { User } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
 
@@ -15,15 +15,15 @@ export async function emitWelcomeEvent(
   db: PrismaClient
 ): Promise<void> {
   try {
-    await OutboxWriter.emit(db, {
-      type: "welcome.user",
+    await db.$transaction(async (tx) => emit(tx, {
+      type: "user.welcome",
       payload: {
         userId: user.id,
         userName: user.fullName || "Collabify User",
         userEmail: user.email,
       },
       deduplicationId: `welcome-v1:${user.id}`,
-    });
+    }));
   } catch (rawError: unknown) {
     const err = rawError as { code?: string; message?: string };
     if (err.code !== "P2002" && !err.message?.includes("Unique constraint")) {

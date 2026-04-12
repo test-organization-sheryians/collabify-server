@@ -1,80 +1,115 @@
-import { Job } from "bullmq";
-import { createWorker, createQueue } from "@/services/bullmq";
-import { QUEUE_NAMES, REDIS_KEYS } from "../core/constants";
-import { db } from "@/infra/db";
+import { createWorker } from "@/services/bullmq";
+import { QUEUE_NAMES, CONCURRENCY } from "../constants";
 import { createLogger } from "@/shared/lib/logger";
+import * as registry from "../events/registry";
+import * as presenceChecker from "../shared/presence/presence-checker";
+import * as preferenceResolver from "../shared/preferences/preference-resolver";
+import {
+  emailQueue,
+  inAppQueue,
+  pushQueue,
+  realtimeQueue,
+} from "../shared/queues/queue-registry";
+import type { FanoutJobData, Channel, Recipient } from "../events/types";
+import type { NotificationContext } from "../shared/preferences/preference-types";
 
-const logger = createLogger("notification:engine:fan-out");
-import { DeciderJobData } from "../core/types";
-import { redis } from "@/infra/redis";
+// =============================================================================
+// Fanout Worker (Phase 5.2)
+//
+// Processes FanoutQueue jobs produced by the Decider for large fan-outs.
+// Each job carries a chunk of up to 50 recipients.
+//
+// Per recipient, it runs the same delivery pipeline as the Decider's inline path:
+//   preference resolution → channel dispatch
+//
+// If there are more pages (nextCursor set), the Decider already dispatched
+// multiple FanoutQueue chunks — this worker just handles its chunk.
+// =============================================================================
 
-const BATCH_SIZE = 100;
-const deciderQueue = createQueue<DeciderJobData>(QUEUE_NAMES.DECIDER);
-const fanOutQueue = createQueue(QUEUE_NAMES.FANOUT);
+const logger = createLogger("notification:engine:fanout");
 
-interface FanOutJobData {
-  type: string;
-  payload: Record<string, unknown>;
-  query?: Record<string, unknown>;
-  offset?: number;
-}
-
-export const createFanOutWorker = () => {
-  return createWorker<FanOutJobData>(
+export const createFanoutWorker = () =>
+  createWorker<FanoutJobData>(
     QUEUE_NAMES.FANOUT,
-    async (job: Job<FanOutJobData>) => {
-      const { type, payload, offset = 0 } = job.data;
-      const jobIdSafe = job.id || `unknown-${offset}`; // BullMQ jobs should have IDs
+    async (job) => {
+      const { eventId, type, payload, recipients } = job.data;
 
-      // 0. Idempotency Check
-      const lockKey = `${REDIS_KEYS.IDEMPOTENCY_PREFIX}fanout:${jobIdSafe}`;
-      const acquired = await redis.set(lockKey, "1", "EX", 86400, "NX");
-
-      if (!acquired) {
-        logger.debug("Duplicate FanOut Chunk Dropped", {
-          jobId: job.id,
-          offset,
-        });
-        return;
-      }
-
-      logger.debug("Processing FanOut Chunk", { jobId: job.id, offset });
-
-      const users = await db.user.findMany({
-        select: { id: true },
-        take: BATCH_SIZE,
-        skip: offset,
-        orderBy: { id: "asc" },
+      logger.debug("Fanout worker: processing chunk", {
+        jobId:      job.id,
+        eventId,
+        type,
+        recipients: recipients.length,
       });
 
-      if (users.length === 0) {
-        logger.info("FanOut Complete", { type, totalProcessed: offset });
+      const entry = registry.get(type);
+      if (!entry) {
+        logger.warn("Fanout worker: unknown event type — dropping chunk", { type, eventId });
         return;
       }
+      const { definition, handler } = entry;
 
-      const jobs = users.map((user) => ({
-        name: type,
-        data: {
-          eventId: `fanout-${jobIdSafe}-${user.id}`, // Guaranteed unique per user/job
-          type,
-          payload: { ...payload, recipientId: user.id },
-          createdAt: new Date(),
-        },
-        opts: {
-          // Inherit defaults but be explicit
-          removeOnComplete: true,
-        },
-      }));
+      const context: NotificationContext = {
+        workspaceId:    payload.workspaceId    as string | undefined,
+        projectId:      payload.projectId      as string | undefined,
+        conversationId: payload.conversationId as string | undefined,
+      };
 
-      await deciderQueue.addBulk(jobs);
+      await Promise.all(
+        recipients.map(async (recipient: Recipient) => {
+          if (!recipient.userId) {
+            // External invitee — email only
+            const emailContent = await handler.buildEmail?.(payload, recipient);
+            if (!emailContent) return;
+            await emailQueue.add(`email:${eventId}:${recipient.email}`, {
+              eventId,
+              recipientUserId: null,
+              content: emailContent,
+              idempotencyKey:  `${eventId}:${recipient.email}`,
+            });
+            return;
+          }
 
-      // Continue FanOut
-      await fanOutQueue.add(type, {
-        ...job.data,
-        offset: offset + BATCH_SIZE,
-      });
+          const userId    = recipient.userId;
+          const isOnline  = await presenceChecker.isOnline(userId);
+          const resolution = await preferenceResolver.resolve(userId, definition, context, isOnline);
 
-      logger.debug("FanOut Chunk Processed", { count: users.length });
-    }
+          if (!resolution.deliver) return;
+
+          const idempotencyKey = `${eventId}:${userId}`;
+
+          await Promise.all(
+            resolution.activeChannels.map(async (channel: Channel) => {
+              if (channel === "EMAIL") {
+                const content = await handler.buildEmail?.(payload, recipient);
+                if (!content) return;
+                await emailQueue.add(`email:${eventId}:${userId}`, {
+                  eventId, recipientUserId: userId, content, idempotencyKey,
+                });
+              } else if (channel === "IN_APP") {
+                const content = await handler.buildInApp?.(payload, recipient);
+                if (!content) return;
+                await inAppQueue.add(`inapp:${eventId}:${userId}`, {
+                  eventId, type, recipientUserId: userId, content, idempotencyKey,
+                });
+              } else if (channel === "PUSH") {
+                const content = await handler.buildPush?.(payload, recipient);
+                if (!content) return;
+                await pushQueue.add(`push:${eventId}:${userId}`, {
+                  eventId, recipientUserId: userId, content, idempotencyKey,
+                });
+              } else if (channel === "REALTIME") {
+                const content = await handler.buildRealtime?.(payload, recipient);
+                if (!content) return;
+                await realtimeQueue.add(`rt:${eventId}:${userId}`, {
+                  eventId, recipientUserId: userId, content, idempotencyKey,
+                });
+              }
+            })
+          );
+        })
+      );
+
+      logger.debug("Fanout worker: chunk complete", { eventId, type });
+    },
+    { concurrency: CONCURRENCY.FANOUT }
   );
-};

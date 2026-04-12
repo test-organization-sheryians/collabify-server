@@ -13,11 +13,14 @@ export const createCleanupCron = () => {
   void queue.add(
     "prune-outbox",
     {},
-    {
-      repeat: {
-        pattern: "0 0 * * *",
-      },
-    }
+    { repeat: { pattern: "0 0 * * *" } }
+  );
+
+  // Run on the 1st of every month at midnight
+  void queue.add(
+    "prune-notifications",
+    {},
+    { repeat: { pattern: "0 0 1 * *" } }
   );
 
   createWorker(CLEANUP_QUEUE_NAME, async (job: Job) => {
@@ -25,6 +28,8 @@ export const createCleanupCron = () => {
 
     if (job.name === "prune-outbox") {
       await CleanupEngine.pruneOutbox();
+    } else if (job.name === "prune-notifications") {
+      await CleanupEngine.pruneNotifications();
     }
   });
 

@@ -7,6 +7,8 @@ import {
   UpdateProfileSchema,
   deleteAccount,
   DeleteAccountSchema,
+  updateGlobalNotifPrefs,
+  UpdateGlobalNotifPrefsSchema,
 } from "../services";
 import {
   getMe,
@@ -17,6 +19,8 @@ import {
   GetWorkspaceUserSchema,
   getUserHome,
   GetUserHomeSchema,
+  getNotificationSummary,
+  GetNotificationSummarySchema,
 } from "../queries";
 
 export const resolvers: Resolvers = {
@@ -52,6 +56,13 @@ export const resolvers: Resolvers = {
       const data = GetUserHomeSchema.parse({ userId });
       return getUserHome(data, ctx);
     },
+
+    myNotificationSummary: async (_root, _args, ctx) => {
+      const userId = ctx.auth.userId;
+      if (!userId) throw AppError.unauthorized("Unauthorized");
+      const data = GetNotificationSummarySchema.parse({ userId });
+      return getNotificationSummary(data);
+    },
   },
   Mutation: {
     syncUser: async (_root, args, ctx) => {
@@ -72,6 +83,46 @@ export const resolvers: Resolvers = {
       if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
       const data = DeleteAccountSchema.parse({ userId: ctx.auth.userId });
       return deleteAccount(data, ctx);
+    },
+
+    updateGlobalNotifPrefs: async (_root, args, ctx) => {
+      const userId = ctx.auth.userId;
+      if (!userId) throw AppError.unauthorized("Unauthorized");
+      const data = UpdateGlobalNotifPrefsSchema.parse({
+        userId,
+        ...args.input,
+      });
+      return updateGlobalNotifPrefs(data, ctx);
+    },
+
+    setGlobalNotifMode: async (_root, args, ctx) => {
+      const userId = ctx.auth.userId;
+      if (!userId) throw AppError.unauthorized("Unauthorized");
+      await updateGlobalNotifPrefs(
+        UpdateGlobalNotifPrefsSchema.parse({ userId, globalMode: args.mode }),
+        ctx
+      );
+      return true;
+    },
+
+    pauseNotifications: async (_root, args, ctx) => {
+      const userId = ctx.auth.userId;
+      if (!userId) throw AppError.unauthorized("Unauthorized");
+      await updateGlobalNotifPrefs(
+        UpdateGlobalNotifPrefsSchema.parse({ userId, muteUntil: args.until }),
+        ctx
+      );
+      return true;
+    },
+
+    resumeNotifications: async (_root, _args, ctx) => {
+      const userId = ctx.auth.userId;
+      if (!userId) throw AppError.unauthorized("Unauthorized");
+      await updateGlobalNotifPrefs(
+        UpdateGlobalNotifPrefsSchema.parse({ userId, muteUntil: null }),
+        ctx
+      );
+      return true;
     },
   },
 };

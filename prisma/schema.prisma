@@ -88,7 +88,8 @@ model User {
   notifications           Notification[]
   sentNotifications       Notification[]            @relation("NotificationActor")
   aiConversations         CollabifyAiConversation[]
-  notificationPreferences NotificationPreference[]
+  notificationPreferences             NotificationPreference[]
+  conversationNotifPreferences        ConversationNotificationPreference[]
 
   @@index([email])
   @@map("users")
@@ -921,8 +922,9 @@ model ChatConversation {
   childThreads       ChatConversation[] @relation("ThreadParent")
   parentMessage      ChatMessage?       @relation("MessageThreads", fields: [parentMessageId], references: [id], onDelete: Cascade)
 
-  members  ChatMember[]
-  messages ChatMessage[]
+  members                         ChatMember[]
+  messages                        ChatMessage[]
+  conversationNotifPreferences    ConversationNotificationPreference[]
 
   @@unique([projectId, name])
   @@unique([parentMessageId])
@@ -1099,21 +1101,24 @@ model NotificationOutbox {
 }
 
 model NotificationPreference {
-  id           String   @id @default(cuid())
-  userId       String   @map("user_id")
-  workspaceId  String?  @map("workspace_id")
-  projectId    String?  @map("project_id")
-  categoryKey  String   @map("category_key")
-  emailEnabled Boolean  @default(true) @map("email_enabled")
-  pushEnabled  Boolean  @default(true) @map("push_enabled")
-  inAppEnabled Boolean  @default(true) @map("in_app_enabled")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id           String    @id @default(cuid())
+  userId       String    @map("user_id")
+  workspaceId  String?   @map("workspace_id")
+  projectId    String?   @map("project_id")
+  categoryKey  String    @map("category_key")
+  emailEnabled Boolean   @default(true)  @map("email_enabled")
+  pushEnabled  Boolean   @default(true)  @map("push_enabled")
+  inAppEnabled Boolean   @default(true)  @map("in_app_enabled")
+  globalMode   String?   @default("ALL") @map("global_mode")
+  muteUntil    DateTime?                 @map("mute_until")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
 
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   project   Project?   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([userId, workspaceId, projectId, categoryKey], map: "unique_user_preference_scope")
+  @@index([userId])
   @@map("notification_preferences")
 }
 
@@ -1143,6 +1148,42 @@ model Notification {
   @@index([recipientUserId, isRead, createdAt(sort: Desc)])
   @@index([recipientUserId, createdAt(sort: Desc)])
   @@map("notifications")
+}
+
+enum ConversationNotifMode {
+  ALL_MESSAGES
+  MENTIONS_ONLY
+  NOTHING
+}
+
+// Conversation-level notification preference (most granular scope).
+// Controls per-channel/DM notification mode and temporary mutes.
+// Replaces the binary ChatMember.isMuted for richer control.
+model ConversationNotificationPreference {
+  id             String               @id @default(cuid())
+  userId         String               @map("user_id")
+  conversationId String               @map("conversation_id")
+
+  // Notification mode for this conversation
+  mode           ConversationNotifMode @default(ALL_MESSAGES) @map("mode")
+
+  // Temporary mute — null means mode is permanent.
+  // After muteUntil passes, resolver treats as if muteUntil=null automatically.
+  muteUntil      DateTime?            @map("mute_until")
+
+  // Per-channel overrides at conversation scope (null = inherit from global/workspace/project)
+  pushEnabled    Boolean?             @map("push_enabled")
+  emailEnabled   Boolean?             @map("email_enabled")
+
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, conversationId], map: "unique_conv_notif_pref")
+  @@index([userId])
+  @@map("conversation_notification_preferences")
 }
 
 model AuditLog {

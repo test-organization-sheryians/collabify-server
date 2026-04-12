@@ -14,6 +14,7 @@ import type { ServiceContext } from "@/graphql/types";
 import { enforceWorkspaceGuestCeiling } from "../add-project-member/steps/enforce-workspace-guest-ceiling";
 import { setProjectMemberRole } from "./steps/set-project-member-role";
 import { keys } from "@/modules/authorization/cache/keys";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 export const updateProjectMemberRole = async (
   input: UpdateProjectMemberRoleInput,
@@ -54,6 +55,18 @@ export const updateProjectMemberRole = async (
     ctx.authGate.invalidate.projectMember(projectId, targetUserId),
     ...indexOps,
   ]);
+
+  await emit(db as any, {
+    type: "project.member.role_changed",
+    payload: {
+      projectId,
+      workspaceId,
+      targetUserId,
+      actorId: actorUserId,
+      newRoleId: roleId,
+      oldRoleId: oldRoleId ?? undefined,
+    },
+  }).catch(() => { /* non-fatal */ });
 
   return member;
 };

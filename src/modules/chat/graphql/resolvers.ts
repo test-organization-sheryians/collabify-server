@@ -1,8 +1,10 @@
 import { Resolvers } from "@/graphql/generated";
+import { AppError } from "@/shared/errors";
 
 import { requireUser } from "@/shared/utils/graphql-helpers";
 import * as queries from "../queries";
 import * as services from "../services";
+import * as prefCache from "@/modules/notification/shared/preferences/preference-cache";
 
 export const resolvers: Resolvers = {
   Query: {
@@ -193,6 +195,17 @@ export const resolvers: Resolvers = {
         services.muteConversation.muteConversationSchema.parse(args);
       return services.muteConversation.handler(input, ctx);
     },
+    setConversationNotifMode: async (_, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data =
+        services.setConversationNotifMode.SetConversationNotifModeSchema.parse({
+          userId: ctx.auth.userId,
+          conversationId: args.conversationId,
+          mode: args.mode,
+          muteUntil: args.muteUntil,
+        });
+      return services.setConversationNotifMode.handler(data, ctx);
+    },
     renameGroup: async (_, args, ctx) => {
       const input = services.renameGroup.renameGroupSchema.parse(args);
       return services.renameGroup.handler(input, ctx);
@@ -286,6 +299,19 @@ export const resolvers: Resolvers = {
       if (!ctx.dataloaders.chat)
         throw new Error("Chat dataloaders not initialized");
       return ctx.dataloaders.chat.memberCountByChannelId.load(parent.id);
+    },
+    myNotifMode: async (parent: { id: string }, _: unknown, ctx: any) => {
+      if (!ctx.auth?.userId) return null;
+      const pref = await prefCache.getConversation(ctx.auth.userId, parent.id);
+      return (pref?.mode ?? null) as any;
+    },
+    isMuted: async (parent: { id: string }, _: unknown, ctx: any) => {
+      if (!ctx.auth?.userId) return false;
+      const pref = await prefCache.getConversation(ctx.auth.userId, parent.id);
+      if (!pref) return false;
+      if (pref.mode === "NOTHING") return true;
+      if (pref.muteUntil && new Date(pref.muteUntil) > new Date()) return true;
+      return false;
     },
   },
   ChatMessage: {

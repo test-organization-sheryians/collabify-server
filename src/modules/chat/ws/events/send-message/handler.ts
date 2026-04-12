@@ -12,6 +12,20 @@ import { appRedis } from "@/infra/redis";
 import { OutboxStatus } from "@prisma/client";
 import { KeyFactory } from "@/infra/redis/keys";
 import { validateReplyParent } from "@/shared/validation/chat-permissions";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
+
+// Extract @userIds from message content: expects format @[name](userId) or bare @userId
+function extractMentionedUserIds(text: unknown): string[] {
+  if (typeof text !== "string") return [];
+  // Matches @[any name](userId) and bare @userId (UUID format)
+  const mentionRe = /@\[?[^\]]*\]?\(([a-f0-9-]{36})\)|@([a-f0-9-]{36})/g;
+  const ids = new Set<string>();
+  let m: RegExpExecArray | null;
+  while ((m = mentionRe.exec(text)) !== null) {
+    ids.add(m[1] ?? m[2]);
+  }
+  return [...ids];
+}
 
 export const sendMessageHandler = async (
   ctx: WSHandlerContext,
@@ -184,6 +198,28 @@ export const sendMessageHandler = async (
         sequence,
       })
     );
+
+    // 5. Fire mention notifications after ACK (fire-and-forget — must not block ACK)
+    const mentionedUserIds = extractMentionedUserIds(content);
+    if (mentionedUserIds.length > 0) {
+      Promise.all(
+        mentionedUserIds
+          // Don't notify the author of their own mention
+          .filter((mentionedId) => mentionedId !== userId)
+          .map((mentionedId) =>
+            emit(ctx.db as any, {
+              type: "chat.message.mention",
+              payload: {
+                conversationId,
+                messageId:   dedupeId,
+                mentionedId,
+                actorId:     userId,
+              },
+              deduplicationId: `chat.mention:${dedupeId}:${mentionedId}`,
+            })
+          )
+      ).catch((err) => logger.warn("chat.message.mention emit failed", { err, dedupeId }));
+    }
   } catch (err: any) {
     logger.error("Failed to process send-message", { err, dedupeId });
 

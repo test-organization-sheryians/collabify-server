@@ -1,5 +1,6 @@
 import type { ServiceContext } from "@/graphql/types";
 import type { RemoveChannelMemberInput, RemoveChannelMemberOutput } from "../types";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 /**
  * executeRemove logically drops the Prisma bounds and natively targets the target `userId` cache limit safely forcing Global WebSocket clears automatically.
@@ -12,14 +13,30 @@ export async function executeRemove(
   const { channelId, userId: targetUserId } = input;
   const actorId = ctx.auth?.userId as string;
 
-  // Remove member natively from Database
-  await ctx.db.chatMember.delete({
-    where: {
-      conversationId_userId: {
-        conversationId: channelId,
-        userId: targetUserId,
+  // Remove member + emit notification in one atomic transaction
+  await ctx.db.$transaction(async (tx) => {
+    await tx.chatMember.delete({
+      where: {
+        conversationId_userId: {
+          conversationId: channelId,
+          userId: targetUserId,
+        },
       },
-    },
+    });
+
+    // Notification pipeline — routes through Decider → IN_APP + REALTIME workers
+    await emit(tx, {
+      type: "chat.channel.member.removed",
+      payload: {
+        conversationId:   channelId,
+        conversationName: channel.name,
+        workspaceId:      input.workspaceId,
+        workspaceSlug:    "",  // not available at this layer; unused by handler
+        removedUserId:    targetUserId,
+        actorId:          actorId,
+        actorName:        "Someone", // resolved in handler via actorId if needed
+      },
+    });
   });
 
   // FIRE INVALIDATION MAP EXPLICITLY TO ELIMINATE CACHE LOOP
