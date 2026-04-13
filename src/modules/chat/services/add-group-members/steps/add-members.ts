@@ -1,6 +1,7 @@
 import type { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
 import type { AddGroupMembersInput, AddGroupMembersOutput } from "../types";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 export const addMembers = async (
   input: AddGroupMembersInput,
@@ -26,9 +27,10 @@ export const addMembers = async (
   }
 
   // Bind structural insert records into identical timeline batch
-  const newMembers = await ctx.db.$transaction(
-    newUserIds.map((uid) =>
-      ctx.db.chatMember.create({
+  const newMembers = await ctx.db.$transaction(async (tx) => {
+    const members = [];
+    for (const uid of newUserIds) {
+      const member = await tx.chatMember.create({
         data: {
           conversationId: groupId,
           userId: uid,
@@ -43,9 +45,25 @@ export const addMembers = async (
             },
           },
         },
-      })
-    )
-  );
+      });
+      members.push(member);
+
+      await emit(tx, {
+        type: "chat.group.member.added",
+        payload: {
+          conversationId: groupId,
+          conversationName: groupName,
+          workspaceId: input.workspaceId,
+          workspaceSlug: "",
+          newMemberId: uid,
+          actorId: ctx.auth?.userId ?? "",
+          actorName: "Someone",
+        } as any,
+        deduplicationId: `chat.group.member.added:${groupId}:${uid}:${Date.now()}`,
+      });
+    }
+    return members;
+  });
 
   // Distribute event payloads to exactly the newly provisioned peers
   await Promise.all(

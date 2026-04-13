@@ -210,15 +210,62 @@ export const sendMessageHandler = async (
             emit(ctx.db as any, {
               type: "chat.message.mention",
               payload: {
+                messageId: dedupeId,
                 conversationId,
-                messageId:   dedupeId,
-                mentionedId,
-                actorId:     userId,
-              },
+                conversationName: null,
+                workspaceId: "",
+                workspaceSlug: "",
+                mentionedUserId: mentionedId,
+                actorId: userId,
+                actorName: "",
+                contentPreview: (content ?? "").substring(0, 200),
+              } as any,
               deduplicationId: `chat.mention:${dedupeId}:${mentionedId}`,
             })
           )
       ).catch((err) => logger.warn("chat.message.mention emit failed", { err, dedupeId }));
+    }
+
+    // 5b. Emit chat.message.reply notification
+    if (parentMessageId) {
+      emit(ctx.db as any, {
+        type: "chat.message.reply",
+        payload: {
+          messageId: dedupeId,
+          parentMessageId: parentMessageId,
+          conversationId,
+          conversationName: null,
+          workspaceId: "",
+          workspaceSlug: "",
+          parentAuthorId: "",
+          actorId: userId,
+          actorName: "",
+          contentPreview: (content ?? "").substring(0, 200),
+        } as any,
+      }).catch((err) => logger.warn("chat.message.reply emit failed", { err, dedupeId }));
+
+      // 5c. Emit chat.thread.reply if this is a reply to a reply (thread reply)
+      const parentMessage = await ctx.db.chatMessage.findUnique({
+        where: { id: parentMessageId },
+        select: { parentMessageId: true },
+      });
+      if (parentMessage?.parentMessageId) {
+        emit(ctx.db as any, {
+          type: "chat.thread.reply",
+          payload: {
+            messageId: dedupeId,
+            threadId: parentMessage.parentMessageId,
+            conversationId,
+            conversationName: null,
+            workspaceId: "",
+            workspaceSlug: "",
+            actorId: userId,
+            actorName: "",
+            contentPreview: (content ?? "").substring(0, 200),
+            threadParticipantIds: [],
+          } as any,
+        }).catch((err) => logger.warn("chat.thread.reply emit failed", { err, dedupeId }));
+      }
     }
   } catch (err: any) {
     logger.error("Failed to process send-message", { err, dedupeId });

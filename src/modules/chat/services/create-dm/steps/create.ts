@@ -2,6 +2,7 @@ import type { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
 import type { CreateDmInput, CreateDmOutput } from "../types";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 const log = createLogger("chat:services:create-dm:create");
 
@@ -34,7 +35,7 @@ export const create = async (
         );
       }
 
-      return tx.chatConversation.create({
+      const conversation = await tx.chatConversation.create({
         data: {
           workspaceId,
           projectId,
@@ -45,6 +46,22 @@ export const create = async (
           },
         },
       });
+
+      await emit(tx, {
+        type: "chat.dm.created",
+        payload: {
+          conversationId: conversation.id,
+          workspaceId,
+          workspaceSlug: "",
+          recipientId: recipientUserId,
+          actorId: ctx.auth?.userId ?? "",
+          actorName: "Someone",
+          firstMessagePreview: "",
+        } as any,
+        deduplicationId: `chat.dm.created:${conversation.id}:${Date.now()}`,
+      });
+
+      return conversation;
     });
 
     log.info("Created new DM conversation", { dmHash, conversationId: dm.id });

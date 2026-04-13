@@ -52,6 +52,8 @@ export const acceptInvite = async (
         message: "You are already a member.",
         workspaceSlug: "unknown",
         workspaceId: invite.workspaceId,
+        inviterId: invite.inviterId,
+        userId,
         roleId: existing.roleId,
       };
     }
@@ -64,14 +66,17 @@ export const acceptInvite = async (
     await tx.workspaceInvite.delete({ where: { token } });
     const workspace = await tx.workspace.findUniqueOrThrow({
       where: { id: invite.workspaceId },
-      select: { slug: true },
+      select: { name: true, slug: true },
     });
 
     return {
       success: true,
       message: "Joined workspace successfully",
       workspaceSlug: workspace.slug,
+      workspaceName: workspace.name,
       workspaceId: invite.workspaceId,
+      inviterId: invite.inviterId,
+      userId,
       roleId: invite.roleId,
     };
   });
@@ -88,12 +93,22 @@ export const acceptInvite = async (
 
   // Emit notification only for new members (not for already-member case)
   if (result.message !== "You are already a member.") {
+    const [inviter, invitee, actor] = await Promise.all([
+      db.user.findUnique({ where: { id: result.inviterId }, select: { fullName: true } }),
+      db.user.findUnique({ where: { id: userId }, select: { fullName: true } }),
+      db.user.findUnique({ where: { id: userId }, select: { fullName: true } }),
+    ]);
+
     await emit(db as any, {
       type: "workspace.invite.accepted",
       payload: {
         workspaceId: result.workspaceId,
-        joinedUserId: userId,
-        actorId: userId,
+        workspaceName: result.workspaceName ?? "",
+        workspaceSlug: result.workspaceSlug,
+        inviteeId: userId,
+        inviteeName: invitee?.fullName ?? "Someone",
+        ownerId: result.inviterId,
+        actorName: actor?.fullName ?? "Someone",
       },
       deduplicationId: `workspace.invite.accepted:${result.workspaceId}:${userId}`,
     }).catch(() => { /* non-fatal */ });

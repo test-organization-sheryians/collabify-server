@@ -11,6 +11,7 @@ import { AppError } from "@/shared/errors";
 import type { InviteToWorkspaceInput } from "./types";
 import type { ServiceContext } from "@/graphql/types";
 import { sendInvites } from "./steps/send-invites";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 export const inviteToWorkspace = async (
   input: InviteToWorkspaceInput,
@@ -23,7 +24,30 @@ export const inviteToWorkspace = async (
   const scope = { type: "workspace" as const, id: workspaceId };
   await ctx.permissions.assert("workspace:member:invite", scope);
 
-  const invitedEmails = await sendInvites(workspaceId, actorUserId, emails, roleId, db);
+  const [invitedEmails, workspace, actor, role] = await Promise.all([
+    sendInvites(workspaceId, actorUserId, emails, roleId, db),
+    db.workspace.findUnique({ where: { id: workspaceId }, select: { name: true, slug: true } }),
+    db.user.findUnique({ where: { id: actorUserId }, select: { fullName: true } }),
+    db.role.findUnique({ where: { id: roleId }, select: { name: true } }),
+  ]);
+
+  for (const email of invitedEmails) {
+    await emit(db as any, {
+      type: "workspace.invite.sent",
+      payload: {
+        workspaceId,
+        workspaceName: workspace?.name ?? "",
+        workspaceSlug: workspace?.slug ?? "",
+        inviteToken: "",
+        inviteId: "",
+        inviteeEmail: email,
+        inviteeUserId: null,
+        actorId: actorUserId,
+        actorName: actor?.fullName ?? "Someone",
+        roleName: role?.name ?? "Member",
+      },
+    }).catch(() => { /* non-fatal */ });
+  }
 
   return {
     success: true,

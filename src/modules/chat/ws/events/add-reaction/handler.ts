@@ -10,6 +10,7 @@ import { createLogger } from "@/shared/lib/logger";
 const logger = createLogger("chat:ws:add-reaction");
 import { addReaction } from "@/modules/chat/domain/reactions/redis-helpers";
 import { KeyFactory } from "@/infra/redis/keys";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 export const addReactionHandler = async (
   ctx: WSHandlerContext,
@@ -105,6 +106,22 @@ export const addReactionHandler = async (
       }
 
       logger.info("Reaction added", { messageId, userId, emoji });
+
+      // Emit notification for reaction added
+      emit(ctx.db as any, {
+        type: "chat.reaction.added",
+        payload: {
+          messageId,
+          conversationId: message.conversationId,
+          conversationName: null,
+          workspaceId: "",
+          workspaceSlug: "",
+          messageAuthorId: message.id,
+          actorId: userId,
+          actorName: "",
+          emoji,
+        } as any,
+      }).catch((err) => logger.warn("chat.reaction.added emit failed", { err, messageId, emoji }));
     }
   } catch (error: any) {
     logger.error("Failed to add reaction", {

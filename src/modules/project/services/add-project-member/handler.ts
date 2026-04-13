@@ -46,14 +46,26 @@ export const addProjectMember = async (
     ctx.authGate.invalidate.projectMember(projectId, targetUserId),
   ]);
 
+  const [project, workspace, actor, role] = await Promise.all([
+    db.project.findUnique({ where: { id: projectId }, select: { name: true } }),
+    db.workspace.findUnique({ where: { id: workspaceId }, select: { slug: true } }),
+    db.user.findUnique({ where: { id: actorUserId }, select: { fullName: true } }),
+    db.role.findUnique({ where: { id: effectiveRoleId ?? undefined }, select: { name: true } }),
+  ]);
+
   await emit(db as any, {
     type: "project.member.added",
     payload: {
       projectId,
       workspaceId,
-      targetUserId,
+      workspaceSlug: workspace?.slug ?? "",
+      newMemberId: targetUserId,
       actorId: actorUserId,
-    },
+      actorName: actor?.fullName ?? "Someone",
+      projectName: project?.name ?? "",
+      roleName: role?.name ?? "Member",
+    } as any,
+    deduplicationId: `project.member.added:${projectId}:${targetUserId}:${Date.now()}`,
   }).catch(() => { /* non-fatal */ });
 
   return member;

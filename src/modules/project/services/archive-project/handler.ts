@@ -35,13 +35,26 @@ export const archiveProject = async (
 
   const archived = await setArchived(projectId, db);
 
+  const [workspace, actor] = await Promise.all([
+    db.workspace.findUnique({ where: { id: project.workspaceId }, select: { slug: true } }),
+    db.user.findUnique({ where: { id: actorUserId }, select: { fullName: true } }),
+  ]);
+
+  const memberIds = await db.projectMember.findMany({
+    where: { projectId },
+    select: { userId: true },
+  }).then((members) => members.map((m) => m.userId));
+
   await emit(db as any, {
     type: "project.archived",
     payload: {
       projectId,
       workspaceId: project.workspaceId,
+      workspaceSlug: workspace?.slug ?? "",
       actorId: actorUserId,
+      actorName: actor?.fullName ?? "Someone",
       projectName: project.name,
+      memberIds,
     },
   }).catch(() => { /* non-fatal */ });
 

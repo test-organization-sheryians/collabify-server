@@ -56,15 +56,26 @@ export const updateProjectMemberRole = async (
     ...indexOps,
   ]);
 
+  const [project, workspace, actor, newRoleObj, oldRoleObj] = await Promise.all([
+    db.project.findUnique({ where: { id: projectId }, select: { name: true } }),
+    db.workspace.findUnique({ where: { id: workspaceId }, select: { slug: true } }),
+    db.user.findUnique({ where: { id: actorUserId }, select: { fullName: true } }),
+    db.role.findUnique({ where: { id: roleId }, select: { name: true } }),
+    oldRoleId ? db.role.findUnique({ where: { id: oldRoleId }, select: { name: true } }) : Promise.resolve(null),
+  ]);
+
   await emit(db as any, {
     type: "project.member.role_changed",
     payload: {
       projectId,
       workspaceId,
-      targetUserId,
+      workspaceSlug: workspace?.slug ?? "",
+      memberId: targetUserId,
       actorId: actorUserId,
-      newRoleId: roleId,
-      oldRoleId: oldRoleId ?? undefined,
+      actorName: actor?.fullName ?? "Someone",
+      projectName: project?.name ?? "",
+      oldRoleName: oldRoleObj?.name ?? "",
+      newRoleName: newRoleObj?.name ?? "",
     },
   }).catch(() => { /* non-fatal */ });
 

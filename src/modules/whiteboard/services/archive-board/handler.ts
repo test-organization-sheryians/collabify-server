@@ -1,6 +1,7 @@
 import { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
 import type { ArchiveBoardInput } from "./types";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 /**
  * archiveBoard — Service Handler
@@ -40,18 +41,35 @@ export const handler = async (
       throw AppError.badRequest("Board is already archived");
 
     // Step 2 — creator-only sub-check
-    const board = await ctx.db.whiteboard.findUnique({
+    const existingBoard = await ctx.db.whiteboard.findUnique({
       where: { id: boardId },
-      select: { createdBy: true },
+      select: { createdBy: true, title: true },
     });
-    if (!board) throw AppError.notFound("Whiteboard not found");
-    if (board.createdBy !== userId)
+    if (!existingBoard) throw AppError.notFound("Whiteboard not found");
+    if (existingBoard.createdBy !== userId)
       throw AppError.forbidden("Only the creator can archive this board");
 
-    return await ctx.db.whiteboard.update({
+    const updatedBoard = await ctx.db.whiteboard.update({
       where: { id: boardId },
       data: { isArchived: true },
     });
+
+    // Emit notification
+    await emit(ctx.db as any, {
+      type: "whiteboard.archived",
+      payload: {
+        whiteboardId: updatedBoard.id,
+        whiteboardName: existingBoard.title ?? "Untitled",
+        workspaceId: proj?.workspaceId ?? "",
+        workspaceSlug: proj?.slug ?? "",
+        actorId: ctx.auth?.userId ?? "",
+        actorName: "Someone",
+        collaboratorIds: [],
+      } as any,
+      deduplicationId: `whiteboard.archived:${updatedBoard.id}:${Date.now()}`,
+    }).catch(() => { /* non-fatal */ });
+
+    return updatedBoard;
   } catch (error: unknown) {
     if (error instanceof AppError) throw error;
     throw new AppError("Failed to archive whiteboard");

@@ -15,6 +15,7 @@ import type { ServiceContext } from "@/graphql/types";
 import type { AddPageCollaboratorsInput } from "./schema";
 import { validateUsers } from "./steps/validate-users";
 import { upsertCollaborators } from "./steps/upsert-collaborators";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 const logger = createLogger("pages:services:add-page-collaborators");
 
@@ -52,6 +53,30 @@ export const handler = async (
       input.collaborators,
       ctx.db
     );
+
+    // Step 4 — emit notification for each collaborator added
+    for (const collaborator of addedCollaborators) {
+      await emit(ctx.db as any, {
+        type: "page.collaborator.added",
+        payload: {
+          pageId: input.pageId,
+          pageTitle: (cachedPage as any).title ?? "Untitled",
+          workspaceId: proj?.workspaceId ?? "",
+          workspaceSlug: proj?.slug ?? "",
+          newMemberId: collaborator.userId,
+          actorId: userId,
+          actorName: "Someone",
+          accessLevel: collaborator.role ?? "viewer",
+        } as any,
+        deduplicationId: `page.collaborator.added:${input.pageId}:${collaborator.userId}:${Date.now()}`,
+      }).catch((err) =>
+        logger.error("Failed to emit page.collaborator.added notification", {
+          err,
+          pageId: input.pageId,
+          collaboratorId: collaborator.userId,
+        })
+      );
+    }
 
     logger.info("Collaborators added/updated", {
       pageId: input.pageId,

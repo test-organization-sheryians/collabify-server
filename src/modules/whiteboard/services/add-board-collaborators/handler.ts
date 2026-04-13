@@ -5,6 +5,7 @@ import type {
   AddBoardCollaboratorsInput,
   AddBoardCollaboratorsResult,
 } from "./types";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 /**
  * addBoardCollaborators — Service Handler
@@ -62,6 +63,22 @@ export const handler = async (
           data: { whiteboardId: boardId, userId: uid },
         });
         addedCount++;
+
+        // Emit notification for each collaborator added
+        await emit(ctx.db as any, {
+          type: "whiteboard.collaborator.added",
+          payload: {
+            whiteboardId: boardId,
+            whiteboardName: (cachedBoard as any).title ?? "Untitled",
+            workspaceId: proj?.workspaceId ?? "",
+            workspaceSlug: proj?.slug ?? "",
+            newMemberId: uid,
+            actorId: ctx.auth?.userId ?? "",
+            actorName: "Someone",
+            accessLevel: "editor",
+          } as any,
+          deduplicationId: `whiteboard.collaborator.added:${boardId}:${uid}:${Date.now()}`,
+        }).catch(() => { /* non-fatal */ });
       } catch (error) {
         if (
           error instanceof Prisma.PrismaClientKnownRequestError &&

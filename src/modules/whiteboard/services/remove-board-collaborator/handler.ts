@@ -4,6 +4,7 @@ import type {
   RemoveBoardCollaboratorInput,
   RemoveBoardCollaboratorResult,
 } from "./types";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 /**
  * removeBoardCollaborator — Service Handler
@@ -52,6 +53,21 @@ export const handler = async (
     await ctx.db.whiteboardCollaborator.deleteMany({
       where: { whiteboardId: boardId, userId },
     });
+
+    // Step 4 — emit notification
+    await emit(ctx.db as any, {
+      type: "whiteboard.collaborator.removed",
+      payload: {
+        whiteboardId: boardId,
+        whiteboardName: (cachedBoard as any).title ?? "Untitled",
+        workspaceId: proj?.workspaceId ?? "",
+        workspaceSlug: proj?.slug ?? "",
+        removedUserId: userId,
+        actorId: requesterId,
+        actorName: "Someone",
+      } as any,
+      deduplicationId: `whiteboard.collaborator.removed:${boardId}:${userId}:${Date.now()}`,
+    }).catch(() => { /* non-fatal */ });
 
     return { success: true };
   } catch (error: unknown) {

@@ -3,6 +3,7 @@ import { AppError } from "@/shared/errors";
 import { LockingService } from "@/services/locking/locking.service";
 import { createLockKeys } from "@/services/locking/keys";
 import type { CreateThreadInput, CreateThreadOutput } from "../types";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 /**
  * Securely extracts thread generation.
@@ -91,6 +92,23 @@ export const create = async (
         data: {
           replyCount: { increment: 1 },
         },
+      });
+
+      // Emit notification for thread creation
+      await emit(tx, {
+        type: "chat.thread.created",
+        payload: {
+          threadId: threadConversation.id,
+          conversationId: threadConversation.parentConversationId ?? threadConversation.id,
+          conversationName: null,
+          workspaceId,
+          workspaceSlug: "",
+          actorId: userId,
+          actorName: "Someone",
+          contentPreview: "",
+          recipientIds: parentMembers.map((m) => m.userId),
+        } as any,
+        deduplicationId: `chat.thread.created:${threadConversation.id}:${Date.now()}`,
       });
 
       return threadConversation;

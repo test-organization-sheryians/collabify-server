@@ -70,13 +70,22 @@ export const removeProjectMember = async (
     ctx.authGate.invalidate.projectMember(projectId, targetUserId),
   ]);
 
+  const [project, workspace, actor] = await Promise.all([
+    db.project.findUnique({ where: { id: projectId }, select: { name: true } }),
+    db.workspace.findUnique({ where: { id: workspaceId }, select: { slug: true } }),
+    db.user.findUnique({ where: { id: actorUserId }, select: { fullName: true } }),
+  ]);
+
   await emit(db as any, {
     type: "project.member.removed",
     payload: {
       projectId,
       workspaceId,
-      targetUserId,
+      workspaceSlug: workspace?.slug ?? "",
+      removedUserId: targetUserId,
       actorId: actorUserId,
+      actorName: actor?.fullName ?? "Someone",
+      projectName: project?.name ?? "",
     },
   }).catch(() => { /* non-fatal */ });
 

@@ -16,6 +16,7 @@ import type { ServiceContext } from "@/graphql/types";
 import type { RemovePageCollaboratorInput } from "./schema";
 import { guardCreator } from "./steps/guard-creator";
 import { deleteCollaborator } from "./steps/delete-collaborator";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 const logger = createLogger("pages:services:remove-page-collaborator");
 
@@ -48,6 +49,27 @@ export const handler = async (
 
     // Step 3 — hard-delete collaborator record
     await deleteCollaborator(input.pageId, input.userId, ctx.db);
+
+    // Step 4 — emit notification
+    await emit(ctx.db as any, {
+      type: "page.collaborator.removed",
+      payload: {
+        pageId: input.pageId,
+        pageTitle: (cachedPage as any).title ?? "Untitled",
+        workspaceId: proj?.workspaceId ?? "",
+        workspaceSlug: proj?.slug ?? "",
+        removedUserId: input.userId,
+        actorId: userId,
+        actorName: "Someone",
+      } as any,
+      deduplicationId: `page.collaborator.removed:${input.pageId}:${input.userId}:${Date.now()}`,
+    }).catch((err) =>
+      logger.error("Failed to emit page.collaborator.removed notification", {
+        err,
+        pageId: input.pageId,
+        removedUserId: input.userId,
+      })
+    );
 
     logger.info("Collaborator removed", {
       pageId: input.pageId,

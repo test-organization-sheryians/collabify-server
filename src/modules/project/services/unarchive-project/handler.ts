@@ -12,6 +12,7 @@ import { AppError } from "@/shared/errors";
 import type { UnarchiveProjectInput } from "./schema";
 import type { ServiceContext } from "@/graphql/types";
 import { setUnarchived } from "./steps/set-unarchived";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 export const unarchiveProject = async (
   input: UnarchiveProjectInput,
@@ -32,5 +33,30 @@ export const unarchiveProject = async (
   };
   await ctx.permissions.assert("project:archive", scope);
 
-  return setUnarchived(projectId, db);
+  const unarchived = await setUnarchived(projectId, db);
+
+  const [workspace, actor] = await Promise.all([
+    db.workspace.findUnique({ where: { id: project.workspaceId }, select: { slug: true } }),
+    db.user.findUnique({ where: { id: actorUserId }, select: { fullName: true } }),
+  ]);
+
+  const memberIds = await db.projectMember.findMany({
+    where: { projectId },
+    select: { userId: true },
+  }).then((members) => members.map((m) => m.userId));
+
+  await emit(db as any, {
+    type: "project.unarchived",
+    payload: {
+      projectId,
+      workspaceId: project.workspaceId,
+      workspaceSlug: workspace?.slug ?? "",
+      actorId: actorUserId,
+      actorName: actor?.fullName ?? "Someone",
+      projectName: project.name,
+      memberIds,
+    },
+  }).catch(() => { /* non-fatal */ });
+
+  return unarchived;
 };

@@ -62,33 +62,84 @@ export const updateIssueHandler = async (
         type: "issue.assigned",
         payload: {
           issueId:     issue.id,
+          issueTitle:  issue.title ?? "Untitled",
+          issueNumber: issue.number ?? 0,
           projectId:   existing.projectId,
-          workspaceId: project.workspaceId,
+          projectName: project.name ?? "",
+          workspaceSlug: project.slug ?? "",
           assigneeId:  input.assigneeId,
           actorId:     userId,
-          title:       issue.title,
-        },
+          actorName:   "Someone",
+        } as any,
         deduplicationId: `issue.assigned:${issue.id}:${input.assigneeId}:${Date.now()}`,
       }).catch(() => { /* non-fatal */ })
     );
   }
 
-  // Status changed → issue.status_changed (notify assignee if any, ≠ actor)
+  // Status changed → issue.status.changed (notify assignee if any, ≠ actor)
   const statusChanged =
     input.statusId !== undefined && input.statusId !== existing.statusId;
   if (statusChanged && issue.assigneeId && issue.assigneeId !== userId) {
     notifications.push(
       emit(ctx.db as any, {
-        type: "issue.status_changed",
+        type: "issue.status.changed",
         payload: {
           issueId:     issue.id,
+          issueTitle:  issue.title ?? "Untitled",
+          issueNumber: issue.number ?? 0,
           projectId:   existing.projectId,
-          workspaceId: project.workspaceId,
+          projectName: project.name ?? "",
+          workspaceSlug: project.slug ?? "",
           assigneeId:  issue.assigneeId,
           actorId:     userId,
-          title:       issue.title,
-          statusId:    input.statusId,
-        },
+          actorName:   "Someone",
+          oldStatus:   existing.statusId ?? "",
+          newStatus:   input.statusId ?? "",
+        } as any,
+      }).catch(() => { /* non-fatal */ })
+    );
+  }
+
+  // Priority changed → issue.priority.changed
+  if (input.priority && input.priority !== (existing as any).priority) {
+    notifications.push(
+      emit(ctx.db as any, {
+        type: "issue.priority.changed",
+        payload: {
+          issueId:     issue.id,
+          issueTitle:  issue.title ?? "Untitled",
+          issueNumber: issue.number ?? 0,
+          projectId:   existing.projectId,
+          projectName: project.name ?? "",
+          workspaceSlug: project.slug ?? "",
+          assigneeId:  issue.assigneeId,
+          actorId:     userId,
+          actorName:   "Someone",
+          oldPriority: (existing as any).priority ?? "",
+          newPriority: input.priority,
+        } as any,
+        deduplicationId: `issue.priority.changed:${issue.id}:${Date.now()}`,
+      }).catch(() => { /* non-fatal */ })
+    );
+  }
+
+  // Unassigned → issue.unassigned (when assignee is removed)
+  if (existing.assigneeId && input.assigneeId === null) {
+    notifications.push(
+      emit(ctx.db as any, {
+        type: "issue.unassigned",
+        payload: {
+          issueId:     issue.id,
+          issueTitle:  issue.title ?? "Untitled",
+          issueNumber: issue.number ?? 0,
+          projectId:   existing.projectId,
+          projectName: project.name ?? "",
+          workspaceSlug: project.slug ?? "",
+          unassignedUserId: existing.assigneeId,
+          actorId:     userId,
+          actorName:   "Someone",
+        } as any,
+        deduplicationId: `issue.unassigned:${issue.id}:${existing.assigneeId}:${Date.now()}`,
       }).catch(() => { /* non-fatal */ })
     );
   }
