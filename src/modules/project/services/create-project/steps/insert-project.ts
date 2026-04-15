@@ -87,14 +87,32 @@ export async function insertProject(
         const roleMap = new Map(projectRoles.map((r) => [r.name, r.id]));
 
         const rolePermData: { roleId: string; permissionId: string; effect: "ALLOW" }[] = [];
+        const missingPerms: string[] = [];
+
         for (const grant of PROJECT_GRANTS) {
           const permId = permMap.get(`${grant.resource}:${grant.action}`);
-          if (!permId) continue; // permission row missing — skip, don't fail creation
+          if (!permId) {
+            missingPerms.push(`${grant.resource}:${grant.action}`);
+            continue;
+          }
           for (const roleName of grant.roles) {
             const roleId = roleMap.get(roleName);
-            if (!roleId) continue;
+            if (!roleId) {
+              missingPerms.push(`${grant.resource}:${grant.action} → ${roleName} (role not found)`);
+              continue;
+            }
             rolePermData.push({ roleId, permissionId: permId, effect: "ALLOW" });
           }
+        }
+
+        if (missingPerms.length > 0) {
+          throw new AppError(
+            `Permission seed incomplete — missing ${missingPerms.length} permission row(s) in DB: ${missingPerms.join(", ")}. ` +
+            "Run 'bun run prisma/seeds/seed-permissions.ts' to seed all permission rows, " +
+            "then re-run repair-role-permissions.ts before creating projects.",
+            "INTERNAL_SERVER_ERROR",
+            500
+          );
         }
 
         if (rolePermData.length > 0) {

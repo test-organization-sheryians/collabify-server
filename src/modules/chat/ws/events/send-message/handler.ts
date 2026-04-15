@@ -199,12 +199,24 @@ export const sendMessageHandler = async (
       })
     );
 
-    // 5. Fire mention notifications after ACK (fire-and-forget — must not block ACK)
+    // 5. Emit chat.message.new (fire-and-forget — must not block ACK)
+    emit(ctx.db as any, {
+      type: "chat.message.new",
+      payload: {
+        messageId: dedupeId,
+        conversationId,
+        conversationType: input.conversationType || "CHANNEL",
+        actorId: userId,
+        contentPreview: (content ?? "").substring(0, 200),
+      } as any,
+      deduplicationId: `chat.new:${dedupeId}`,
+    }).catch((err) => logger.warn("chat.message.new emit failed", { err, dedupeId }));
+
+    // 5a. Fire mention notifications after ACK (fire-and-forget — must not block ACK)
     const mentionedUserIds = extractMentionedUserIds(content);
     if (mentionedUserIds.length > 0) {
       Promise.all(
         mentionedUserIds
-          // Don't notify the author of their own mention
           .filter((mentionedId) => mentionedId !== userId)
           .map((mentionedId) =>
             emit(ctx.db as any, {
@@ -212,12 +224,8 @@ export const sendMessageHandler = async (
               payload: {
                 messageId: dedupeId,
                 conversationId,
-                conversationName: null,
-                workspaceId: "",
-                workspaceSlug: "",
                 mentionedUserId: mentionedId,
                 actorId: userId,
-                actorName: "",
                 contentPreview: (content ?? "").substring(0, 200),
               } as any,
               deduplicationId: `chat.mention:${dedupeId}:${mentionedId}`,
@@ -234,38 +242,10 @@ export const sendMessageHandler = async (
           messageId: dedupeId,
           parentMessageId: parentMessageId,
           conversationId,
-          conversationName: null,
-          workspaceId: "",
-          workspaceSlug: "",
-          parentAuthorId: "",
           actorId: userId,
-          actorName: "",
           contentPreview: (content ?? "").substring(0, 200),
         } as any,
       }).catch((err) => logger.warn("chat.message.reply emit failed", { err, dedupeId }));
-
-      // 5c. Emit chat.thread.reply if this is a reply to a reply (thread reply)
-      const parentMessage = await ctx.db.chatMessage.findUnique({
-        where: { id: parentMessageId },
-        select: { parentMessageId: true },
-      });
-      if (parentMessage?.parentMessageId) {
-        emit(ctx.db as any, {
-          type: "chat.thread.reply",
-          payload: {
-            messageId: dedupeId,
-            threadId: parentMessage.parentMessageId,
-            conversationId,
-            conversationName: null,
-            workspaceId: "",
-            workspaceSlug: "",
-            actorId: userId,
-            actorName: "",
-            contentPreview: (content ?? "").substring(0, 200),
-            threadParticipantIds: [],
-          } as any,
-        }).catch((err) => logger.warn("chat.thread.reply emit failed", { err, dedupeId }));
-      }
     }
   } catch (err: any) {
     logger.error("Failed to process send-message", { err, dedupeId });

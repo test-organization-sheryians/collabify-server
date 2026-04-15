@@ -13,7 +13,7 @@
 // ═══════════════════════════════════════════════════════════════
 // MASTER SWITCH — set true to enable every logger at once
 // ═══════════════════════════════════════════════════════════════
-export const ALL = false;
+export const ALL = true;
 
 // ═══════════════════════════════════════════════════════════════
 // GROUP FLAGS — enable an entire feature or module at once
@@ -244,6 +244,17 @@ export const FILES: Record<string, boolean | undefined> = {
   // ─────────────────────────────────────────────────────────────
   // Master debug console — enables [NOTIF:EMIT/PICKUP/DECIDER/RECIPIENT/DISPATCH/CHANNEL/DROP] logs
   "notification:debug": true, // ✅ ON for testing — set false to silence pipeline tracing
+  // Notification preference services
+  "notification:services:update-preferences": false,
+  "user:services:update-global-notif-prefs": false,
+  "workspace:services:update-workspace-notif-prefs": false,
+  "project:services:update-project-notif-prefs": false,
+  "chat:services:set-conversation-notif-mode": false,
+  // Shared infrastructure
+  "notification:shared:preference-seeder": false,
+  "notification:shared:preference-writer": false,
+  "notification:shared:preference-resolver": false,
+  "notification:shared:preference-cache": false,
   "notification:engine:bootstrap": false,
   "notification:engine:poller": false,
   "notification:engine:fanout": false, // fixed mismatch (was fan-out)
