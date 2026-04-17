@@ -281,10 +281,6 @@ export const FILES: Record<string, boolean | undefined> = {
   "notification:management:services:mute-conversation": false,
   "notification:management:services:update-preferences": false,
   // Shared
-  "notification:shared:preference-cache": false,
-  "notification:shared:preference-resolver": false,
-  "notification:shared:preference-seeder": false,
-  "notification:shared:preference-writer": false,
   "notification:shared:presence": false,
   "notification:shared:rate-limit": false,
   "notification:shared:dedup": false,

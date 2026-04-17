@@ -7,6 +7,7 @@ import { getProjectOverviewTypeDefs } from "./get-project-overview";
 import { getAllPermissionsTypeDefs } from "./get-all-permissions";
 import { getProjectPermissionsTypeDefs } from "./get-project-permissions";
 import { projectContributorStatsTypeDefs } from "./project-contributor-stats";
+import { getProjectEntitiesTypeDefs, searchEntityTypeDef } from "./get-project-entities";
 
 export const typeDefs = [
   GetMyProjectsTypeDefs,
@@ -18,6 +19,8 @@ export const typeDefs = [
   getAllPermissionsTypeDefs,
   getProjectPermissionsTypeDefs,
   projectContributorStatsTypeDefs,
+  getProjectEntitiesTypeDefs,
+  searchEntityTypeDef,
 ].join("\n");
 
 export * from "./get-my-projects";
@@ -29,3 +32,4 @@ export * from "./get-project-overview";
 export * from "./get-all-permissions";
 export * from "./get-project-permissions";
 export * from "./project-contributor-stats";
+export * from "./get-project-entities";

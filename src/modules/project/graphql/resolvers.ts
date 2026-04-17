@@ -56,6 +56,8 @@ import {
   GetProjectPermissionsSchema,
   projectContributorStats,
   ProjectContributorStatsSchema,
+  getProjectEntities,
+  GetProjectEntitiesSchema,
 } from "../queries";
 
 export const resolvers: Resolvers = {
@@ -144,6 +146,15 @@ export const resolvers: Resolvers = {
         projectId: args.projectId,
       });
       return getProjectPermissions(data, ctx);
+    },
+
+    getProjectEntities: async (_, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = GetProjectEntitiesSchema.parse({
+        projectId: args.projectId,
+        actorUserId: ctx.auth.userId,
+      });
+      return getProjectEntities(data, ctx);
     },
   },
   Mutation: {

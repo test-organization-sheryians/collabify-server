@@ -40,6 +40,13 @@ const config: CodegenConfig = {
           Issue: "../modules/issues/graphql/mappers#GraphQLIssue",
           IssueStatus: "../modules/issues/graphql/mappers#GraphQLIssueStatus",
           IssueLabel: "../modules/issues/graphql/mappers#GraphQLIssueLabel",
+
+          // Mention: use the mapped types so the generated Resolvers type matches what
+          // toGraphQLMention / toGraphQLBacklink / toGraphQLMentionEvent return.
+          Mention: "../modules/mention/graphql/mappers#GraphQLMention",
+          Backlink: "../modules/mention/graphql/mappers#GraphQLBacklink",
+          BacklinkResult: "../modules/mention/graphql/mappers#GraphQLBacklinkResult",
+          MentionEvent: "../modules/mention/graphql/mappers#GraphQLMentionEvent",
         },
       },
     },

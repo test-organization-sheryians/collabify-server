@@ -5,6 +5,7 @@ import { appRedis } from "@/infra/redis";
 import { createSuccessFrame } from "@/infra/ws/types";
 import { WhiteboardKeys } from "../../infra/whiteboard-keys";
 import { cleanupBoardResources } from "./cleanup";
+import { orphanMentions } from "@/modules/mention/services";
 import type { DeleteBoardInput, DeleteBoardResult } from "./types";
 
 const logger = createLogger("whiteboard:services:delete-board");
@@ -69,6 +70,8 @@ export const handler = async (
         select: { id: true, workspaceId: true },
       });
     });
+
+    await orphanMentions.handler({ targetEntityId: boardId }, ctx);
 
     logger.info("Board soft-deleted", {
       boardId,

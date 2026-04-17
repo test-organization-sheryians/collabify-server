@@ -16,6 +16,7 @@ import type { DeleteIssueResult } from "./types";
 import { fetchIssue } from "./steps/fetch-issue";
 import { softDeleteIssue } from "./steps/soft-delete-issue";
 import { emit } from "@/modules/notification/outbox/outbox-writer";
+import { orphanMentions } from "@/modules/mention/services";
 
 const logger = createLogger("issues:services:delete-issue");
 
@@ -46,6 +47,8 @@ export const deleteIssueHandler = async (
   ]);
 
   await softDeleteIssue(input.issueId, ctx.db);
+
+  await orphanMentions.handler({ targetEntityId: input.issueId }, ctx);
 
   // Emit notification for issue deletion
   await emit(ctx.db as any, {

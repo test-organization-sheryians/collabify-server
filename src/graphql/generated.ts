@@ -3,6 +3,7 @@ import { Project as PrismaProject, ProjectMember as PrismaProjectMember, User as
 import { GraphQLPagePartial } from '../modules/pages/graphql/mappers';
 import { GraphQLVaultFolder, GraphQLVaultFile } from '../modules/vault/graphql/mappers';
 import { GraphQLIssue, GraphQLIssueStatus, GraphQLIssueLabel } from '../modules/issues/graphql/mappers';
+import { GraphQLMention, GraphQLBacklink, GraphQLBacklinkResult, GraphQLMentionEvent } from '../modules/mention/graphql/mappers';
 import { ServiceContext } from './types';
 export type Maybe<T> = T | null;
 export type InputMaybe<T> = Maybe<T>;
@@ -110,6 +111,32 @@ export type AvailabilityResponse = {
   message?: Maybe<Scalars['String']['output']>;
   reason?: Maybe<Scalars['String']['output']>;
   reservationId?: Maybe<Scalars['String']['output']>;
+};
+
+export type Backlink = {
+  __typename?: 'Backlink';
+  context?: Maybe<Scalars['String']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  id: Scalars['ID']['output'];
+  sourceEntityId: Scalars['String']['output'];
+  sourceEntityType: Scalars['String']['output'];
+  sourceMention: Mention;
+  targetEntityId: Scalars['String']['output'];
+  targetEntityType: Scalars['String']['output'];
+};
+
+export type BacklinkFilters = {
+  actorId?: InputMaybe<Scalars['String']['input']>;
+  dateFrom?: InputMaybe<Scalars['DateTime']['input']>;
+  dateTo?: InputMaybe<Scalars['DateTime']['input']>;
+  sourceType?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type BacklinkResult = {
+  __typename?: 'BacklinkResult';
+  backlinks: Array<Backlink>;
+  hasMore: Scalars['Boolean']['output'];
+  total: Scalars['Int']['output'];
 };
 
 export type BoardCollaborator = {
@@ -385,6 +412,15 @@ export type CreateIssueStatusInput = {
 export type CreateIssueStatusResult = {
   __typename?: 'CreateIssueStatusResult';
   status: IssueStatus;
+};
+
+export type CreateMentionInput = {
+  displayText: Scalars['String']['input'];
+  sourceEntityId: Scalars['ID']['input'];
+  sourceEntityType: Scalars['String']['input'];
+  sourceLocation?: InputMaybe<Scalars['JSON']['input']>;
+  targetEntityId: Scalars['ID']['input'];
+  targetEntityType: Scalars['String']['input'];
 };
 
 export type CreatePageInput = {
@@ -732,6 +768,43 @@ export type MarkFilesUnreferencedResult = {
   markedCount: Scalars['Int']['output'];
 };
 
+export type Mention = {
+  __typename?: 'Mention';
+  createdAt: Scalars['DateTime']['output'];
+  createdById: Scalars['String']['output'];
+  displayText: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  sourceEntityId: Scalars['String']['output'];
+  sourceEntityType: Scalars['String']['output'];
+  sourceLocation?: Maybe<Scalars['JSON']['output']>;
+  status: MentionStatus;
+  targetEntityId: Scalars['String']['output'];
+  targetEntityType: Scalars['String']['output'];
+  tier: MentionTier;
+};
+
+export type MentionEvent = {
+  __typename?: 'MentionEvent';
+  actorId?: Maybe<Scalars['String']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  eventType: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  mentionId: Scalars['String']['output'];
+  payload: Scalars['JSON']['output'];
+};
+
+export enum MentionStatus {
+  Active = 'ACTIVE',
+  Orphaned = 'ORPHANED',
+  Removed = 'REMOVED'
+}
+
+export enum MentionTier {
+  Tier_1 = 'TIER_1',
+  Tier_2 = 'TIER_2',
+  Tier_3 = 'TIER_3'
+}
+
 export type MessageReaction = {
   __typename?: 'MessageReaction';
   count: Scalars['Int']['output'];
@@ -815,6 +888,7 @@ export type Mutation = {
   createIssue: CreateIssueResult;
   createIssueLabel: CreateIssueLabelResult;
   createIssueStatus: CreateIssueStatusResult;
+  createMentions: Array<Mention>;
   createOnboardingWorkspace: Workspace;
   /**
    * Creates a new page in a project. Initialises Y.Doc and uploads initial snapshot to S3.
@@ -835,6 +909,8 @@ export type Mutation = {
   deleteIssue: DeleteResult;
   deleteIssueLabel: DeleteResult;
   deleteIssueStatus: DeleteResult;
+  deleteMentions: Scalars['Boolean']['output'];
+  deleteMentionsBySource: Scalars['Int']['output'];
   /**
    * Soft-deletes a page. Fails with 409 if the page has active subscribers.
    * Does not cascade to child pages — handle descendants explicitly first.
@@ -880,6 +956,7 @@ export type Mutation = {
   muteConversation: MuteConversationResult;
   muteProject: Scalars['Boolean']['output'];
   muteWorkspace: Scalars['Boolean']['output'];
+  orphanMentions: Scalars['Int']['output'];
   pauseNotifications: Scalars['Boolean']['output'];
   pinVaultFolder: PinFolderResult;
   /**
@@ -958,6 +1035,7 @@ export type Mutation = {
   updateIssue: UpdateIssueResult;
   updateIssueLabel: UpdateIssueLabelResult;
   updateIssueStatus: UpdateIssueStatusResult;
+  updateMention: Mention;
   updatePageDetails: UpdatePageDetailsResult;
   updateProfile: User;
   updateProject: Project;
@@ -1111,6 +1189,11 @@ export type MutationCreateIssueStatusArgs = {
 };
 
 
+export type MutationCreateMentionsArgs = {
+  mentions: Array<CreateMentionInput>;
+};
+
+
 export type MutationCreatePageArgs = {
   input: CreatePageInput;
 };
@@ -1186,6 +1269,16 @@ export type MutationDeleteIssueLabelArgs = {
 
 export type MutationDeleteIssueStatusArgs = {
   input: DeleteIssueStatusInput;
+};
+
+
+export type MutationDeleteMentionsArgs = {
+  mentionIds: Array<Scalars['ID']['input']>;
+};
+
+
+export type MutationDeleteMentionsBySourceArgs = {
+  sourceEntityId: Scalars['ID']['input'];
 };
 
 
@@ -1304,6 +1397,11 @@ export type MutationMuteProjectArgs = {
 export type MutationMuteWorkspaceArgs = {
   until?: InputMaybe<Scalars['String']['input']>;
   workspaceId: Scalars['String']['input'];
+};
+
+
+export type MutationOrphanMentionsArgs = {
+  targetEntityId: Scalars['ID']['input'];
 };
 
 
@@ -1590,6 +1688,11 @@ export type MutationUpdateIssueLabelArgs = {
 
 export type MutationUpdateIssueStatusArgs = {
   input: UpdateIssueStatusInput;
+};
+
+
+export type MutationUpdateMentionArgs = {
+  input: UpdateMentionInput;
 };
 
 
@@ -1965,6 +2068,7 @@ export type Query = {
   featureFlags: Array<FeatureFlagRecord>;
   /** Live presence from Redis ZSET (not DB). Reflects current editing sessions. */
   getActivePageCollaborators: Array<PageCollaborator>;
+  getBacklinks: BacklinkResult;
   /**
    * Batch-fetch presigned GET URLs for a list of fileIds.
    * Returns one result entry per fileId in the same order as the input.
@@ -1990,6 +2094,8 @@ export type Query = {
   /** Returns all Kanban columns for a project, ordered by position. */
   getIssueStatuses: Array<IssueStatus>;
   getLastReadMessage?: Maybe<Scalars['ID']['output']>;
+  getMentionEvents: Array<MentionEvent>;
+  getMentions: Array<Mention>;
   getMessageById?: Maybe<ChatMessage>;
   getMessagesAfterCursor: Array<ChatMessage>;
   getMissingMessages: Array<ChatMessage>;
@@ -2013,6 +2119,7 @@ export type Query = {
    */
   getPageSnapshot: PageSnapshot;
   getProjectDms: Array<ProjectDmItem>;
+  getProjectEntities: Array<SearchEntity>;
   /**
    * Returns all issues for a project, sorted by priority (URGENT first)
    * then by position within each column.
@@ -2120,6 +2227,14 @@ export type QueryGetActivePageCollaboratorsArgs = {
 };
 
 
+export type QueryGetBacklinksArgs = {
+  cursor?: InputMaybe<Scalars['ID']['input']>;
+  filters?: InputMaybe<BacklinkFilters>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  targetEntityId: Scalars['ID']['input'];
+};
+
+
 export type QueryGetBatchDownloadUrlsArgs = {
   fileIds: Array<Scalars['ID']['input']>;
 };
@@ -2180,6 +2295,16 @@ export type QueryGetLastReadMessageArgs = {
 };
 
 
+export type QueryGetMentionEventsArgs = {
+  mentionId: Scalars['ID']['input'];
+};
+
+
+export type QueryGetMentionsArgs = {
+  sourceEntityId: Scalars['ID']['input'];
+};
+
+
 export type QueryGetMessageByIdArgs = {
   messageId: Scalars['ID']['input'];
 };
@@ -2217,6 +2342,11 @@ export type QueryGetPageSnapshotArgs = {
 export type QueryGetProjectDmsArgs = {
   projectId: Scalars['ID']['input'];
   workspaceId: Scalars['ID']['input'];
+};
+
+
+export type QueryGetProjectEntitiesArgs = {
+  projectId: Scalars['ID']['input'];
 };
 
 
@@ -2654,6 +2784,22 @@ export type ScopedNotificationPreference = {
   pushEnabled?: Maybe<Scalars['Boolean']['output']>;
 };
 
+export type SearchEntity = {
+  __typename?: 'SearchEntity';
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  type: SearchEntityType;
+};
+
+export enum SearchEntityType {
+  Issue = 'ISSUE',
+  Page = 'PAGE',
+  User = 'USER',
+  VaultFile = 'VAULT_FILE',
+  VaultFolder = 'VAULT_FOLDER',
+  Whiteboard = 'WHITEBOARD'
+}
+
 export enum SortDirection {
   Asc = 'ASC',
   Desc = 'DESC'
@@ -2791,6 +2937,12 @@ export type UpdateIssueStatusInput = {
 export type UpdateIssueStatusResult = {
   __typename?: 'UpdateIssueStatusResult';
   status: IssueStatus;
+};
+
+export type UpdateMentionInput = {
+  displayText?: InputMaybe<Scalars['String']['input']>;
+  mentionId: Scalars['ID']['input'];
+  sourceLocation?: InputMaybe<Scalars['JSON']['input']>;
 };
 
 export type UpdatePageDetailsInput = {
@@ -3264,6 +3416,9 @@ export type ResolversTypes = ResolversObject<{
   ArchivePageInput: ArchivePageInput;
   ArchivePageResult: ResolverTypeWrapper<Omit<ArchivePageResult, 'page'> & { page: ResolversTypes['Page'] }>;
   AvailabilityResponse: ResolverTypeWrapper<AvailabilityResponse>;
+  Backlink: ResolverTypeWrapper<GraphQLBacklink>;
+  BacklinkFilters: BacklinkFilters;
+  BacklinkResult: ResolverTypeWrapper<GraphQLBacklinkResult>;
   BoardCollaborator: ResolverTypeWrapper<BoardCollaborator>;
   BoardConnection: ResolverTypeWrapper<BoardConnection>;
   BoardPayload: ResolverTypeWrapper<BoardPayload>;
@@ -3301,6 +3456,7 @@ export type ResolversTypes = ResolversObject<{
   CreateIssueResult: ResolverTypeWrapper<Omit<CreateIssueResult, 'issue'> & { issue: ResolversTypes['Issue'] }>;
   CreateIssueStatusInput: CreateIssueStatusInput;
   CreateIssueStatusResult: ResolverTypeWrapper<Omit<CreateIssueStatusResult, 'status'> & { status: ResolversTypes['IssueStatus'] }>;
+  CreateMentionInput: CreateMentionInput;
   CreatePageInput: CreatePageInput;
   CreatePageResult: ResolverTypeWrapper<Omit<CreatePageResult, 'page'> & { page: ResolversTypes['Page'] }>;
   CreateProjectInput: CreateProjectInput;
@@ -3354,6 +3510,10 @@ export type ResolversTypes = ResolversObject<{
   LockPageResult: ResolverTypeWrapper<Omit<LockPageResult, 'page'> & { page: ResolversTypes['Page'] }>;
   MarkFilesUnreferencedInput: MarkFilesUnreferencedInput;
   MarkFilesUnreferencedResult: ResolverTypeWrapper<MarkFilesUnreferencedResult>;
+  Mention: ResolverTypeWrapper<GraphQLMention>;
+  MentionEvent: ResolverTypeWrapper<GraphQLMentionEvent>;
+  MentionStatus: MentionStatus;
+  MentionTier: MentionTier;
   MessageReaction: ResolverTypeWrapper<Omit<MessageReaction, 'recentUsers'> & { recentUsers: Array<ResolversTypes['User']> }>;
   MessagesDelta: ResolverTypeWrapper<Omit<MessagesDelta, 'messages'> & { messages: Array<ResolversTypes['ChatMessage']> }>;
   MoveFileResult: ResolverTypeWrapper<Omit<MoveFileResult, 'file'> & { file: ResolversTypes['VaultFile'] }>;
@@ -3424,6 +3584,8 @@ export type ResolversTypes = ResolversObject<{
   RequestVaultUploadInput: RequestVaultUploadInput;
   RolePermission: ResolverTypeWrapper<RolePermission>;
   ScopedNotificationPreference: ResolverTypeWrapper<ScopedNotificationPreference>;
+  SearchEntity: ResolverTypeWrapper<SearchEntity>;
+  SearchEntityType: SearchEntityType;
   SortDirection: SortDirection;
   String: ResolverTypeWrapper<Scalars['String']['output']>;
   SubscribeThreadResult: ResolverTypeWrapper<SubscribeThreadResult>;
@@ -3447,6 +3609,7 @@ export type ResolversTypes = ResolversObject<{
   UpdateIssueResult: ResolverTypeWrapper<Omit<UpdateIssueResult, 'issue'> & { issue: ResolversTypes['Issue'] }>;
   UpdateIssueStatusInput: UpdateIssueStatusInput;
   UpdateIssueStatusResult: ResolverTypeWrapper<Omit<UpdateIssueStatusResult, 'status'> & { status: ResolversTypes['IssueStatus'] }>;
+  UpdateMentionInput: UpdateMentionInput;
   UpdatePageDetailsInput: UpdatePageDetailsInput;
   UpdatePageDetailsResult: ResolverTypeWrapper<Omit<UpdatePageDetailsResult, 'page'> & { page: ResolversTypes['Page'] }>;
   UpdateProfileInput: UpdateProfileInput;
@@ -3504,6 +3667,9 @@ export type ResolversParentTypes = ResolversObject<{
   ArchivePageInput: ArchivePageInput;
   ArchivePageResult: Omit<ArchivePageResult, 'page'> & { page: ResolversParentTypes['Page'] };
   AvailabilityResponse: AvailabilityResponse;
+  Backlink: GraphQLBacklink;
+  BacklinkFilters: BacklinkFilters;
+  BacklinkResult: GraphQLBacklinkResult;
   BoardCollaborator: BoardCollaborator;
   BoardConnection: BoardConnection;
   BoardPayload: BoardPayload;
@@ -3539,6 +3705,7 @@ export type ResolversParentTypes = ResolversObject<{
   CreateIssueResult: Omit<CreateIssueResult, 'issue'> & { issue: ResolversParentTypes['Issue'] };
   CreateIssueStatusInput: CreateIssueStatusInput;
   CreateIssueStatusResult: Omit<CreateIssueStatusResult, 'status'> & { status: ResolversParentTypes['IssueStatus'] };
+  CreateMentionInput: CreateMentionInput;
   CreatePageInput: CreatePageInput;
   CreatePageResult: Omit<CreatePageResult, 'page'> & { page: ResolversParentTypes['Page'] };
   CreateProjectInput: CreateProjectInput;
@@ -3589,6 +3756,8 @@ export type ResolversParentTypes = ResolversObject<{
   LockPageResult: Omit<LockPageResult, 'page'> & { page: ResolversParentTypes['Page'] };
   MarkFilesUnreferencedInput: MarkFilesUnreferencedInput;
   MarkFilesUnreferencedResult: MarkFilesUnreferencedResult;
+  Mention: GraphQLMention;
+  MentionEvent: GraphQLMentionEvent;
   MessageReaction: Omit<MessageReaction, 'recentUsers'> & { recentUsers: Array<ResolversParentTypes['User']> };
   MessagesDelta: Omit<MessagesDelta, 'messages'> & { messages: Array<ResolversParentTypes['ChatMessage']> };
   MoveFileResult: Omit<MoveFileResult, 'file'> & { file: ResolversParentTypes['VaultFile'] };
@@ -3656,6 +3825,7 @@ export type ResolversParentTypes = ResolversObject<{
   RequestVaultUploadInput: RequestVaultUploadInput;
   RolePermission: RolePermission;
   ScopedNotificationPreference: ScopedNotificationPreference;
+  SearchEntity: SearchEntity;
   String: Scalars['String']['output'];
   SubscribeThreadResult: SubscribeThreadResult;
   ToggleFeatureFlagInput: ToggleFeatureFlagInput;
@@ -3678,6 +3848,7 @@ export type ResolversParentTypes = ResolversObject<{
   UpdateIssueResult: Omit<UpdateIssueResult, 'issue'> & { issue: ResolversParentTypes['Issue'] };
   UpdateIssueStatusInput: UpdateIssueStatusInput;
   UpdateIssueStatusResult: Omit<UpdateIssueStatusResult, 'status'> & { status: ResolversParentTypes['IssueStatus'] };
+  UpdateMentionInput: UpdateMentionInput;
   UpdatePageDetailsInput: UpdatePageDetailsInput;
   UpdatePageDetailsResult: Omit<UpdatePageDetailsResult, 'page'> & { page: ResolversParentTypes['Page'] };
   UpdateProfileInput: UpdateProfileInput;
@@ -3773,6 +3944,23 @@ export type AvailabilityResponseResolvers<ContextType = ServiceContext, ParentTy
   message?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   reason?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   reservationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+}>;
+
+export type BacklinkResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Backlink'] = ResolversParentTypes['Backlink']> = ResolversObject<{
+  context?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  sourceEntityId?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  sourceEntityType?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  sourceMention?: Resolver<ResolversTypes['Mention'], ParentType, ContextType>;
+  targetEntityId?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  targetEntityType?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+}>;
+
+export type BacklinkResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['BacklinkResult'] = ResolversParentTypes['BacklinkResult']> = ResolversObject<{
+  backlinks?: Resolver<Array<ResolversTypes['Backlink']>, ParentType, ContextType>;
+  hasMore?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  total?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
 }>;
 
 export type BoardCollaboratorResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['BoardCollaborator'] = ResolversParentTypes['BoardCollaborator']> = ResolversObject<{
@@ -4145,6 +4333,29 @@ export type MarkFilesUnreferencedResultResolvers<ContextType = ServiceContext, P
   markedCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
 }>;
 
+export type MentionResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['Mention'] = ResolversParentTypes['Mention']> = ResolversObject<{
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  createdById?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  displayText?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  sourceEntityId?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  sourceEntityType?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  sourceLocation?: Resolver<Maybe<ResolversTypes['JSON']>, ParentType, ContextType>;
+  status?: Resolver<ResolversTypes['MentionStatus'], ParentType, ContextType>;
+  targetEntityId?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  targetEntityType?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  tier?: Resolver<ResolversTypes['MentionTier'], ParentType, ContextType>;
+}>;
+
+export type MentionEventResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['MentionEvent'] = ResolversParentTypes['MentionEvent']> = ResolversObject<{
+  actorId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  eventType?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  mentionId?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  payload?: Resolver<ResolversTypes['JSON'], ParentType, ContextType>;
+}>;
+
 export type MessageReactionResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['MessageReaction'] = ResolversParentTypes['MessageReaction']> = ResolversObject<{
   count?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   emoji?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
@@ -4197,6 +4408,7 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   createIssue?: Resolver<ResolversTypes['CreateIssueResult'], ParentType, ContextType, RequireFields<MutationCreateIssueArgs, 'input'>>;
   createIssueLabel?: Resolver<ResolversTypes['CreateIssueLabelResult'], ParentType, ContextType, RequireFields<MutationCreateIssueLabelArgs, 'input'>>;
   createIssueStatus?: Resolver<ResolversTypes['CreateIssueStatusResult'], ParentType, ContextType, RequireFields<MutationCreateIssueStatusArgs, 'input'>>;
+  createMentions?: Resolver<Array<ResolversTypes['Mention']>, ParentType, ContextType, RequireFields<MutationCreateMentionsArgs, 'mentions'>>;
   createOnboardingWorkspace?: Resolver<ResolversTypes['Workspace'], ParentType, ContextType>;
   createPage?: Resolver<ResolversTypes['CreatePageResult'], ParentType, ContextType, RequireFields<MutationCreatePageArgs, 'input'>>;
   createProject?: Resolver<ResolversTypes['Project'], ParentType, ContextType, RequireFields<MutationCreateProjectArgs, 'input' | 'workspaceId'>>;
@@ -4213,6 +4425,8 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   deleteIssue?: Resolver<ResolversTypes['DeleteResult'], ParentType, ContextType, RequireFields<MutationDeleteIssueArgs, 'input'>>;
   deleteIssueLabel?: Resolver<ResolversTypes['DeleteResult'], ParentType, ContextType, RequireFields<MutationDeleteIssueLabelArgs, 'input'>>;
   deleteIssueStatus?: Resolver<ResolversTypes['DeleteResult'], ParentType, ContextType, RequireFields<MutationDeleteIssueStatusArgs, 'input'>>;
+  deleteMentions?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationDeleteMentionsArgs, 'mentionIds'>>;
+  deleteMentionsBySource?: Resolver<ResolversTypes['Int'], ParentType, ContextType, RequireFields<MutationDeleteMentionsBySourceArgs, 'sourceEntityId'>>;
   deletePage?: Resolver<ResolversTypes['DeletePageResult'], ParentType, ContextType, RequireFields<MutationDeletePageArgs, 'input'>>;
   deleteProject?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationDeleteProjectArgs, 'projectId'>>;
   deleteProjectRole?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationDeleteProjectRoleArgs, 'projectId' | 'roleId' | 'workspaceId'>>;
@@ -4236,6 +4450,7 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   muteConversation?: Resolver<ResolversTypes['MuteConversationResult'], ParentType, ContextType, RequireFields<MutationMuteConversationArgs, 'conversationId' | 'isMuted'>>;
   muteProject?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationMuteProjectArgs, 'projectId'>>;
   muteWorkspace?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationMuteWorkspaceArgs, 'workspaceId'>>;
+  orphanMentions?: Resolver<ResolversTypes['Int'], ParentType, ContextType, RequireFields<MutationOrphanMentionsArgs, 'targetEntityId'>>;
   pauseNotifications?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationPauseNotificationsArgs, 'until'>>;
   pinVaultFolder?: Resolver<ResolversTypes['PinFolderResult'], ParentType, ContextType, RequireFields<MutationPinVaultFolderArgs, 'input'>>;
   registerExternalFile?: Resolver<ResolversTypes['RegisterExternalFileResult'], ParentType, ContextType, RequireFields<MutationRegisterExternalFileArgs, 'input'>>;
@@ -4287,6 +4502,7 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   updateIssue?: Resolver<ResolversTypes['UpdateIssueResult'], ParentType, ContextType, RequireFields<MutationUpdateIssueArgs, 'input'>>;
   updateIssueLabel?: Resolver<ResolversTypes['UpdateIssueLabelResult'], ParentType, ContextType, RequireFields<MutationUpdateIssueLabelArgs, 'input'>>;
   updateIssueStatus?: Resolver<ResolversTypes['UpdateIssueStatusResult'], ParentType, ContextType, RequireFields<MutationUpdateIssueStatusArgs, 'input'>>;
+  updateMention?: Resolver<ResolversTypes['Mention'], ParentType, ContextType, RequireFields<MutationUpdateMentionArgs, 'input'>>;
   updatePageDetails?: Resolver<ResolversTypes['UpdatePageDetailsResult'], ParentType, ContextType, RequireFields<MutationUpdatePageDetailsArgs, 'input'>>;
   updateProfile?: Resolver<ResolversTypes['User'], ParentType, ContextType, RequireFields<MutationUpdateProfileArgs, 'input'>>;
   updateProject?: Resolver<ResolversTypes['Project'], ParentType, ContextType, RequireFields<MutationUpdateProjectArgs, 'input' | 'projectId'>>;
@@ -4526,6 +4742,7 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   boardCollaborators?: Resolver<Array<ResolversTypes['BoardCollaborator']>, ParentType, ContextType, RequireFields<QueryBoardCollaboratorsArgs, 'boardId'>>;
   featureFlags?: Resolver<Array<ResolversTypes['FeatureFlagRecord']>, ParentType, ContextType>;
   getActivePageCollaborators?: Resolver<Array<ResolversTypes['PageCollaborator']>, ParentType, ContextType, RequireFields<QueryGetActivePageCollaboratorsArgs, 'pageId'>>;
+  getBacklinks?: Resolver<ResolversTypes['BacklinkResult'], ParentType, ContextType, RequireFields<QueryGetBacklinksArgs, 'targetEntityId'>>;
   getBatchDownloadUrls?: Resolver<Array<ResolversTypes['VaultBatchDownloadResult']>, ParentType, ContextType, RequireFields<QueryGetBatchDownloadUrlsArgs, 'fileIds'>>;
   getBoard?: Resolver<Maybe<ResolversTypes['Whiteboard']>, ParentType, ContextType, RequireFields<QueryGetBoardArgs, 'boardId'>>;
   getBoardSnapshot?: Resolver<ResolversTypes['BoardSnapshot'], ParentType, ContextType, RequireFields<QueryGetBoardSnapshotArgs, 'boardId'>>;
@@ -4537,6 +4754,8 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   getIssueLabels?: Resolver<Array<ResolversTypes['IssueLabel']>, ParentType, ContextType, RequireFields<QueryGetIssueLabelsArgs, 'projectId'>>;
   getIssueStatuses?: Resolver<Array<ResolversTypes['IssueStatus']>, ParentType, ContextType, RequireFields<QueryGetIssueStatusesArgs, 'projectId'>>;
   getLastReadMessage?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType, RequireFields<QueryGetLastReadMessageArgs, 'channelId'>>;
+  getMentionEvents?: Resolver<Array<ResolversTypes['MentionEvent']>, ParentType, ContextType, RequireFields<QueryGetMentionEventsArgs, 'mentionId'>>;
+  getMentions?: Resolver<Array<ResolversTypes['Mention']>, ParentType, ContextType, RequireFields<QueryGetMentionsArgs, 'sourceEntityId'>>;
   getMessageById?: Resolver<Maybe<ResolversTypes['ChatMessage']>, ParentType, ContextType, RequireFields<QueryGetMessageByIdArgs, 'messageId'>>;
   getMessagesAfterCursor?: Resolver<Array<ResolversTypes['ChatMessage']>, ParentType, ContextType, RequireFields<QueryGetMessagesAfterCursorArgs, 'afterCursor' | 'channelId'>>;
   getMissingMessages?: Resolver<Array<ResolversTypes['ChatMessage']>, ParentType, ContextType, RequireFields<QueryGetMissingMessagesArgs, 'channelId' | 'rangeEnd' | 'rangeStart'>>;
@@ -4544,6 +4763,7 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   getPageCollaborators?: Resolver<Array<ResolversTypes['PageCollaborator']>, ParentType, ContextType, RequireFields<QueryGetPageCollaboratorsArgs, 'pageId'>>;
   getPageSnapshot?: Resolver<ResolversTypes['PageSnapshot'], ParentType, ContextType, RequireFields<QueryGetPageSnapshotArgs, 'pageId'>>;
   getProjectDms?: Resolver<Array<ResolversTypes['ProjectDmItem']>, ParentType, ContextType, RequireFields<QueryGetProjectDmsArgs, 'projectId' | 'workspaceId'>>;
+  getProjectEntities?: Resolver<Array<ResolversTypes['SearchEntity']>, ParentType, ContextType, RequireFields<QueryGetProjectEntitiesArgs, 'projectId'>>;
   getProjectIssues?: Resolver<Array<ResolversTypes['Issue']>, ParentType, ContextType, RequireFields<QueryGetProjectIssuesArgs, 'projectId'>>;
   getProjectPages?: Resolver<Array<ResolversTypes['Page']>, ParentType, ContextType, RequireFields<QueryGetProjectPagesArgs, 'projectId'>>;
   getReadReceipts?: Resolver<ResolversTypes['ReadReceiptsResponse'], ParentType, ContextType, RequireFields<QueryGetReadReceiptsArgs, 'messageId'>>;
@@ -4694,6 +4914,12 @@ export type ScopedNotificationPreferenceResolvers<ContextType = ServiceContext, 
   categories?: Resolver<Array<ResolversTypes['CategoryPreferenceSetting']>, ParentType, ContextType>;
   emailEnabled?: Resolver<Maybe<ResolversTypes['Boolean']>, ParentType, ContextType>;
   pushEnabled?: Resolver<Maybe<ResolversTypes['Boolean']>, ParentType, ContextType>;
+}>;
+
+export type SearchEntityResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['SearchEntity'] = ResolversParentTypes['SearchEntity']> = ResolversObject<{
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  type?: Resolver<ResolversTypes['SearchEntityType'], ParentType, ContextType>;
 }>;
 
 export type SubscribeThreadResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['SubscribeThreadResult'] = ResolversParentTypes['SubscribeThreadResult']> = ResolversObject<{
@@ -5048,6 +5274,8 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   AddPageCollaboratorsResult?: AddPageCollaboratorsResultResolvers<ContextType>;
   ArchivePageResult?: ArchivePageResultResolvers<ContextType>;
   AvailabilityResponse?: AvailabilityResponseResolvers<ContextType>;
+  Backlink?: BacklinkResolvers<ContextType>;
+  BacklinkResult?: BacklinkResultResolvers<ContextType>;
   BoardCollaborator?: BoardCollaboratorResolvers<ContextType>;
   BoardConnection?: BoardConnectionResolvers<ContextType>;
   BoardPayload?: BoardPayloadResolvers<ContextType>;
@@ -5103,6 +5331,8 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   LeaveGroupResult?: LeaveGroupResultResolvers<ContextType>;
   LockPageResult?: LockPageResultResolvers<ContextType>;
   MarkFilesUnreferencedResult?: MarkFilesUnreferencedResultResolvers<ContextType>;
+  Mention?: MentionResolvers<ContextType>;
+  MentionEvent?: MentionEventResolvers<ContextType>;
   MessageReaction?: MessageReactionResolvers<ContextType>;
   MessagesDelta?: MessagesDeltaResolvers<ContextType>;
   MoveFileResult?: MoveFileResultResolvers<ContextType>;
@@ -5154,6 +5384,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   RequestUploadResult?: RequestUploadResultResolvers<ContextType>;
   RolePermission?: RolePermissionResolvers<ContextType>;
   ScopedNotificationPreference?: ScopedNotificationPreferenceResolvers<ContextType>;
+  SearchEntity?: SearchEntityResolvers<ContextType>;
   SubscribeThreadResult?: SubscribeThreadResultResolvers<ContextType>;
   ToggleFlagResult?: ToggleFlagResultResolvers<ContextType>;
   UnarchiveChannelResult?: UnarchiveChannelResultResolvers<ContextType>;

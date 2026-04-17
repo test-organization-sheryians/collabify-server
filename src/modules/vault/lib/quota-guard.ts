@@ -164,25 +164,32 @@ export async function activateVaultUsage({
     sizeBytes: sizeBytes.toString(),
   });
 
-  await db.$transaction([
-    db.vaultProjectUsage.update({
-      where: { workspaceId_projectId: { workspaceId, projectId } },
-      data: {
-        reservedBytes: { decrement: sizeBytes },
-        usedBytes: { increment: sizeBytes },
-        fileCount: { increment: 1 },
-      },
-    }),
-    db.vaultWorkspaceUsage.update({
-      where: { workspaceId },
-      data: {
-        reservedBytes: { decrement: sizeBytes },
-        usedBytes: { increment: sizeBytes },
-        fileCount: { increment: 1 },
-      },
-    }),
-  ]);
+  // Run both updates sequentially. When called from inside an existing
+  // db.$transaction (e.g. activate-file.ts passes `tx` as `db`), the Prisma
+  // transaction client does NOT expose $transaction — the outer transaction
+  // already guarantees atomicity.  When called from a root PrismaClient the
+  // two writes are non-transactional, which is acceptable here because:
+  //   • the operations are purely additive counters (decrement/increment)
+  //   • the quota was already enforced atomically in enforceVaultQuota
+  await db.vaultProjectUsage.update({
+    where: { workspaceId_projectId: { workspaceId, projectId } },
+    data: {
+      reservedBytes: { decrement: sizeBytes },
+      usedBytes: { increment: sizeBytes },
+      fileCount: { increment: 1 },
+    },
+  });
+
+  await db.vaultWorkspaceUsage.update({
+    where: { workspaceId },
+    data: {
+      reservedBytes: { decrement: sizeBytes },
+      usedBytes: { increment: sizeBytes },
+      fileCount: { increment: 1 },
+    },
+  });
 }
+
 
 // ── Release Usage (called by delete-file) ─────────────────────────────────────
 
@@ -208,20 +215,19 @@ export async function releaseVaultUsage({
     sizeBytes: sizeBytes.toString(),
   });
 
-  await db.$transaction([
-    db.vaultProjectUsage.update({
-      where: { workspaceId_projectId: { workspaceId, projectId } },
-      data: {
-        usedBytes: { decrement: sizeBytes },
-        fileCount: { decrement: 1 },
-      },
-    }),
-    db.vaultWorkspaceUsage.update({
-      where: { workspaceId },
-      data: {
-        usedBytes: { decrement: sizeBytes },
-        fileCount: { decrement: 1 },
-      },
-    }),
-  ]);
+  await db.vaultProjectUsage.update({
+    where: { workspaceId_projectId: { workspaceId, projectId } },
+    data: {
+      usedBytes: { decrement: sizeBytes },
+      fileCount: { decrement: 1 },
+    },
+  });
+
+  await db.vaultWorkspaceUsage.update({
+    where: { workspaceId },
+    data: {
+      usedBytes: { decrement: sizeBytes },
+      fileCount: { decrement: 1 },
+    },
+  });
 }

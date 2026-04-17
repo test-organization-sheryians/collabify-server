@@ -18,6 +18,7 @@ import type { DeleteVaultFileInput } from "./schema";
 import { fetchActiveFileForEdit } from "./steps/fetch-file";
 import { softDeleteFile } from "./steps/soft-delete";
 import { releaseUsage } from "./steps/release-usage";
+import { orphanMentions } from "@/modules/mention/services";
 
 const logger = createLogger("vault:services:delete-file");
 
@@ -46,6 +47,8 @@ export const deleteVaultFileHandler = async (
       softDeleteFile(file.id, ctx.db),
       releaseUsage(file.projectId, file.workspaceId, file.sizeBytes, ctx.db),
     ]);
+
+    await orphanMentions.handler({ targetEntityId: file.id }, ctx);
 
     logger.info("Vault file soft-deleted", {
       fileId: file.id,

@@ -1327,3 +1327,78 @@ model FeatureFlagOverride {
   @@index([contextId])
   @@map("feature_flag_overrides")
 }
+
+// ─── Mention System ──────────────────────────────────────────────────────────────
+
+enum MentionTier {
+  TIER_1
+  TIER_2
+  TIER_3
+}
+
+enum MentionStatus {
+  ACTIVE
+  ORPHANED
+  REMOVED
+}
+
+model Mention {
+  id               String        @id @default(cuid())
+  
+  sourceEntityId   String        @map("source_entity_id")
+  sourceEntityType String        @map("source_entity_type")
+  
+  targetEntityId   String        @map("target_entity_id")
+  targetEntityType String        @map("target_entity_type")
+  
+  displayText      String        @map("display_text")
+  sourceLocation   Json?        @map("source_location")
+  
+  tier             MentionTier   @default(TIER_2)
+  status           MentionStatus @default(ACTIVE)
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+  createdById      String       @map("created_by_id")
+  
+  backlinks        Backlink[]
+  
+  @@index([sourceEntityId, status])
+  @@index([targetEntityId, status])
+  @@index([createdById])
+  @@map("mentions")
+}
+
+model Backlink {
+  id               String   @id @default(cuid())
+  
+  sourceEntityId   String   @map("source_entity_id")
+  sourceEntityType String   @map("source_entity_type")
+  
+  targetEntityId   String   @map("target_entity_id")
+  targetEntityType String   @map("target_entity_type")
+  
+  mentionId        String   @map("mention_id")
+  mention          Mention  @relation(fields: [mentionId], references: [id], onDelete: Cascade)
+  
+  context          String?  @db.VarChar(100)
+  
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@unique([sourceEntityId, targetEntityId])
+  @@index([targetEntityId])
+  @@index([sourceEntityId])
+  @@map("backlinks")
+}
+
+model MentionEvent {
+  id           String   @id @default(cuid())
+  mentionId    String   @map("mention_id")
+  eventType    String   @map("event_type")
+  payload      Json
+  actorId      String?  @map("actor_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([mentionId])
+  @@index([createdAt])
+  @@map("mention_events")
+}
