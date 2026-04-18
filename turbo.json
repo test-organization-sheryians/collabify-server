@@ -1,0 +1,13 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "inputs": ["src/**/*.ts", "package.json"],
+      "outputs": ["dist/**"] 
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}
