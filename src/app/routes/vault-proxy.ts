@@ -115,7 +115,7 @@ vaultProxyRoutes.get("/vault/file/:fileId", async (c) => {
       // Immutable content — safe to cache aggressively
       "Cache-Control": "private, max-age=3600, immutable",
       // Stable ETag equals fileId — enables 304 Not Modified
-      "ETag": `"${fileId}"`,
+      ETag: `"${fileId}"`,
       // Show inline (images, PDFs) rather than forcing download
       "Content-Disposition": `inline; filename="${encodeURIComponent(file.name)}"`,
     };

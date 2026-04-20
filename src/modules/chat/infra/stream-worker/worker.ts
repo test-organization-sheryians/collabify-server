@@ -1,15 +1,15 @@
-import { bpubRedis, appRedis } from "../redis";
-import { createLogger } from "../../shared/lib/logger";
-
-const logger = createLogger("infra:ws:worker");
 import * as os from "os";
-import { KeyFactory } from "../redis/keys";
+
 import { persistenceQueue, messageEditQueue, messageDeleteQueue } from "@/modules/chat/jobs/queues";
 import {
   queueReactionPersistence,
   periodicFlush,
 } from "@/modules/chat/domain/reactions/batch-persistence";
+import { createLogger } from "@/shared/lib/logger";
+import { appRedis, bpubRedis } from "@/infra/redis";
+import { KeyFactory } from "@/infra/redis/keys";
 
+const logger = createLogger("infra:ws:worker");
 /**
  * Stream Worker (The "Bridge")
  */
