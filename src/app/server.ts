@@ -21,11 +21,7 @@ import { runAuthBootstrap } from "../modules/authorization/bootstrap/bootstrap";
 const logger = createLogger("app:server");
 const app = new Hono();
 
-// 1. Bootstrapping
-void checkConnection(); // Check DB
-
-// Authorization bootstrap: sync permissions + system roles on startup
-// Non-fatal: server starts even if bootstrap fails (logs error)
+void checkConnection();
 void runAuthBootstrap(db, redis);
 
 NotificationModule.startEngine().catch((err: Error) => {
@@ -44,16 +40,12 @@ startVaultJobs(db).catch((err: Error) => {
   logger.error("Failed to start Vault Jobs", { err });
 });
 
-// Start Subscription Janitor
 wsRegistry.init();
 
-// Initialize Global Middleware
 registerGlobalMiddleware(app);
 
-// Register WebSocket Routes
 registerGlobalWSRoutes();
 
-// 3. Routes
 app.get("/", (c: Context) => c.text("Collabify Server is running!"));
 app.get("/health", async (c: Context) => {
   try {
@@ -73,13 +65,11 @@ app.route("/", webhookRoutes);
 app.route("/internal", internalRoutes);
 app.route("/", vaultProxyRoutes);
 
-// 4. GraphQL
 const yoga = createGraphQLApp();
 app.use("/graphql", async (c: Context) => {
   return yoga.fetch(c.req.raw, {}, { c });
 });
 
-// 5. WebSocket
 const { upgradeHandler, websocketHandler } = createWSGateway();
 app.get("/ws", upgradeHandler);
 

@@ -6,8 +6,6 @@ const logger = createLogger("services:clerk");
 import { ClerkWebhookEvent } from "./types";
 
 export const ClerkWebhookService = {
-  // Logic 1: Verify and Parse (Purely Infrastructure)
-  // Logic 1: Verify and Parse (Purely Infrastructure)
   verifyWebhook(
     payload: string,
     headers: {
