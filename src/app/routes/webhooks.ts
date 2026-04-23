@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import webhooksApp from "./webhooks";
+import webhooksApp from "./webhooks/index";
 
 const webhookRouter = new Hono();
 
