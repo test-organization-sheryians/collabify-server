@@ -1978,6 +1978,7 @@ export type Project = {
   isArchived?: Maybe<Scalars['Boolean']['output']>;
   isPrivate?: Maybe<Scalars['Boolean']['output']>;
   key: Scalars['String']['output'];
+  logoS3Key?: Maybe<Scalars['String']['output']>;
   logoUrl?: Maybe<Scalars['String']['output']>;
   members: Array<ProjectMember>;
   name: Scalars['String']['output'];
@@ -2001,8 +2002,8 @@ export type ProjectLogoUploadPayload = {
   __typename?: 'ProjectLogoUploadPayload';
   /** ISO timestamp after which the presigned PUT URL expires. */
   expiresAt: Scalars['String']['output'];
-  /** The final S3 URL to store in Project.logoUrl after PUT succeeds. */
-  logoUrl: Scalars['String']['output'];
+  /** The S3 key to store in Project.logoS3Key after PUT succeeds. */
+  logoS3Key: Scalars['String']['output'];
   /** The presigned S3 PUT URL the client uses to upload directly. */
   presignedUrl: Scalars['String']['output'];
 };
@@ -2970,7 +2971,7 @@ export type UpdateProjectInput = {
   description?: InputMaybe<Scalars['String']['input']>;
   isPrivate?: InputMaybe<Scalars['Boolean']['input']>;
   key?: InputMaybe<Scalars['String']['input']>;
-  logoUrl?: InputMaybe<Scalars['String']['input']>;
+  logoS3Key?: InputMaybe<Scalars['String']['input']>;
   name?: InputMaybe<Scalars['String']['input']>;
 };
 
@@ -2988,7 +2989,7 @@ export type UpdateScopedPreferencesInput = {
 
 export type UpdateWorkspaceInput = {
   domainWhitelist?: InputMaybe<Scalars['String']['input']>;
-  logoUrl?: InputMaybe<Scalars['String']['input']>;
+  logoS3Key?: InputMaybe<Scalars['String']['input']>;
   name?: InputMaybe<Scalars['String']['input']>;
 };
 
@@ -3211,6 +3212,7 @@ export type Workspace = {
   createdAt: Scalars['String']['output'];
   domainWhitelist?: Maybe<Scalars['String']['output']>;
   id: Scalars['ID']['output'];
+  logoS3Key?: Maybe<Scalars['String']['output']>;
   logoUrl?: Maybe<Scalars['String']['output']>;
   memberRole?: Maybe<Scalars['String']['output']>;
   name: Scalars['String']['output'];
@@ -3247,8 +3249,8 @@ export type WorkspaceInviteInfo = {
 export type WorkspaceLogoUploadPayload = {
   __typename?: 'WorkspaceLogoUploadPayload';
   expiresAt: Scalars['String']['output'];
-  /** The final S3 URL to store in Workspace.logoUrl after PUT succeeds. */
-  logoUrl: Scalars['String']['output'];
+  /** The S3 key to store in Workspace.logoS3Key after PUT succeeds. */
+  logoS3Key: Scalars['String']['output'];
   presignedUrl: Scalars['String']['output'];
 };
 
@@ -4667,6 +4669,7 @@ export type ProjectResolvers<ContextType = ServiceContext, ParentType extends Re
   isArchived?: Resolver<Maybe<ResolversTypes['Boolean']>, ParentType, ContextType>;
   isPrivate?: Resolver<Maybe<ResolversTypes['Boolean']>, ParentType, ContextType>;
   key?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  logoS3Key?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   logoUrl?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   members?: Resolver<Array<ResolversTypes['ProjectMember']>, ParentType, ContextType>;
   name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
@@ -4683,7 +4686,7 @@ export type ProjectDmItemResolvers<ContextType = ServiceContext, ParentType exte
 
 export type ProjectLogoUploadPayloadResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['ProjectLogoUploadPayload'] = ResolversParentTypes['ProjectLogoUploadPayload']> = ResolversObject<{
   expiresAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  logoUrl?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  logoS3Key?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   presignedUrl?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 }>;
 
@@ -5164,6 +5167,7 @@ export type WorkspaceResolvers<ContextType = ServiceContext, ParentType extends 
   createdAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   domainWhitelist?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  logoS3Key?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   logoUrl?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   memberRole?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
@@ -5196,7 +5200,7 @@ export type WorkspaceInviteInfoResolvers<ContextType = ServiceContext, ParentTyp
 
 export type WorkspaceLogoUploadPayloadResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['WorkspaceLogoUploadPayload'] = ResolversParentTypes['WorkspaceLogoUploadPayload']> = ResolversObject<{
   expiresAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  logoUrl?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  logoS3Key?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   presignedUrl?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 }>;
 

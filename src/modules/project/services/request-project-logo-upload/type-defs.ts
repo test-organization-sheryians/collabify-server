@@ -2,8 +2,8 @@ export const requestProjectLogoUploadTypeDefs = `
   type ProjectLogoUploadPayload {
     """The presigned S3 PUT URL the client uses to upload directly."""
     presignedUrl: String!
-    """The final S3 URL to store in Project.logoUrl after PUT succeeds."""
-    logoUrl: String!
+    """The S3 key to store in Project.logoS3Key after PUT succeeds."""
+    logoS3Key: String!
     """ISO timestamp after which the presigned PUT URL expires."""
     expiresAt: String!
   }

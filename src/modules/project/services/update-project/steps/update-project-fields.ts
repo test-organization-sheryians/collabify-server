@@ -19,7 +19,7 @@ interface UpdateData {
   name?: string;
   description?: string | null;
   isPrivate?: boolean;
-  logoUrl?: string | null;
+  logoS3Key?: string | null;
   key?: string;
 }
 
@@ -34,7 +34,7 @@ export async function updateProjectFields(
   if (rawData.name !== undefined) data.name = rawData.name;
   if (rawData.description !== undefined) data.description = rawData.description;
   if (rawData.isPrivate !== undefined) data.isPrivate = rawData.isPrivate;
-  if (rawData.logoUrl !== undefined) data.logoUrl = rawData.logoUrl;
+  if (rawData.logoS3Key !== undefined) data.logoS3Key = rawData.logoS3Key;
   if (rawData.key !== undefined) data.key = rawData.key;
 
   // If key is being changed, verify workspace-scoped uniqueness before writing

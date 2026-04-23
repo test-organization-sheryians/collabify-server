@@ -2,6 +2,8 @@ import { Resolvers } from "@/graphql/generated";
 import { AppError } from "@/shared/errors";
 import { requireUser } from "@/shared/utils/graphql-helpers";
 import * as prefWriter from "@/modules/notification/shared/preferences/preference-writer";
+import { generatePresignedGet } from "@/modules/vault/lib/s3-keys";
+import { VAULT_S3 } from "@/modules/vault/lib/constants";
 import type { PluginType } from "@prisma/client";
 import {
   createProject,
@@ -77,6 +79,10 @@ export const resolvers: Resolvers = {
         select: { type: true },
       });
       return rows.map((r) => r.type as string);
+    },
+    logoUrl: async (project, _args, _ctx) => {
+      if (!project.logoS3Key) return null;
+      return generatePresignedGet(project.logoS3Key, VAULT_S3.PRESIGNED_GET_TTL_SECONDS);
     },
   },
   ProjectMember: {
@@ -339,4 +345,5 @@ export const resolvers: Resolvers = {
       return true;
     },
   },
+
 };

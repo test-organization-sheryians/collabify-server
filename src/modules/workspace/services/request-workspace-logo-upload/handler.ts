@@ -4,14 +4,14 @@
  * Step 1 of 2-step logo upload flow.
  * Returns a presigned PUT URL the client uses to upload directly to S3.
  *
- * Step 2: client calls updateWorkspace({ logoUrl }) with the returned logoUrl
+ * Step 2: client calls updateWorkspace({ logoS3Key }) with the returned logoS3Key
  * AFTER the S3 PUT succeeds. No confirmUpload call is needed — logos are
  * not tracked in VaultFile and have no PENDING state.
  *
  * Vault infrastructure reused:
  *   - generatePresignedPut() from vault/lib/s3-keys.ts
  *   - VAULT_S3.PRESIGNED_PUT_TTL_SECONDS from vault/lib/constants.ts
- *   Both are pure infrastructure helpers. No VaultFile, no quota, no projectId.
+ * Both are pure infrastructure helpers. No VaultFile, no quota, no projectId.
  *
  * Auth:
  *   - permissions.assert("workspace:update") — ADMIN+ only (RBAC)
@@ -19,8 +19,8 @@
  * Steps:
  *   1. [auth] assert("workspace:update", workspace scope)
  *   2. validateInput — done by Zod schema before handler runs (mimeType + sizeBytes)
- *   3. generateLogoUploadUrl — generate presigned PUT, compute final logoUrl
- *   4. return { presignedUrl, logoUrl, expiresAt }
+ *   3. generateLogoUploadUrl — generate presigned PUT, compute final logoS3Key
+ *   4. return { presignedUrl, logoS3Key, expiresAt }
  */
 import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
@@ -40,7 +40,7 @@ export const requestWorkspaceLogoUpload = async (
   const scope = { type: "workspace" as const, id: workspaceId };
   await ctx.permissions.assert("workspace:update", scope);
 
-  const { presignedUrl, logoUrl, expiresAt } = await generateLogoUploadUrl(
+  const { presignedUrl, logoS3Key, expiresAt } = await generateLogoUploadUrl(
     workspaceId,
     mimeType,
     sizeBytes
@@ -48,5 +48,5 @@ export const requestWorkspaceLogoUpload = async (
 
   logger.info("Logo upload slot created", { workspaceId });
 
-  return { presignedUrl, logoUrl, expiresAt };
+  return { presignedUrl, logoS3Key, expiresAt };
 };

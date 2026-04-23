@@ -127,7 +127,7 @@ model Workspace {
   id              String  @id @default(cuid())
   slug            String  @unique
   name            String
-  logoUrl         String? @map("logo_url")
+  logoS3Key       String? @map("logo_s3_key")
   domainWhitelist String? @map("domain_whitelist")
 
   createdAt DateTime  @default(now()) @map("created_at")
@@ -299,7 +299,7 @@ model Project {
   description String?
   isPrivate   Boolean @default(true) @map("is_private")
   isArchived  Boolean @default(false) @map("is_archived")
-  logoUrl     String? @map("logo_url")
+  logoS3Key   String? @map("logo_s3_key")
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")

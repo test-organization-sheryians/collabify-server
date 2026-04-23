@@ -12,11 +12,31 @@ export async function fetchProjects(
   isAdmin: boolean,
   db: PrismaClient
 ) {
-  return db.project.findMany({
+  const projects = await db.project.findMany({
     where: {
       workspaceId,
       ...(isAdmin ? {} : { members: { some: { userId } } }),
     },
     orderBy: { createdAt: "desc" },
   });
+
+  if (projects.length === 0) return projects;
+
+  const projectIds = projects.map((p) => p.id);
+  const pluginRows = await db.projectPlugin.findMany({
+    where: { projectId: { in: projectIds } },
+    select: { projectId: true, type: true },
+  });
+
+  const pluginsByProject = new Map<string, string[]>();
+  for (const row of pluginRows) {
+    const existing = pluginsByProject.get(row.projectId) ?? [];
+    existing.push(row.type as string);
+    pluginsByProject.set(row.projectId, existing);
+  }
+
+  return projects.map((project) => ({
+    ...project,
+    activePlugins: pluginsByProject.get(project.id) ?? [],
+  }));
 }

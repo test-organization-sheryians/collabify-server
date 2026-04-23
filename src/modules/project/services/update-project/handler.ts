@@ -6,7 +6,7 @@
  * Steps:
  *   1. getProject — cache-backed fetch for workspaceId (needed for scope)
  *   2. [auth] assert("project:update")
- *   3. updateProjectFields — update name/description/isPrivate/logoUrl/key; return project
+ *   3. updateProjectFields — update name/description/isPrivate/logoS3Key/key; return project
  *
  * Key rename note:
  *   If `key` is present in the input, updateProjectFields performs a workspace-scoped
@@ -22,7 +22,7 @@ export const updateProject = async (
   input: UpdateProjectInput,
   ctx: ServiceContext
 ) => {
-  const { projectId, actorUserId, name, description, isPrivate, logoUrl, key } = input;
+  const { projectId, actorUserId, name, description, isPrivate, logoS3Key, key } = input;
   const { db } = ctx;
 
   if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
@@ -39,7 +39,7 @@ export const updateProject = async (
 
   return updateProjectFields(
     projectId,
-    { name, description, isPrivate, logoUrl, key },
+    { name, description, isPrivate, logoS3Key, key },
     db
   );
 };

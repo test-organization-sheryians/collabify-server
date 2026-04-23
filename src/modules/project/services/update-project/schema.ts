@@ -6,7 +6,7 @@ export const UpdateProjectSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().nullable().optional(),
   isPrivate: z.boolean().optional(),
-  logoUrl: z.string().url().nullable().optional(),
+  logoS3Key: z.string().nullable().optional(),
   key: z
     .string()
     .min(2)

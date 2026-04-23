@@ -41,6 +41,7 @@ const baseTypeDefs = `
     id: ID!
     slug: String!
     name: String!
+    logoS3Key: String
     logoUrl: String
     domainWhitelist: String
     memberRole: String

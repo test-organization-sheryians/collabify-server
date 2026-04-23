@@ -19,6 +19,7 @@ export const typeDefs = `
     description: String
     isPrivate: Boolean
     isArchived: Boolean
+    logoS3Key: String
     logoUrl: String
     createdAt: String!
     updatedAt: String!

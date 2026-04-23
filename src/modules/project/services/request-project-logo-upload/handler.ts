@@ -4,7 +4,7 @@
  * Step 1 of 2-step project logo upload flow.
  * Returns a presigned PUT URL the client uses to upload directly to S3.
  *
- * Step 2: client calls updateProject({ logoUrl }) with the returned logoUrl
+ * Step 2: client calls updateProject({ logoS3Key }) with the returned logoS3Key
  * AFTER the S3 PUT succeeds. No confirmUpload call is needed — logos are
  * not tracked in VaultFile and have no PENDING state.
  *
@@ -14,8 +14,8 @@
  * Steps:
  *   1. getProject — fetch workspaceId for scope resolution
  *   2. [auth] assert("project:update", project scope)
- *   3. generateProjectLogoUploadUrl — generate presigned PUT, compute final logoUrl
- *   4. return { presignedUrl, logoUrl, expiresAt }
+ *   3. generateProjectLogoUploadUrl — generate presigned PUT, compute final logoS3Key
+ *   4. return { presignedUrl, logoS3Key, expiresAt }
  */
 import { AppError } from "@/shared/errors";
 import { createLogger } from "@/shared/lib/logger";
@@ -43,7 +43,7 @@ export const requestProjectLogoUpload = async (
   };
   await ctx.permissions.assert("project:update", scope);
 
-  const { presignedUrl, logoUrl, expiresAt } = await generateProjectLogoUploadUrl(
+  const { presignedUrl, logoS3Key, expiresAt } = await generateProjectLogoUploadUrl(
     projectId,
     mimeType,
     sizeBytes
@@ -51,5 +51,5 @@ export const requestProjectLogoUpload = async (
 
   logger.info("Project logo upload slot created", { projectId });
 
-  return { presignedUrl, logoUrl, expiresAt };
+  return { presignedUrl, logoS3Key, expiresAt };
 };

@@ -1,8 +1,8 @@
 export const requestWorkspaceLogoUploadTypeDefs = `
   type WorkspaceLogoUploadPayload {
     presignedUrl: String!
-    """The final S3 URL to store in Workspace.logoUrl after PUT succeeds."""
-    logoUrl: String!
+    """The S3 key to store in Workspace.logoS3Key after PUT succeeds."""
+    logoS3Key: String!
     expiresAt: String!
   }
 

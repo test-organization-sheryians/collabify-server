@@ -5,7 +5,7 @@
  *   - permissions.assert("workspace:update") — ADMIN+ only (RBAC)
  * Steps:
  *   1. [auth] assert("workspace:update")
- *   2. updateWorkspaceFields — update name/logoUrl/domainWhitelist; return workspace
+ *   2. updateWorkspaceFields — update name/logoS3Key/domainWhitelist; return workspace
  */
 import { AppError } from "@/shared/errors";
 import type { UpdateWorkspaceInput } from "./schema";
@@ -16,7 +16,7 @@ export const updateWorkspace = async (
   input: UpdateWorkspaceInput,
   ctx: ServiceContext
 ) => {
-  const { workspaceId, actorUserId, name, logoUrl, domainWhitelist } = input;
+  const { workspaceId, actorUserId, name, logoS3Key, domainWhitelist } = input;
   const { db } = ctx;
 
   if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
@@ -25,7 +25,7 @@ export const updateWorkspace = async (
 
   return updateWorkspaceFields(
     workspaceId,
-    { name, logoUrl, domainWhitelist },
+    { name, logoS3Key, domainWhitelist },
     db
   );
 };

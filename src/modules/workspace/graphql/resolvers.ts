@@ -2,6 +2,8 @@ import { Resolvers } from "@/graphql/generated";
 import { AppError } from "@/shared/errors";
 import { requireUser } from "@/shared/utils/graphql-helpers";
 import * as prefWriter from "@/modules/notification/shared/preferences/preference-writer";
+import { generatePresignedGet } from "@/modules/vault/lib/s3-keys";
+import { VAULT_S3 } from "@/modules/vault/lib/constants";
 
 // Features (Mutations)
 import {
@@ -407,6 +409,13 @@ export const resolvers: Resolvers = {
         muteUntil: null,
       });
       return true;
+    },
+  },
+
+  Workspace: {
+    logoUrl: async (workspace, _args, _ctx) => {
+      if (!workspace.logoS3Key) return null;
+      return generatePresignedGet(workspace.logoS3Key, VAULT_S3.PRESIGNED_GET_TTL_SECONDS);
     },
   },
 };

@@ -3,7 +3,7 @@ export const updateProjectTypeDefs = `
     name: String
     description: String
     isPrivate: Boolean
-    logoUrl: String
+    logoS3Key: String
     key: String
   }
 
