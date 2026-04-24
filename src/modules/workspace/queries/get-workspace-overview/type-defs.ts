@@ -19,6 +19,7 @@ export const getWorkspaceOverviewTypeDefs = /* GraphQL */ `
     name:        String!
     key:         String!
     description: String
+    logoUrl:     String
     memberCount: Int!
     openIssues:  Int!
     updatedAt:   String!

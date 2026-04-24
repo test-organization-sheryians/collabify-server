@@ -6,6 +6,8 @@
  * Channels    = ChatConversation with type=CHANNEL and projectId=null (workspace-level channels).
  */
 import type { PrismaClient } from "@prisma/client";
+import { generatePresignedGet } from "@/modules/vault/lib/s3-keys";
+import { VAULT_S3 } from "@/modules/vault/lib/constants";
 
 const COMPLETED_STATUS_NAMES = ["Done", "Canceled"];
 
@@ -58,6 +60,7 @@ export async function fetchWorkspaceOverview(workspaceId: string, db: PrismaClie
         name: true,
         key: true,
         description: true,
+        logoS3Key: true,
         updatedAt: true,
         _count: {
           select: {
@@ -119,15 +122,20 @@ export async function fetchWorkspaceOverview(workspaceId: string, db: PrismaClie
     totalIssues,
     totalPages,
     totalChannels,
-    activeProjects: activeProjects.map((p) => ({
-      id: p.id,
-      name: p.name,
-      key: p.key,
-      description: p.description ?? null,
-      memberCount: p._count.members,
-      openIssues: p._count.issues,
-      updatedAt: p.updatedAt.toISOString(),
-    })),
+    activeProjects: await Promise.all(
+      activeProjects.map(async (p) => ({
+        id: p.id,
+        name: p.name,
+        key: p.key,
+        description: p.description ?? null,
+        logoUrl: p.logoS3Key
+          ? await generatePresignedGet(p.logoS3Key, VAULT_S3.PRESIGNED_GET_TTL_SECONDS)
+          : null,
+        memberCount: p._count.members,
+        openIssues: p._count.issues,
+        updatedAt: p.updatedAt.toISOString(),
+      }))
+    ),
     recentMembers: recentMembers.map((m) => ({
       userId: m.user.id,
       fullName: m.user.fullName ?? null,

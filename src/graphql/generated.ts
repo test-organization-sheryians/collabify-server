@@ -3305,6 +3305,7 @@ export type WorkspaceOverviewProject = {
   description?: Maybe<Scalars['String']['output']>;
   id: Scalars['ID']['output'];
   key: Scalars['String']['output'];
+  logoUrl?: Maybe<Scalars['String']['output']>;
   memberCount: Scalars['Int']['output'];
   name: Scalars['String']['output'];
   openIssues: Scalars['Int']['output'];
@@ -5250,6 +5251,7 @@ export type WorkspaceOverviewProjectResolvers<ContextType = ServiceContext, Pare
   description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   key?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  logoUrl?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   memberCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   openIssues?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
