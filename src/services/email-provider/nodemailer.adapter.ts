@@ -1,7 +1,6 @@
 import nodemailer from "nodemailer";
 import { env } from "@/shared/config/env";
 import { createLogger } from "@/shared/lib/logger";
-import { AppError } from "@/shared/errors";
 
 const logger = createLogger("services:email-provider:nodemailer");
 
@@ -24,11 +23,11 @@ function getTransporter(): nodemailer.Transporter {
   return _transporter;
 }
 
-export const sendWithNodemailer = async (
+export async function sendWithNodemailer(
   to: string,
   subject: string,
   html: string
-): Promise<void> => {
+): Promise<{ success: boolean; error?: string }> {
   try {
     const transporter = getTransporter();
 
@@ -44,14 +43,17 @@ export const sendWithNodemailer = async (
       subject,
       provider: "nodemailer",
     });
+    return { success: true };
   } catch (error) {
-    logger.error("Failed to send email via Nodemailer", { error, to, subject });
-    throw new AppError(
-      "Failed to send email via Nodemailer",
-      "NOTIFICATION_PROVIDER_ERROR",
-      502,
-      true,
-      { originalError: error }
-    );
+    // Never expose SMTP errors to client — log for debugging
+    logger.error("Failed to send email via Nodemailer", {
+      error: error instanceof Error ? error.message : String(error),
+      to,
+      subject,
+    });
+    return {
+      success: false,
+      error: "Email delivery failed",
+    };
   }
-};
+}

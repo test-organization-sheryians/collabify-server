@@ -6,12 +6,12 @@
  * Steps:
  *   1. [auth] assert("workspace:member:invite")
  *   2. sendInvites — upsert invite rows with roleId, log links; return invited list
+ *      Note: Email sending is best-effort — invite creation succeeds regardless of email delivery
  */
 import { AppError } from "@/shared/errors";
 import type { InviteToWorkspaceInput } from "./types";
 import type { ServiceContext } from "@/graphql/types";
 import { sendInvites } from "./steps/send-invites";
-import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 export const inviteToWorkspace = async (
   input: InviteToWorkspaceInput,
@@ -24,30 +24,10 @@ export const inviteToWorkspace = async (
   const scope = { type: "workspace" as const, id: workspaceId };
   await ctx.permissions.assert("workspace:member:invite", scope);
 
-  const [invitedEmails, workspace, actor, role] = await Promise.all([
-    sendInvites(workspaceId, actorUserId, emails, roleId, db),
-    db.workspace.findUnique({ where: { id: workspaceId }, select: { name: true, slug: true } }),
-    db.user.findUnique({ where: { id: actorUserId }, select: { fullName: true } }),
-    db.role.findUnique({ where: { id: roleId }, select: { name: true } }),
-  ]);
-
-  for (const email of invitedEmails) {
-    await emit(db as any, {
-      type: "workspace.invite.sent",
-      payload: {
-        workspaceId,
-        workspaceName: workspace?.name ?? "",
-        workspaceSlug: workspace?.slug ?? "",
-        inviteToken: "",
-        inviteId: "",
-        inviteeEmail: email,
-        inviteeUserId: null,
-        actorId: actorUserId,
-        actorName: actor?.fullName ?? "Someone",
-        roleName: role?.name ?? "Member",
-      },
-    }).catch(() => { /* non-fatal */ });
-  }
+  // sendInvites returns { invitedEmails, emailFailures }
+  // Email failures are logged server-side but NOT exposed to client
+  // The invite row is created regardless of email delivery success
+  const { invitedEmails, emailFailures } = await sendInvites(workspaceId, actorUserId, emails, roleId, db);
 
   return {
     success: true,

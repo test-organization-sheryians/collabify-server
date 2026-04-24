@@ -6,12 +6,12 @@ export const sendToConsole = (
   to: string,
   subject: string,
   html: string
-): Promise<void> => {
+): Promise<{ success: boolean }> => {
   logger.info("📧 Mock Email Sent", {
     type: "EMAIL_MOCK",
     to,
     subject,
     htmlPreview: html.substring(0, 100) + "...",
   });
-  return Promise.resolve();
+  return Promise.resolve({ success: true });
 };

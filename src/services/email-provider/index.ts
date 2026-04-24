@@ -5,8 +5,13 @@ import { sendWithSendGrid } from "./sendgrid.adapter";
 import { sendWithNodemailer } from "./nodemailer.adapter";
 import { sendWithResend } from "./resend.adapter";
 
+export interface SendResult {
+  success: boolean;
+  error?: string;
+}
+
 export interface EmailProvider {
-  send: (to: string, subject: string, html: string) => Promise<void>;
+  send: (to: string, subject: string, html: string) => Promise<SendResult>;
 }
 
 export const emailProvider: EmailProvider = {

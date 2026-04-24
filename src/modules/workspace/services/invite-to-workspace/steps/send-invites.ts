@@ -14,6 +14,12 @@ const logger = createLogger("workspace:services:invite-to-workspace");
 
 const INVITE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
 
+interface EmailResult {
+  email: string;
+  success: boolean;
+  error?: string;
+}
+
 function buildInviteEmailHtml(inviteLink: string, workspaceName: string): string {
   return `
 <!DOCTYPE html>
@@ -75,7 +81,7 @@ export async function sendInvites(
   emails: string[],
   roleId: string,
   db: PrismaClient
-): Promise<string[]> {
+): Promise<{ invitedEmails: string[]; emailFailures: EmailResult[] }> {
   const expiresAt = new Date(Date.now() + INVITE_EXPIRY_MS);
 
   // Fetch workspace name once — used in every invite email
@@ -84,78 +90,103 @@ export async function sendInvites(
     select: { name: true, slug: true },
   });
 
-  const results = (
-    await Promise.all(
-      emails.map(async (email) => {
-        const existingMember = await db.workspaceMember.findFirst({
-          where: { workspaceId, user: { email } },
-        });
+  const invitedEmails: string[] = [];
+  const emailFailures: EmailResult[] = [];
 
-        if (existingMember) return null;
+  for (const email of emails) {
+    try {
+      const existingMember = await db.workspaceMember.findFirst({
+        where: { workspaceId, user: { email } },
+      });
 
-        const token = randomBytes(16).toString("hex");
+      if (existingMember) continue;
 
-        const [, invite] = await db.$transaction([
-          db.workspaceInvite.deleteMany({ where: { workspaceId, email } }),
-          db.workspaceInvite.create({
-            data: {
-              workspaceId,
-              email,
-              token,
-              inviterId: actorUserId,
-              expiresAt,
-              roleId,
-            },
-          }),
-        ]);
+      const token = randomBytes(16).toString("hex");
 
-        // Look up the role name for the notification payload
-        const role = await db.role.findUnique({
-          where: { id: roleId },
-          select: { name: true },
-        });
-
-        // Look up actor name for notification
-        const actor = await db.user.findUnique({
-          where: { id: actorUserId },
-          select: { fullName: true },
-        });
-
-        const link = `${env.FRONTEND_URL}/workspace/join?token=${token}`;
-
-        // Emit notification outbox event (best-effort, non-transactional)
-        await db.$transaction((tx) => emit(tx, {
-          type: "workspace.invite.sent",
-          payload: {
-            inviteId:      invite.id,
+      const [, invite] = await db.$transaction([
+        db.workspaceInvite.deleteMany({ where: { workspaceId, email } }),
+        db.workspaceInvite.create({
+          data: {
             workspaceId,
-            workspaceSlug: workspace.slug,
-            inviteeEmail:  email,
-            inviteeUserId: null,
-            actorId:       actorUserId,
-            actorName:     actor?.fullName ?? "A workspace admin",
-            workspaceName: workspace.name,
-            roleName:      role?.name ?? "Member",
-            inviteToken:   token,
+            email,
+            token,
+            inviterId: actorUserId,
+            expiresAt,
+            roleId,
           },
-          deduplicationId: `workspace.invite.sent:${invite.id}`,
-        })).catch(() => { /* non-fatal — email already sent above */});
+        }),
+      ]);
 
-        // Log the link for debugging regardless of provider
-        logger.info(`[INVITE] Sending to: ${email}`, { email, workspaceId });
+      // Look up the role name for the notification payload
+      const role = await db.role.findUnique({
+        where: { id: roleId },
+        select: { name: true },
+      });
 
-        // Send real email via configured provider
-        await emailProvider.send(
+      // Look up actor name for notification
+      const actor = await db.user.findUnique({
+        where: { id: actorUserId },
+        select: { fullName: true },
+      });
+
+      const link = `${env.FRONTEND_URL}/workspace/join?token=${token}`;
+
+      // Emit notification outbox event (best-effort, non-transactional)
+      // Outbox is emitted INSIDE the invite transaction so we don't lose the event
+      await db.$transaction((tx) => emit(tx, {
+        type: "workspace.invite.sent",
+        payload: {
+          inviteId:      invite.id,
+          workspaceId,
+          workspaceSlug: workspace.slug,
+          inviteeEmail:  email,
+          inviteeUserId: null,
+          actorId:       actorUserId,
+          actorName:     actor?.fullName ?? "A workspace admin",
+          workspaceName: workspace.name,
+          roleName:      role?.name ?? "Member",
+          inviteToken:   token,
+        },
+        deduplicationId: `workspace.invite.sent:${invite.id}`,
+      })).catch(() => { /* non-fatal — outbox write failure, invite still exists */});
+
+      // Log the link for debugging regardless of provider
+      logger.info(`[INVITE] Sending to: ${email}`, { email, workspaceId });
+
+      // Send real email via configured provider — best-effort, don't fail the operation
+      const result = await emailProvider.send(
+        email,
+        `You've been invited to join ${workspace.name} on Collabify`,
+        buildInviteEmailHtml(link, workspace.name)
+      );
+
+      if (!result.success) {
+        // Email failed but invite is created — log for debugging, don't expose to client
+        logger.error(`[INVITE] Email delivery failed for ${email}`, {
           email,
-          `You've been invited to join ${workspace.name} on Collabify`,
-          buildInviteEmailHtml(link, workspace.name)
-        );
+          workspaceId,
+          error: result.error,
+        });
+        // Track the failure but still count as invited (invite row exists)
+        emailFailures.push({
+          email,
+          success: false,
+          error: result.error,
+        });
+      }
 
-        return email;
-      })
-    )
-  ).filter((email): email is string => email !== null);
+      invitedEmails.push(email);
+    } catch (error) {
+      logger.error(`[INVITE] Failed to create invite for ${email}`, {
+        email,
+        workspaceId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Non-email errors (DB failure, etc.) are still thrown
+      throw error;
+    }
+  }
 
-  return results;
+  return { invitedEmails, emailFailures };
 }
 
