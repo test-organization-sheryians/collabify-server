@@ -14,6 +14,16 @@ const messageSelect = {
   deletedAt: true,
   metadata: true,
   parentMessageId: true,
+  // Eager load mentions for rich content reconstruction
+  mentions: {
+    select: {
+      id: true,
+      targetEntityId: true,
+      targetEntityType: true,
+      displayText: true,
+    },
+    orderBy: { id: 'asc' },
+  },
 } satisfies Prisma.ChatMessageSelect;
 
 export type MessageAfterCursorRow = Prisma.ChatMessageGetPayload<{

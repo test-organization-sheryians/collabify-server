@@ -13,7 +13,7 @@
 
 import { Resolvers } from "@/graphql/generated";
 import { requireUser } from "@/shared/utils/graphql-helpers";
-import { toGraphQLBacklinkResult, toGraphQLMention, toGraphQLMentionEvent } from "./mappers";
+import { toGraphQLBacklinkResult, toGraphQLMention, toGraphQLMentionEvent, toGraphQLMentionResult } from "./mappers";
 import * as queries from "../queries";
 import * as services from "../services";
 
@@ -40,6 +40,17 @@ export const resolvers: Resolvers = {
       const input = queries.getMentionEvents.schema.parse(args);
       const result = await queries.getMentionEvents.handler(input, ctx);
       return result.map(toGraphQLMentionEvent);
+    },
+
+    getMentionsBySourceIds: async (
+      _,
+      args,
+      ctx
+    ) => {
+      await requireUser(ctx);
+      const input = queries.getMentionsBySourceIds.GetMentionsBySourceIdsSchema.parse(args);
+      const result = await queries.getMentionsBySourceIds.handler(input, ctx);
+      return result.map(toGraphQLMentionResult);
     },
   },
 

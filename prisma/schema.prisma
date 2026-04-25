@@ -985,6 +985,7 @@ model ChatMessage {
   parentMessage ChatMessage?      @relation("ThreadReplies", fields: [parentMessageId], references: [id])
   replies       ChatMessage[]     @relation("ThreadReplies")
   reactions     MessageReaction[]
+  mentions      Mention[]         @relation("MessageMentions")
 
   // Thread conversations spawned from this message
   threads ChatConversation[] @relation("MessageThreads")
@@ -1344,24 +1345,25 @@ enum MentionStatus {
 
 model Mention {
   id               String        @id @default(cuid())
-  
+
   sourceEntityId   String        @map("source_entity_id")
   sourceEntityType String        @map("source_entity_type")
-  
+
   targetEntityId   String        @map("target_entity_id")
   targetEntityType String        @map("target_entity_type")
-  
+
   displayText      String        @map("display_text")
   sourceLocation   Json?        @map("source_location")
-  
+
   tier             MentionTier   @default(TIER_2)
   status           MentionStatus @default(ACTIVE)
   createdAt        DateTime     @default(now()) @map("created_at")
   updatedAt        DateTime     @updatedAt @map("updated_at")
   createdById      String       @map("created_by_id")
-  
+
   backlinks        Backlink[]
-  
+  message          ChatMessage?  @relation("MessageMentions", fields: [sourceEntityId], references: [id], onDelete: Cascade)
+
   @@index([sourceEntityId, status])
   @@index([targetEntityId, status])
   @@index([createdById])

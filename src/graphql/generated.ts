@@ -793,6 +793,12 @@ export type MentionEvent = {
   payload: Scalars['JSON']['output'];
 };
 
+export type MentionResult = {
+  __typename?: 'MentionResult';
+  mentions: Array<SourceMention>;
+  sourceId: Scalars['String']['output'];
+};
+
 export enum MentionStatus {
   Active = 'ACTIVE',
   Orphaned = 'ORPHANED',
@@ -2097,6 +2103,7 @@ export type Query = {
   getLastReadMessage?: Maybe<Scalars['ID']['output']>;
   getMentionEvents: Array<MentionEvent>;
   getMentions: Array<Mention>;
+  getMentionsBySourceIds: Array<MentionResult>;
   getMessageById?: Maybe<ChatMessage>;
   getMessagesAfterCursor: Array<ChatMessage>;
   getMissingMessages: Array<ChatMessage>;
@@ -2303,6 +2310,11 @@ export type QueryGetMentionEventsArgs = {
 
 export type QueryGetMentionsArgs = {
   sourceEntityId: Scalars['ID']['input'];
+};
+
+
+export type QueryGetMentionsBySourceIdsArgs = {
+  sourceIds: Array<Scalars['String']['input']>;
 };
 
 
@@ -2805,6 +2817,14 @@ export enum SortDirection {
   Asc = 'ASC',
   Desc = 'DESC'
 }
+
+export type SourceMention = {
+  __typename?: 'SourceMention';
+  displayText: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  targetEntityId: Scalars['String']['output'];
+  targetEntityType: Scalars['String']['output'];
+};
 
 export type SubscribeThreadResult = {
   __typename?: 'SubscribeThreadResult';
@@ -3515,6 +3535,7 @@ export type ResolversTypes = ResolversObject<{
   MarkFilesUnreferencedResult: ResolverTypeWrapper<MarkFilesUnreferencedResult>;
   Mention: ResolverTypeWrapper<GraphQLMention>;
   MentionEvent: ResolverTypeWrapper<GraphQLMentionEvent>;
+  MentionResult: ResolverTypeWrapper<MentionResult>;
   MentionStatus: MentionStatus;
   MentionTier: MentionTier;
   MessageReaction: ResolverTypeWrapper<Omit<MessageReaction, 'recentUsers'> & { recentUsers: Array<ResolversTypes['User']> }>;
@@ -3590,6 +3611,7 @@ export type ResolversTypes = ResolversObject<{
   SearchEntity: ResolverTypeWrapper<SearchEntity>;
   SearchEntityType: SearchEntityType;
   SortDirection: SortDirection;
+  SourceMention: ResolverTypeWrapper<SourceMention>;
   String: ResolverTypeWrapper<Scalars['String']['output']>;
   SubscribeThreadResult: ResolverTypeWrapper<SubscribeThreadResult>;
   ToggleFeatureFlagInput: ToggleFeatureFlagInput;
@@ -3761,6 +3783,7 @@ export type ResolversParentTypes = ResolversObject<{
   MarkFilesUnreferencedResult: MarkFilesUnreferencedResult;
   Mention: GraphQLMention;
   MentionEvent: GraphQLMentionEvent;
+  MentionResult: MentionResult;
   MessageReaction: Omit<MessageReaction, 'recentUsers'> & { recentUsers: Array<ResolversParentTypes['User']> };
   MessagesDelta: Omit<MessagesDelta, 'messages'> & { messages: Array<ResolversParentTypes['ChatMessage']> };
   MoveFileResult: Omit<MoveFileResult, 'file'> & { file: ResolversParentTypes['VaultFile'] };
@@ -3829,6 +3852,7 @@ export type ResolversParentTypes = ResolversObject<{
   RolePermission: RolePermission;
   ScopedNotificationPreference: ScopedNotificationPreference;
   SearchEntity: SearchEntity;
+  SourceMention: SourceMention;
   String: Scalars['String']['output'];
   SubscribeThreadResult: SubscribeThreadResult;
   ToggleFeatureFlagInput: ToggleFeatureFlagInput;
@@ -4359,6 +4383,11 @@ export type MentionEventResolvers<ContextType = ServiceContext, ParentType exten
   payload?: Resolver<ResolversTypes['JSON'], ParentType, ContextType>;
 }>;
 
+export type MentionResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['MentionResult'] = ResolversParentTypes['MentionResult']> = ResolversObject<{
+  mentions?: Resolver<Array<ResolversTypes['SourceMention']>, ParentType, ContextType>;
+  sourceId?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+}>;
+
 export type MessageReactionResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['MessageReaction'] = ResolversParentTypes['MessageReaction']> = ResolversObject<{
   count?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   emoji?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
@@ -4760,6 +4789,7 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   getLastReadMessage?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType, RequireFields<QueryGetLastReadMessageArgs, 'channelId'>>;
   getMentionEvents?: Resolver<Array<ResolversTypes['MentionEvent']>, ParentType, ContextType, RequireFields<QueryGetMentionEventsArgs, 'mentionId'>>;
   getMentions?: Resolver<Array<ResolversTypes['Mention']>, ParentType, ContextType, RequireFields<QueryGetMentionsArgs, 'sourceEntityId'>>;
+  getMentionsBySourceIds?: Resolver<Array<ResolversTypes['MentionResult']>, ParentType, ContextType, RequireFields<QueryGetMentionsBySourceIdsArgs, 'sourceIds'>>;
   getMessageById?: Resolver<Maybe<ResolversTypes['ChatMessage']>, ParentType, ContextType, RequireFields<QueryGetMessageByIdArgs, 'messageId'>>;
   getMessagesAfterCursor?: Resolver<Array<ResolversTypes['ChatMessage']>, ParentType, ContextType, RequireFields<QueryGetMessagesAfterCursorArgs, 'afterCursor' | 'channelId'>>;
   getMissingMessages?: Resolver<Array<ResolversTypes['ChatMessage']>, ParentType, ContextType, RequireFields<QueryGetMissingMessagesArgs, 'channelId' | 'rangeEnd' | 'rangeStart'>>;
@@ -4924,6 +4954,13 @@ export type SearchEntityResolvers<ContextType = ServiceContext, ParentType exten
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   type?: Resolver<ResolversTypes['SearchEntityType'], ParentType, ContextType>;
+}>;
+
+export type SourceMentionResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['SourceMention'] = ResolversParentTypes['SourceMention']> = ResolversObject<{
+  displayText?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  targetEntityId?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  targetEntityType?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 }>;
 
 export type SubscribeThreadResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['SubscribeThreadResult'] = ResolversParentTypes['SubscribeThreadResult']> = ResolversObject<{
@@ -5339,6 +5376,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   MarkFilesUnreferencedResult?: MarkFilesUnreferencedResultResolvers<ContextType>;
   Mention?: MentionResolvers<ContextType>;
   MentionEvent?: MentionEventResolvers<ContextType>;
+  MentionResult?: MentionResultResolvers<ContextType>;
   MessageReaction?: MessageReactionResolvers<ContextType>;
   MessagesDelta?: MessagesDeltaResolvers<ContextType>;
   MoveFileResult?: MoveFileResultResolvers<ContextType>;
@@ -5391,6 +5429,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   RolePermission?: RolePermissionResolvers<ContextType>;
   ScopedNotificationPreference?: ScopedNotificationPreferenceResolvers<ContextType>;
   SearchEntity?: SearchEntityResolvers<ContextType>;
+  SourceMention?: SourceMentionResolvers<ContextType>;
   SubscribeThreadResult?: SubscribeThreadResultResolvers<ContextType>;
   ToggleFlagResult?: ToggleFlagResultResolvers<ContextType>;
   UnarchiveChannelResult?: UnarchiveChannelResultResolvers<ContextType>;

@@ -12,6 +12,7 @@ import type { MentionRecord } from "../types/mention-record";
 import type { BacklinkWithMention } from "../types/backlink-record";
 import type { MentionEventRecord } from "../types/mention-event-record";
 import type { BacklinkResult } from "../types/backlink-record";
+import type { MentionResult } from "../queries/get-mentions-by-source-ids";
 
 // ── Mention ────────────────────────────────────────────────────────────────────
 
@@ -30,6 +31,45 @@ export function toGraphQLMention(mention: MentionRecord) {
     status: mention.status,
     createdAt: mention.createdAt,
     createdById: mention.createdById,
+  };
+}
+
+// ── SourceMention (for getMentionsBySourceIds) ─────────────────────────────────
+
+export function toGraphQLSourceMention(mention: { entityId: string; entityType: string; displayText: string }) {
+  return {
+    id: "", // Not available in this context
+    targetEntityId: mention.entityId,
+    targetEntityType: mention.entityType,
+    displayText: mention.displayText,
+    sourceEntityId: "", // Not available in this context
+    sourceEntityType: "", // Not available in this context
+    sourceLocation: null,
+    tier: "TIER_2",
+    status: "ACTIVE",
+    createdAt: new Date(),
+    createdById: "",
+  };
+}
+
+// ── MentionResult (batch fetch) ────────────────────────────────────────────────
+
+export function toGraphQLMentionResult(result: MentionResult) {
+  return {
+    sourceId: result.sourceId,
+    mentions: result.mentions.map((m) => ({
+      id: "", // Not available in this context
+      targetEntityId: m.entityId,
+      targetEntityType: m.entityType,
+      displayText: m.displayText,
+      sourceEntityId: result.sourceId,
+      sourceEntityType: "CHAT_MESSAGE",
+      sourceLocation: null,
+      tier: "TIER_2",
+      status: "ACTIVE",
+      createdAt: new Date(),
+      createdById: "",
+    })),
   };
 }
 

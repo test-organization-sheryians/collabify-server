@@ -8,6 +8,8 @@
 import * as getBacklinks from "../queries/get-backlinks";
 import * as getMentions from "../queries/get-mentions";
 import * as getMentionEvents from "../queries/get-mention-events";
+import * as getMentionsBySourceIds from "../queries/get-mentions-by-source-ids";
+export const getMentionsBySourceIdsTypeDefs = getMentionsBySourceIds.getMentionsBySourceIdsTypeDef;
 import * as createMentions from "../services/create-mentions";
 import * as updateMention from "../services/update-mention";
 import * as deleteMentions from "../services/delete-mentions";
@@ -19,6 +21,7 @@ export const mentionTypeDefs = [
   getBacklinks.typeDefs,
   getMentions.typeDefs,
   getMentionEvents.typeDefs,
+  getMentionsBySourceIdsTypeDefs,
 
   // ── Services (Mutations) ─────────────────────────────────────────────────────
   createMentions.typeDefs,
