@@ -9,6 +9,8 @@ import {
   DeleteAccountSchema,
   updateGlobalNotifPrefs,
   UpdateGlobalNotifPrefsSchema,
+  declineWorkspaceInvite,
+  DeclineWorkspaceInviteSchema,
 } from "../services";
 import {
   getMe,
@@ -68,6 +70,14 @@ export const resolvers: Resolvers = {
     syncUser: async (_root, args, ctx) => {
       const data = SyncUserSchema.parse(args);
       return syncUser(data, ctx);
+    },
+
+    declineWorkspaceInvite: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = DeclineWorkspaceInviteSchema.parse({
+        token: args.input.token,
+      });
+      return declineWorkspaceInvite(data, ctx);
     },
 
     updateProfile: async (_root, args, ctx) => {

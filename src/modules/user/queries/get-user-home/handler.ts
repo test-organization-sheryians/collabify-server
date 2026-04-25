@@ -29,7 +29,7 @@ export const getUserHome = async (
     where: { userId },
     include: {
       workspace: {
-        select: { id: true, slug: true, name: true, logoUrl: true },
+        select: { id: true, slug: true, name: true, logoS3Key: true },
       },
       assignedRole: {
         select: { name: true },
@@ -42,7 +42,7 @@ export const getUserHome = async (
     id: m.workspace.id,
     slug: m.workspace.slug,
     name: m.workspace.name,
-    logoUrl: m.workspace.logoUrl,
+    logoUrl: m.workspace.logoS3Key,
     memberRole: m.assignedRole.name,
   }));
 

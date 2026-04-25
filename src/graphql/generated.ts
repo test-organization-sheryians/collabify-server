@@ -479,6 +479,16 @@ export type CursorPosition = {
   y: Scalars['Float']['output'];
 };
 
+export type DeclineResponse = {
+  __typename?: 'DeclineResponse';
+  message: Scalars['String']['output'];
+  success: Scalars['Boolean']['output'];
+};
+
+export type DeclineWorkspaceInviteInput = {
+  token: Scalars['String']['input'];
+};
+
 export type DeleteBoardResult = {
   __typename?: 'DeleteBoardResult';
   boardId: Scalars['ID']['output'];
@@ -907,6 +917,7 @@ export type Mutation = {
   createVaultFolder: CreateFolderResult;
   createWorkspace: Workspace;
   createWorkspaceRole: WorkspaceRole;
+  declineWorkspaceInvite: DeclineResponse;
   deleteAccount: Scalars['Boolean']['output'];
   deleteBoard: DeleteBoardResult;
   deleteChannel: DeleteChannelResult;
@@ -1237,6 +1248,11 @@ export type MutationCreateWorkspaceArgs = {
 export type MutationCreateWorkspaceRoleArgs = {
   input: CreateWorkspaceRoleInput;
   workspaceId: Scalars['ID']['input'];
+};
+
+
+export type MutationDeclineWorkspaceInviteArgs = {
+  input: DeclineWorkspaceInviteInput;
 };
 
 
@@ -3489,6 +3505,8 @@ export type ResolversTypes = ResolversObject<{
   CreateWorkspaceRoleInput: CreateWorkspaceRoleInput;
   CursorPosition: ResolverTypeWrapper<CursorPosition>;
   DateTime: ResolverTypeWrapper<Scalars['DateTime']['output']>;
+  DeclineResponse: ResolverTypeWrapper<DeclineResponse>;
+  DeclineWorkspaceInviteInput: DeclineWorkspaceInviteInput;
   DeleteBoardResult: ResolverTypeWrapper<DeleteBoardResult>;
   DeleteChannelResult: ResolverTypeWrapper<DeleteChannelResult>;
   DeleteDmResult: ResolverTypeWrapper<DeleteDmResult>;
@@ -3740,6 +3758,8 @@ export type ResolversParentTypes = ResolversObject<{
   CreateWorkspaceRoleInput: CreateWorkspaceRoleInput;
   CursorPosition: CursorPosition;
   DateTime: Scalars['DateTime']['output'];
+  DeclineResponse: DeclineResponse;
+  DeclineWorkspaceInviteInput: DeclineWorkspaceInviteInput;
   DeleteBoardResult: DeleteBoardResult;
   DeleteChannelResult: DeleteChannelResult;
   DeleteDmResult: DeleteDmResult;
@@ -4167,6 +4187,11 @@ export interface DateTimeScalarConfig extends GraphQLScalarTypeConfig<ResolversT
   name: 'DateTime';
 }
 
+export type DeclineResponseResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['DeclineResponse'] = ResolversParentTypes['DeclineResponse']> = ResolversObject<{
+  message?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  success?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+}>;
+
 export type DeleteBoardResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['DeleteBoardResult'] = ResolversParentTypes['DeleteBoardResult']> = ResolversObject<{
   boardId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   success?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
@@ -4449,6 +4474,7 @@ export type MutationResolvers<ContextType = ServiceContext, ParentType extends R
   createVaultFolder?: Resolver<ResolversTypes['CreateFolderResult'], ParentType, ContextType, RequireFields<MutationCreateVaultFolderArgs, 'input'>>;
   createWorkspace?: Resolver<ResolversTypes['Workspace'], ParentType, ContextType, RequireFields<MutationCreateWorkspaceArgs, 'name' | 'slug'>>;
   createWorkspaceRole?: Resolver<ResolversTypes['WorkspaceRole'], ParentType, ContextType, RequireFields<MutationCreateWorkspaceRoleArgs, 'input' | 'workspaceId'>>;
+  declineWorkspaceInvite?: Resolver<ResolversTypes['DeclineResponse'], ParentType, ContextType, RequireFields<MutationDeclineWorkspaceInviteArgs, 'input'>>;
   deleteAccount?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   deleteBoard?: Resolver<ResolversTypes['DeleteBoardResult'], ParentType, ContextType, RequireFields<MutationDeleteBoardArgs, 'boardId'>>;
   deleteChannel?: Resolver<ResolversTypes['DeleteChannelResult'], ParentType, ContextType, RequireFields<MutationDeleteChannelArgs, 'channelId' | 'workspaceId'>>;
@@ -5345,6 +5371,7 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   CreatePageResult?: CreatePageResultResolvers<ContextType>;
   CursorPosition?: CursorPositionResolvers<ContextType>;
   DateTime?: GraphQLScalarType;
+  DeclineResponse?: DeclineResponseResolvers<ContextType>;
   DeleteBoardResult?: DeleteBoardResultResolvers<ContextType>;
   DeleteChannelResult?: DeleteChannelResultResolvers<ContextType>;
   DeleteDmResult?: DeleteDmResultResolvers<ContextType>;

@@ -3,6 +3,7 @@ import {
   updateProfileTypeDefs,
   deleteAccountTypeDefs,
   updateGlobalNotifPrefsTypeDefs,
+  declineWorkspaceInviteTypeDefs,
 } from "../services";
 import {
   typeDefs as getMeTypeDefs,
@@ -17,6 +18,7 @@ export const typeDefs = [
   updateProfileTypeDefs,
   deleteAccountTypeDefs,
   updateGlobalNotifPrefsTypeDefs,
+  declineWorkspaceInviteTypeDefs,
   getMeTypeDefs,
   getPublicUserTypeDefs,
   getWorkspaceUserTypeDefs,
