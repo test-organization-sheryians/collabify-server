@@ -45,6 +45,7 @@ export const handler = async (
 
 /**
  * Reconstruct rich content from message content and mentions.
+ * Computes correct offsets by scanning text for @displayText patterns.
  */
 function reconstructRichContent(
   message: MessageAfterCursorRow
@@ -63,14 +64,17 @@ function reconstructRichContent(
     return text;
   }
 
-  // Reconstruct rich content format
-  return {
-    text,
-    mentions: message.mentions.map((m) => ({
+  // Compute correct offsets by scanning text for @displayText patterns
+  const mentions = message.mentions.map((m) => {
+    const pattern = `@${m.displayText}`;
+    const offset = text.indexOf(pattern);
+    return {
       entityId: m.targetEntityId,
       entityType: m.targetEntityType,
       displayText: m.displayText,
-      offset: 0,
-    })),
-  };
+      offset: offset >= 0 ? offset : 0,
+    };
+  });
+
+  return { text, mentions };
 }

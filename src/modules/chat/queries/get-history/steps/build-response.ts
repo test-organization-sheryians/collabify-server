@@ -48,6 +48,8 @@ export function buildResponse(messages: MessageRow[], limit: number) {
  *
  * The client (RichChatContent) expects mentions to be in the format:
  * { entityId, entityType, displayText, offset }
+ *
+ * Offset is computed by scanning the text for @displayText patterns.
  */
 function reconstructRichContent(
   message: MessageRow & {
@@ -73,15 +75,18 @@ function reconstructRichContent(
     return text;
   }
 
-  // Reconstruct { text, mentions } format with offsets
-  // Note: Offset is set to 0 as client computes position from displayText scanning
-  return {
-    text,
-    mentions: message.mentions.map((m) => ({
+  // Compute correct offsets by scanning text for @displayText patterns
+  const mentions = message.mentions.map((m) => {
+    // Find the position of @displayText in the text
+    const pattern = `@${m.displayText}`;
+    const offset = text.indexOf(pattern);
+    return {
       entityId: m.targetEntityId,
       entityType: m.targetEntityType,
       displayText: m.displayText,
-      offset: 0, // Client computes offset based on @displayText position in text
-    })),
-  };
+      offset: offset >= 0 ? offset : 0, // Fallback to 0 if not found
+    };
+  });
+
+  return { text, mentions };
 }
