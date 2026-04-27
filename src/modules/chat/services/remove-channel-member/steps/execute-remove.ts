@@ -45,15 +45,19 @@ export async function executeRemove(
   }
 
   // Fanout to removed user tracking natively via redis dropping mapped channels bounds
+  // Uses dot notation to match NotificationDownstreamEvent.ChatChannelMemberRemoved
   await ctx.redis.publish(
     `user:${targetUserId}:events`,
     JSON.stringify({
-      type: "chat:channel-member-removed",
-      payload: {
-        channelId,
-        channelName: channel.name,
-        removedBy: actorId,
-        timestamp: new Date().toISOString(),
+      type: "chat.channel.member.removed",
+      data: {
+        conversationId:   channelId,
+        conversationName: channel.name,
+        workspaceId:      input.workspaceId,
+        workspaceSlug:    "",
+        removedUserId:    targetUserId,
+        actorId:          actorId,
+        actorName:       "Someone",
       },
     })
   );
