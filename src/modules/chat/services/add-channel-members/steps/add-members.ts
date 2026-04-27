@@ -66,6 +66,24 @@ export const addMembers = async (
     )
   );
 
+  // ── Redis Cache Invalidation ─────────────────────────────────────────────────
+  // Each new member's chatMember record was just written to the DB.
+  // Invalidate their channel membership cache so assertChannelMember (used by
+  // getConversation, subscribeConversation, etc.) sees the fresh DB state instead
+  // of a stale "not-a-member" value from before this mutation.
+  //
+  // Without this, the re-add scenario produces:
+  //   Sidebar → shows channel (fetchConversations hits DB directly ✓)
+  //   ChatWindow → 403 "not a member" (assertChannelMember reads stale Redis ✗)
+  //
+  // mirror: remove-channel-members/execute-remove.ts invalidates on the way out;
+  // we must invalidate on the way in.
+  await Promise.all(
+    newMembers.map((member) =>
+      ctx.authGate?.invalidate.channelMember(channelId, member.userId)
+    )
+  );
+
   // WS gateway event — separate concern: updates real-time channel membership UI
   await Promise.all(
     newMembers.map(async (member) => {
