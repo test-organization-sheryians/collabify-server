@@ -32,6 +32,7 @@ import { typeDefs as getPageSnapshotTypeDefs } from "../queries/get-page-snapsho
 import { typeDefs as getProjectPagesTypeDefs } from "../queries/get-project-pages/type-defs";
 import { typeDefs as getPageCollaboratorsTypeDefs } from "../queries/get-page-collaborators/type-defs";
 import { typeDefs as getActivePageCollaboratorsTypeDefs } from "../queries/get-active-page-collaborators/type-defs";
+import { typeDefs as getPagesHomeTypeDefs } from "../queries/get-pages-home/type-defs";
 
 // ─── Shared Base Types ───────────────────────────────────────────────────────
 
@@ -132,4 +133,5 @@ export const typeDefs = [
   getProjectPagesTypeDefs,
   getPageCollaboratorsTypeDefs,
   getActivePageCollaboratorsTypeDefs,
+  getPagesHomeTypeDefs,
 ];

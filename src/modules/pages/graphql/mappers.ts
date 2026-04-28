@@ -67,6 +67,23 @@ export type GraphQLPageCollaboratorShape = {
   user: GraphQLUserBasicShape;
 };
 
+// ─── PagePreview shape ─────────────────────────────────────────────────────────
+
+export type GraphQLPagePreviewShape = {
+  id: string;
+  workspaceId: string;
+  projectId: string;
+  title: string;
+  icon: string | null;
+  coverUrl: string | null;
+  isArchived: boolean;
+  isLocked: boolean;
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+  creator: GraphQLUserBasicShape;
+};
+
 // ─── Mappers ─────────────────────────────────────────────────────────────────
 
 /**
@@ -135,5 +152,39 @@ export const toGraphQLPageCollaborator = (
     fullName: prisma.user.fullName ?? "",
     email: prisma.user.email,
     avatarUrl: prisma.user.avatarUrl ?? null,
+  },
+});
+
+/**
+ * Transform a Prisma Page record (with included creator) into GraphQLPagePreview.
+ */
+type PageWithCreator = PrismaPage & {
+  creator: {
+    id: string;
+    fullName: string | null;
+    email: string;
+    avatarUrl: string | null;
+  };
+};
+
+export const toGraphQLPagePreview = (
+  prisma: Partial<PageWithCreator>
+): GraphQLPagePreviewShape => ({
+  id: prisma.id!,
+  workspaceId: prisma.workspaceId!,
+  projectId: prisma.projectId!,
+  title: prisma.title ?? "Untitled",
+  icon: prisma.emojiIcon ?? null,
+  coverUrl: prisma.coverImageUrl ?? null,
+  isArchived: prisma.isArchived!,
+  isLocked: prisma.isLocked!,
+  createdBy: prisma.createdBy!,
+  createdAt: prisma.createdAt!,
+  updatedAt: prisma.updatedAt!,
+  creator: {
+    id: prisma.creator!.id,
+    fullName: prisma.creator!.fullName ?? "",
+    email: prisma.creator!.email,
+    avatarUrl: prisma.creator!.avatarUrl ?? null,
   },
 });

@@ -1917,6 +1917,15 @@ export type PageCollaboratorInput = {
   userId: Scalars['ID']['input'];
 };
 
+export type PageHomeItem = {
+  __typename?: 'PageHomeItem';
+  createdByName?: Maybe<Scalars['String']['output']>;
+  emojiIcon?: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  title: Scalars['String']['output'];
+  updatedAt: Scalars['String']['output'];
+};
+
 export type PageInfo = {
   __typename?: 'PageInfo';
   endCursor?: Maybe<Scalars['String']['output']>;
@@ -1950,6 +1959,11 @@ export type PageSnapshot = {
   lastStreamId: Scalars['String']['output'];
   snapshot: Scalars['String']['output'];
   snapshotTimestamp?: Maybe<Scalars['DateTime']['output']>;
+};
+
+export type PagesHomeResult = {
+  __typename?: 'PagesHomeResult';
+  pages: Array<PageHomeItem>;
 };
 
 export type PendingInviteEntry = {
@@ -2142,6 +2156,7 @@ export type Query = {
    *   3. Open WS: page:subscribe-page { pageId, lastStreamId }  ← gap-fill
    */
   getPageSnapshot: PageSnapshot;
+  getPagesHome: PagesHomeResult;
   getProjectDms: Array<ProjectDmItem>;
   getProjectEntities: Array<SearchEntity>;
   /**
@@ -2365,6 +2380,11 @@ export type QueryGetPageCollaboratorsArgs = {
 
 export type QueryGetPageSnapshotArgs = {
   pageId: Scalars['ID']['input'];
+};
+
+
+export type QueryGetPagesHomeArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
@@ -3577,10 +3597,12 @@ export type ResolversTypes = ResolversObject<{
   Page: ResolverTypeWrapper<GraphQLPagePartial>;
   PageCollaborator: ResolverTypeWrapper<PageCollaborator>;
   PageCollaboratorInput: PageCollaboratorInput;
+  PageHomeItem: ResolverTypeWrapper<PageHomeItem>;
   PageInfo: ResolverTypeWrapper<PageInfo>;
   PagePreview: ResolverTypeWrapper<PagePreview>;
   PageRole: PageRole;
   PageSnapshot: ResolverTypeWrapper<PageSnapshot>;
+  PagesHomeResult: ResolverTypeWrapper<PagesHomeResult>;
   PendingInviteEntry: ResolverTypeWrapper<PendingInviteEntry>;
   Permission: ResolverTypeWrapper<Permission>;
   PinFolderResult: ResolverTypeWrapper<Omit<PinFolderResult, 'folder'> & { folder: ResolversTypes['VaultFolder'] }>;
@@ -3824,9 +3846,11 @@ export type ResolversParentTypes = ResolversObject<{
   Page: GraphQLPagePartial;
   PageCollaborator: PageCollaborator;
   PageCollaboratorInput: PageCollaboratorInput;
+  PageHomeItem: PageHomeItem;
   PageInfo: PageInfo;
   PagePreview: PagePreview;
   PageSnapshot: PageSnapshot;
+  PagesHomeResult: PagesHomeResult;
   PendingInviteEntry: PendingInviteEntry;
   Permission: Permission;
   PinFolderResult: Omit<PinFolderResult, 'folder'> & { folder: ResolversParentTypes['VaultFolder'] };
@@ -4674,6 +4698,14 @@ export type PageCollaboratorResolvers<ContextType = ServiceContext, ParentType e
   userId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
 }>;
 
+export type PageHomeItemResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['PageHomeItem'] = ResolversParentTypes['PageHomeItem']> = ResolversObject<{
+  createdByName?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  emojiIcon?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+}>;
+
 export type PageInfoResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['PageInfo'] = ResolversParentTypes['PageInfo']> = ResolversObject<{
   endCursor?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   hasNextPage?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
@@ -4691,6 +4723,10 @@ export type PageSnapshotResolvers<ContextType = ServiceContext, ParentType exten
   lastStreamId?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   snapshot?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   snapshotTimestamp?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+}>;
+
+export type PagesHomeResultResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['PagesHomeResult'] = ResolversParentTypes['PagesHomeResult']> = ResolversObject<{
+  pages?: Resolver<Array<ResolversTypes['PageHomeItem']>, ParentType, ContextType>;
 }>;
 
 export type PendingInviteEntryResolvers<ContextType = ServiceContext, ParentType extends ResolversParentTypes['PendingInviteEntry'] = ResolversParentTypes['PendingInviteEntry']> = ResolversObject<{
@@ -4822,6 +4858,7 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   getPage?: Resolver<ResolversTypes['Page'], ParentType, ContextType, RequireFields<QueryGetPageArgs, 'pageId'>>;
   getPageCollaborators?: Resolver<Array<ResolversTypes['PageCollaborator']>, ParentType, ContextType, RequireFields<QueryGetPageCollaboratorsArgs, 'pageId'>>;
   getPageSnapshot?: Resolver<ResolversTypes['PageSnapshot'], ParentType, ContextType, RequireFields<QueryGetPageSnapshotArgs, 'pageId'>>;
+  getPagesHome?: Resolver<ResolversTypes['PagesHomeResult'], ParentType, ContextType, Partial<QueryGetPagesHomeArgs>>;
   getProjectDms?: Resolver<Array<ResolversTypes['ProjectDmItem']>, ParentType, ContextType, RequireFields<QueryGetProjectDmsArgs, 'projectId' | 'workspaceId'>>;
   getProjectEntities?: Resolver<Array<ResolversTypes['SearchEntity']>, ParentType, ContextType, RequireFields<QueryGetProjectEntitiesArgs, 'projectId'>>;
   getProjectIssues?: Resolver<Array<ResolversTypes['Issue']>, ParentType, ContextType, RequireFields<QueryGetProjectIssuesArgs, 'projectId'>>;
@@ -5420,9 +5457,11 @@ export type Resolvers<ContextType = ServiceContext> = ResolversObject<{
   OverviewMember?: OverviewMemberResolvers<ContextType>;
   Page?: PageResolvers<ContextType>;
   PageCollaborator?: PageCollaboratorResolvers<ContextType>;
+  PageHomeItem?: PageHomeItemResolvers<ContextType>;
   PageInfo?: PageInfoResolvers<ContextType>;
   PagePreview?: PagePreviewResolvers<ContextType>;
   PageSnapshot?: PageSnapshotResolvers<ContextType>;
+  PagesHomeResult?: PagesHomeResultResolvers<ContextType>;
   PendingInviteEntry?: PendingInviteEntryResolvers<ContextType>;
   Permission?: PermissionResolvers<ContextType>;
   PinFolderResult?: PinFolderResultResolvers<ContextType>;

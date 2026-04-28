@@ -11,11 +11,13 @@
  */
 
 import { Resolvers } from "@/graphql/generated";
+import type { ServiceContext } from "@/graphql/types";
 import { requireUser } from "@/shared/utils/graphql-helpers";
 import {
   toGraphQLPage,
   toGraphQLPageTree,
   toGraphQLPageCollaborator,
+  toGraphQLPagePreview,
 } from "./mappers";
 import * as queries from "../queries";
 import * as services from "../services";
@@ -62,6 +64,18 @@ export const resolvers: Resolvers = {
         ctx
       );
       return result as any;
+    },
+
+    getPagesHome: async (
+      _: unknown,
+      args: { limit?: number },
+      ctx: ServiceContext
+    ) => {
+      await requireUser(ctx);
+      const input = queries.getPagesHome.schema.parse({
+        limit: args.limit ?? 10,
+      });
+      return queries.getPagesHome.handler(input, ctx);
     },
   },
 
