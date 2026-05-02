@@ -47,8 +47,8 @@ export const getPagesHomeHandler = async (
   if (!userId) throw AppError.unauthorized("User not authenticated");
 
   try {
-    const limit = input.limit;
-    const pages = await fetchRecentPages(userId, limit, ctx);
+    const { workspaceId, projectId, limit } = input;
+    const pages = await fetchRecentPages(userId, workspaceId, projectId, limit, ctx);
 
     return {
       pages: pages.map(toPageHomeItem),

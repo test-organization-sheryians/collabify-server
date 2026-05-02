@@ -2385,6 +2385,8 @@ export type QueryGetPageSnapshotArgs = {
 
 export type QueryGetPagesHomeArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
+  projectId: Scalars['ID']['input'];
+  workspaceId: Scalars['ID']['input'];
 };
 
 
@@ -4858,7 +4860,7 @@ export type QueryResolvers<ContextType = ServiceContext, ParentType extends Reso
   getPage?: Resolver<ResolversTypes['Page'], ParentType, ContextType, RequireFields<QueryGetPageArgs, 'pageId'>>;
   getPageCollaborators?: Resolver<Array<ResolversTypes['PageCollaborator']>, ParentType, ContextType, RequireFields<QueryGetPageCollaboratorsArgs, 'pageId'>>;
   getPageSnapshot?: Resolver<ResolversTypes['PageSnapshot'], ParentType, ContextType, RequireFields<QueryGetPageSnapshotArgs, 'pageId'>>;
-  getPagesHome?: Resolver<ResolversTypes['PagesHomeResult'], ParentType, ContextType, Partial<QueryGetPagesHomeArgs>>;
+  getPagesHome?: Resolver<ResolversTypes['PagesHomeResult'], ParentType, ContextType, RequireFields<QueryGetPagesHomeArgs, 'projectId' | 'workspaceId'>>;
   getProjectDms?: Resolver<Array<ResolversTypes['ProjectDmItem']>, ParentType, ContextType, RequireFields<QueryGetProjectDmsArgs, 'projectId' | 'workspaceId'>>;
   getProjectEntities?: Resolver<Array<ResolversTypes['SearchEntity']>, ParentType, ContextType, RequireFields<QueryGetProjectEntitiesArgs, 'projectId'>>;
   getProjectIssues?: Resolver<Array<ResolversTypes['Issue']>, ParentType, ContextType, RequireFields<QueryGetProjectIssuesArgs, 'projectId'>>;

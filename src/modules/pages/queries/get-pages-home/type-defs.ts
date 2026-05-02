@@ -12,6 +12,6 @@ export const typeDefs = /* GraphQL */ `
   }
 
   extend type Query {
-    getPagesHome(limit: Int): PagesHomeResult!
+    getPagesHome(workspaceId: ID!, projectId: ID!, limit: Int): PagesHomeResult!
   }
 `;

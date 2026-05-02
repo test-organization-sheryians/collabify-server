@@ -11,6 +11,8 @@ import type { ServiceContext } from "@/graphql/types";
 
 export const fetchRecentPages = async (
   userId: string,
+  workspaceId: string,
+  projectId: string,
   limit: number,
   _ctx: ServiceContext
 ) => {
@@ -23,6 +25,8 @@ export const fetchRecentPages = async (
   // For now, fall back to createdAt for recently created pages.
   const pages = await db.page.findMany({
     where: {
+      workspaceId,
+      projectId,
       deletedAt: null,
       isArchived: false,
       collaborators: { some: { userId } },

@@ -66,13 +66,11 @@ export const resolvers: Resolvers = {
       return result as any;
     },
 
-    getPagesHome: async (
-      _: unknown,
-      args: { limit?: number },
-      ctx: ServiceContext
-    ) => {
+    getPagesHome: async (_, args, ctx) => {
       await requireUser(ctx);
       const input = queries.getPagesHome.schema.parse({
+        workspaceId: args.workspaceId,
+        projectId: args.projectId,
         limit: args.limit ?? 10,
       });
       return queries.getPagesHome.handler(input, ctx);
