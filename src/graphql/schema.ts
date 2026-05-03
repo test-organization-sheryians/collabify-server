@@ -28,6 +28,11 @@ import {
   issuesTypeDefs,
   issuesResolvers,
 } from "../modules/issues";
+import {
+  authorizationTypeDefs,
+  authorizationResolvers,
+} from "../modules/authorization";
+import { mentionTypeDefs, mentionResolvers } from "../modules/mention";
 
 import { ServiceContext } from "./types";
 export const schema = createSchema<ServiceContext>({
@@ -57,6 +62,8 @@ export const schema = createSchema<ServiceContext>({
     ...pageTypeDefs,
     ...vaultTypeDefs,
     ...issuesTypeDefs,
+    authorizationTypeDefs,
+    mentionTypeDefs,
   ],
   resolvers: [
     {
@@ -75,5 +82,7 @@ export const schema = createSchema<ServiceContext>({
     pageResolvers,
     vaultResolvers,
     issuesResolvers,
+    authorizationResolvers,
+    mentionResolvers,
   ],
 });

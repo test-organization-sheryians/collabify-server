@@ -1,173 +1,123 @@
 /**
  * Chat module — permission manifest.
- * Each entry seeds one row in the `Permission` table.
+ *
+ * Convention: resource uses COLON-separated hierarchy (no dots).
+ * All chat resources are prefixed with "chat:" to avoid collisions with
+ * other modules (e.g. page:member, project:member).
+ *
+ * Permission string = `${resource}:${action}`
+ *
+ * @example "chat:channel:create", "chat:message:send", "chat:dm:create"
  */
 export const CHAT_PERMISSIONS = [
-  // ── Channels ────────────────────────────────────────────────────────────────
+  // ── Channels ─────────────────────────────────────────────────────────────────
   {
-    resource: "channel",
+    resource: "chat:channel",
     action: "create",
     module: "chat",
     description: "Create a channel",
     hasConditions: false,
   },
   {
-    resource: "channel",
+    resource: "chat:channel",
     action: "read",
     module: "chat",
-    description: "View channel details",
+    description: "View channel details and message history",
     hasConditions: false,
   },
   {
-    resource: "channel",
+    resource: "chat:channel",
     action: "update",
     module: "chat",
-    description: "Edit channel name/description",
+    description: "Edit channel name or description",
     hasConditions: false,
   },
   {
-    resource: "channel",
+    resource: "chat:channel",
     action: "delete",
     module: "chat",
     description: "Delete a channel",
     hasConditions: false,
   },
   {
-    resource: "channel",
+    resource: "chat:channel",
     action: "archive",
     module: "chat",
-    description: "Archive / unarchive a channel",
+    description: "Archive or unarchive a channel",
     hasConditions: false,
   },
   // ── Channel members ──────────────────────────────────────────────────────────
   {
-    resource: "channel.member",
+    resource: "chat:channel:member",
     action: "read",
     module: "chat",
     description: "List channel members",
     hasConditions: false,
   },
   {
-    resource: "channel.member",
+    resource: "chat:channel:member",
     action: "add",
     module: "chat",
-    description: "Add member to channel",
+    description: "Add a member to a channel",
     hasConditions: false,
   },
   {
-    resource: "channel.member",
+    resource: "chat:channel:member",
     action: "remove",
     module: "chat",
-    description: "Remove member from channel",
+    description: "Remove a member from a channel",
     hasConditions: false,
   },
-  // ── Conversations (DMs, Groups, Threads) ─────────────────────────────────────
+  // ── Messages ─────────────────────────────────────────────────────────────────
   {
-    resource: "conversation",
-    action: "create",
+    resource: "chat:message",
+    action: "send",
     module: "chat",
-    description: "Create a DM, group, or thread conversation",
+    description: "Send a message in a channel or conversation",
     hasConditions: false,
   },
   {
-    resource: "conversation",
+    resource: "chat:message",
     action: "read",
     module: "chat",
-    description: "Read conversation details and message history",
+    description: "Read messages",
     hasConditions: false,
   },
   {
-    resource: "conversation",
-    action: "update",
+    resource: "chat:message",
+    action: "edit-own",
     module: "chat",
-    description: "Rename or update a conversation",
-    hasConditions: false,
-  },
-  {
-    resource: "conversation",
-    action: "delete",
-    module: "chat",
-    description: "Delete a conversation",
-    hasConditions: false,
-  },
-  // ── Conversation members ─────────────────────────────────────────────────────
-  {
-    resource: "conversation.member",
-    action: "read",
-    module: "chat",
-    description: "List members of a conversation",
-    hasConditions: false,
-  },
-  {
-    resource: "conversation.member",
-    action: "add",
-    module: "chat",
-    description: "Add a member to a conversation",
-    hasConditions: false,
-  },
-  {
-    resource: "conversation.member",
-    action: "remove",
-    module: "chat",
-    description: "Remove a member from a conversation",
-    hasConditions: false,
-  },
-  // ── Messages ────────────────────────────────────────────────────────────────
-  {
-    resource: "message",
-    action: "create",
-    module: "chat",
-    description: "Send a message",
-    hasConditions: false,
-  },
-  {
-    resource: "message",
-    action: "read",
-    module: "chat",
-    description: "Read messages in a channel or conversation",
-    hasConditions: false,
-  },
-  {
-    resource: "message",
-    action: "update",
-    module: "chat",
-    description: "Edit a message (own messages only)",
+    description: "Edit own messages",
     hasConditions: true, // createdBy condition
   },
   {
-    resource: "message",
-    action: "delete",
+    resource: "chat:message",
+    action: "delete-own",
     module: "chat",
-    description: "Delete a message (own + admin override)",
+    description: "Delete own messages",
     hasConditions: true, // createdBy condition
   },
-  // ── Threads ─────────────────────────────────────────────────────────────────
   {
-    resource: "thread",
+    resource: "chat:message",
+    action: "delete-any",
+    module: "chat",
+    description: "Delete any message (channel owner / project manager)",
+    hasConditions: false,
+  },
+  // ── Direct messages ──────────────────────────────────────────────────────────
+  {
+    resource: "chat:dm",
     action: "create",
     module: "chat",
-    description: "Start a reply thread on a message",
+    description: "Create a direct message conversation",
     hasConditions: false,
   },
+  // ── Member management ────────────────────────────────────────────────────────
   {
-    resource: "thread",
-    action: "read",
+    resource: "chat:member",
+    action: "manage",
     module: "chat",
-    description: "Read thread messages",
-    hasConditions: false,
-  },
-  {
-    resource: "thread",
-    action: "close",
-    module: "chat",
-    description: "Close or reopen a thread",
-    hasConditions: false,
-  },
-  {
-    resource: "thread",
-    action: "delete",
-    module: "chat",
-    description: "Delete a thread entirely",
+    description: "Add or remove channel members",
     hasConditions: false,
   },
 ] as const;

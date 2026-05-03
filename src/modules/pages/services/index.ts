@@ -17,3 +17,4 @@ export * as unlockPage from "./unlock-page";
 export * as reorderPage from "./reorder-page";
 export * as addPageCollaborators from "./add-page-collaborators";
 export * as removePageCollaborator from "./remove-page-collaborator";
+export * as updatePageDetails from "./update-page-details";

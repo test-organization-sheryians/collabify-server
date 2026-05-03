@@ -10,6 +10,7 @@ import { createLogger } from "@/shared/lib/logger";
 const logger = createLogger("chat:ws:add-reaction");
 import { addReaction } from "@/modules/chat/domain/reactions/redis-helpers";
 import { KeyFactory } from "@/infra/redis/keys";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 export const addReactionHandler = async (
   ctx: WSHandlerContext,
@@ -29,7 +30,7 @@ export const addReactionHandler = async (
     // 1. Verify message exists and get conversationId
     const message = await ctx.db.chatMessage.findUnique({
       where: { id: messageId },
-      select: { id: true, conversationId: true },
+      select: { id: true, conversationId: true, deletedAt: true },
     });
 
     if (!message) {
@@ -44,7 +45,20 @@ export const addReactionHandler = async (
       return;
     }
 
-    // 1b. Gate access by conversation membership (cache-backed)
+    // 1b. Block reactions on deleted messages
+    if (message.deletedAt) {
+      socket.send(
+        createErrorFrame(
+          tempId || messageId,
+          "chat:add-reaction",
+          "MESSAGE_DELETED",
+          "Cannot react to a deleted message"
+        )
+      );
+      return;
+    }
+
+    // 1c. Gate access by conversation membership (cache-backed)
     await ctx.authGate.assertChannelMember(message.conversationId);
 
     // 3. Add reaction to Redis (Lua script - atomic)
@@ -92,6 +106,22 @@ export const addReactionHandler = async (
       }
 
       logger.info("Reaction added", { messageId, userId, emoji });
+
+      // Emit notification for reaction added
+      emit(ctx.db as any, {
+        type: "chat.reaction.added",
+        payload: {
+          messageId,
+          conversationId: message.conversationId,
+          conversationName: null,
+          workspaceId: "",
+          workspaceSlug: "",
+          messageAuthorId: message.id,
+          actorId: userId,
+          actorName: "",
+          emoji,
+        } as any,
+      }).catch((err) => logger.warn("chat.reaction.added emit failed", { err, messageId, emoji }));
     }
   } catch (error: any) {
     logger.error("Failed to add reaction", {

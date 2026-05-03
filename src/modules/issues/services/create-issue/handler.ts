@@ -17,6 +17,7 @@ import type { CreateIssueResult } from "./types";
 import { validateStatus } from "./steps/validate-status";
 import { validateLabels } from "./steps/validate-labels";
 import { insertIssue } from "./steps/insert-issue";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 const logger = createLogger("issues:services:create-issue");
 
@@ -48,6 +49,52 @@ export const createIssueHandler = async (
   await validateStatus(input.statusId, input.projectId, ctx.db);
   await validateLabels(input.labelIds, input.projectId, ctx.db);
   const issue = await insertIssue(input, project.workspaceId, userId, ctx.db);
+
+  // Emit issue.created notification
+  await emit(ctx.db as any, {
+    type: "issue.created",
+    payload: {
+      issueId: issue.id,
+      issueTitle: issue.title,
+      issueNumber: issue.number,
+      projectId: input.projectId,
+      projectName: project.name ?? "",
+      workspaceSlug: project.slug ?? "",
+      actorId: userId,
+      actorName: "Someone",
+      watcherIds: [],
+    } as any,
+    deduplicationId: `issue.created:${issue.id}`,
+  }).catch(() => { /* non-fatal */ });
+
+  // Emit mention notifications for @mentions in title
+  const mentionRegex = /@\[?[^\]]*\]?\(([a-f0-9-]{36})\)/g;
+  const mentionedUserIds = new Set<string>();
+  let match;
+  while ((match = mentionRegex.exec(input.title)) !== null) {
+    mentionedUserIds.add(match[1]);
+  }
+
+  for (const mentionedId of mentionedUserIds) {
+    if (mentionedId !== userId) {
+      await emit(ctx.db as any, {
+        type: "issue.mention",
+        payload: {
+          issueId: issue.id,
+          issueTitle: issue.title,
+          issueNumber: issue.number,
+          projectId: input.projectId,
+          projectName: project.name ?? "",
+          workspaceSlug: project.slug ?? "",
+          mentionedUserId: mentionedId,
+          actorId: userId,
+          actorName: "Someone",
+          contentPreview: input.title.substring(0, 200),
+        } as any,
+        deduplicationId: `issue.mention:${issue.id}:${mentionedId}:${Date.now()}`,
+      }).catch(() => { /* non-fatal */ });
+    }
+  }
 
   logger.info("createIssue done", { issueId: issue.id, number: issue.number });
   return { issue };

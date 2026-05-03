@@ -34,3 +34,10 @@ export const SNAPSHOT_TTL_SECONDS = 3600; // 1 hour
 // Worker Loops
 export const RECOVERY_INTERVAL_MS = 60_000; // 60 seconds
 export const METRICS_INTERVAL_MS = 60_000; // 60 seconds
+
+// Heartbeat & Dead-Worker Pruning
+// HEARTBEAT_INTERVAL_MS: how often the worker writes its liveness to WhiteboardWorkerRegistry ZSET.
+// WORKER_TTL_MS: workers not seen within this window are considered dead and pruned.
+// Must satisfy: WORKER_TTL_MS >= 3 × HEARTBEAT_INTERVAL_MS (tolerates 2 missed beats before prune).
+export const HEARTBEAT_INTERVAL_MS = 10_000; // 10 seconds — mirrors Chat stream-worker heartbeat
+export const WORKER_TTL_MS = 30_000; // 30 seconds — matches coordinator's zombie threshold

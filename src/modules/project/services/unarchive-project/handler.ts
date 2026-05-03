@@ -2,17 +2,17 @@
  * unarchiveProject — Service Handler (thin orchestrator)
  *
  * Auth:
- *   - assertProjectManager — FORBIDDEN if actor cannot manage project
- *   - permissions.assert("project:archive") — RBAC check
+ *   - permissions.assert("project:archive") — MANAGER+ only (RBAC)
  * Steps:
- *   1. getProject — cache-backed fetch for workspaceId
- *   2. [auth] assertProjectManager + assert("project:archive") — parallel
+ *   1. getProject — cache-backed fetch for workspaceId (needed for scope)
+ *   2. [auth] assert("project:archive")
  *   3. setUnarchived — set isArchived=false; return project
  */
 import { AppError } from "@/shared/errors";
 import type { UnarchiveProjectInput } from "./schema";
 import type { ServiceContext } from "@/graphql/types";
 import { setUnarchived } from "./steps/set-unarchived";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 export const unarchiveProject = async (
   input: UnarchiveProjectInput,
@@ -31,10 +31,32 @@ export const unarchiveProject = async (
     id: projectId,
     workspaceId: project.workspaceId,
   };
-  await Promise.all([
-    ctx.authGate.assertProjectManager(projectId, project.workspaceId),
-    ctx.permissions.assert("project:archive", scope),
+  await ctx.permissions.assert("project:archive", scope);
+
+  const unarchived = await setUnarchived(projectId, db);
+
+  const [workspace, actor] = await Promise.all([
+    db.workspace.findUnique({ where: { id: project.workspaceId }, select: { slug: true } }),
+    db.user.findUnique({ where: { id: actorUserId }, select: { fullName: true } }),
   ]);
 
-  return setUnarchived(projectId, db);
+  const memberIds = await db.projectMember.findMany({
+    where: { projectId },
+    select: { userId: true },
+  }).then((members) => members.map((m) => m.userId));
+
+  await emit(db as any, {
+    type: "project.unarchived",
+    payload: {
+      projectId,
+      workspaceId: project.workspaceId,
+      workspaceSlug: workspace?.slug ?? "",
+      actorId: actorUserId,
+      actorName: actor?.fullName ?? "Someone",
+      projectName: project.name,
+      memberIds,
+    },
+  }).catch(() => { /* non-fatal */ });
+
+  return unarchived;
 };

@@ -1,5 +1,5 @@
 import { startChatWorkers } from "./jobs";
-import { streamWorker } from "@/infra/ws/stream-worker";
+import { streamWorker } from "./infra/stream-worker";
 import { redisSubscriber } from "@/infra/ws/redis-subscriber";
 import { createLogger } from "@/shared/lib/logger";
 import { workerCoordinator } from "@/infra/ws/worker-coordinator";

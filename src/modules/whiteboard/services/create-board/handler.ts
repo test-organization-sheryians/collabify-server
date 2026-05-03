@@ -13,7 +13,7 @@ const logger = createLogger("whiteboard:services:create-board");
  *
  * Auth:
  *   - assertProjectMember — cache-backed; creates within a project context
- *   - permissions.assert("board:create") — RBAC check
+ *   - permissions.assert("whiteboard:create") — RBAC check
  * Falls back to assertWorkspaceMember if no projectId provided.
  */
 export const handler = async (input: CreateBoardInput, ctx: ServiceContext) => {
@@ -34,13 +34,15 @@ export const handler = async (input: CreateBoardInput, ctx: ServiceContext) => {
       };
       await Promise.all([
         ctx.authGate.assertProjectMember(input.projectId),
-        ctx.permissions.assert("board:create", scope),
+        ctx.permissions.assert("whiteboard:create", scope),
       ]);
     } else {
+      // No projectId — workspace-level creation. whiteboard:create requires ProjectScope,
+      // so guard with workspace:read membership check instead.
       const scope = { type: "workspace" as const, id: input.workspaceId };
       await Promise.all([
         ctx.authGate.assertWorkspaceMember(input.workspaceId),
-        ctx.permissions.assert("board:create", scope),
+        ctx.permissions.assert("workspace:read", scope),
       ]);
     }
 

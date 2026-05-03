@@ -1,72 +1,50 @@
-import { z } from "zod";
-import {
-  NotificationChannel,
-  EmailJobData,
-  PushJobData,
-  InAppJobData,
-} from "../core/types";
-import { EventType, Payload, EventSchemas } from "../payloads";
+import type { RegistryEntry } from "./types";
 
-// -----------------------------------------------------------------------------
-// Transformer Types
-// Maps the "Fat Payload" to the specific Channel Job Data
-// -----------------------------------------------------------------------------
-export type EmailTransformer<T extends EventType> = (
-  payload: Payload<T>
-) => Partial<Omit<EmailJobData, "eventId" | "userId" | "to">>;
-export type PushTransformer<T extends EventType> = (
-  payload: Payload<T>
-) => Partial<Omit<PushJobData, "eventId" | "userId">>;
-export type InAppTransformer<T extends EventType> = (
-  payload: Payload<T>
-) => Partial<Omit<InAppJobData, "eventId" | "userId">>;
+// =============================================================================
+// Notification Event Registry
+//
+// Maps event type strings → { definition, handler } pairs.
+// Registration happens at startup by each event handler module (auto-import).
+// The registry is read-only after startup — no runtime modifications.
+//
+// Design decisions:
+// - Throws on duplicate registration → fail-fast, no silent overwrites.
+// - Returns undefined on unknown type → Decider routes to DLQ explicitly.
+// - No circular deps: registry only imports from events/types.ts.
+// =============================================================================
 
-export interface EventDefinition<T extends EventType> {
-  type: T;
-  channels: NotificationChannel[];
+const registry = new Map<string, RegistryEntry>();
 
-  // The Strategy: "Transformers" instead of "Templates"
-  transformers: {
-    [NotificationChannel.EMAIL]?: EmailTransformer<T>;
-    [NotificationChannel.PUSH]?: PushTransformer<T>;
-    [NotificationChannel.IN_APP]?: InAppTransformer<T>;
-
-    // Legacy support (optional, can remove later)
-    [NotificationChannel.SMS]?: never;
-  };
-
-  // Optimization Hooks (System Design 2.1)
-  strategy?: {
-    // If true, Decider skips fetching user preferences (Assumes ALL enabled)
-    // Useful for Critical/Welcome emails where opting out isn't allowed or relevant yet.
-    skipPreferences?: boolean;
-
-    // If set, Decider verifies user has this role in the workspace before sending.
-    requiresAccess?: "workspace_member";
-
-    // Batching Configuration (System Design 4.4)
-    batching?: {
-      enabled: boolean;
-      windowMs?: number; // default 5 minutes
-    };
-  };
+/**
+ * Register an event type with its definition and handler.
+ * Call this at module load time from each event handler's index.ts.
+ *
+ * @throws if the same type is registered twice (startup crash → safe fail-fast).
+ */
+export function register(entry: RegistryEntry): void {
+  if (registry.has(entry.definition.type)) {
+    throw new Error(
+      `[NotificationRegistry] Duplicate registration: "${entry.definition.type}". ` +
+        "Each event type must be registered exactly once."
+    );
+  }
+  registry.set(entry.definition.type, entry);
 }
 
-const registry = new Map<EventType, EventDefinition<EventType>>();
+/**
+ * Look up a registered event by type string.
+ * Returns undefined if the type is not registered (Decider handles → DLQ).
+ */
+export function get(type: string): RegistryEntry | undefined {
+  return registry.get(type);
+}
 
-export const EventRegistry = {
-  // Generic Register Function - Enforces Type Safety
-  register: <T extends EventType>(definition: EventDefinition<T>) => {
-    registry.set(definition.type, definition);
-  },
+/** Returns all registered event types. Used for introspection and tests. */
+export function listTypes(): string[] {
+  return Array.from(registry.keys());
+}
 
-  get: (type: string): EventDefinition<EventType> | undefined => {
-    return registry.get(type as EventType);
-  },
-
-  // Runtime Schema Lookup
-  getSchema: (type: string): z.ZodTypeAny | undefined => {
-    // @ts-expect-error - Index signature mismatch with string type
-    return EventSchemas[type];
-  },
-};
+/** Returns the total number of registered event types. */
+export function size(): number {
+  return registry.size;
+}

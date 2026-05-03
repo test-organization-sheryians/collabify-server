@@ -89,7 +89,23 @@ export const subscribeConversationHandler = async (
               data[fields[i]] = fields[i + 1];
             }
 
+            // Only new-message entries carry a sequence number.
+            // Edit/delete/reaction entries have no sequence field — parseInt returns NaN.
+            // Skipping them prevents false-positive isTruncated detection:
+            // without this skip, the first edit/delete entry in the stream would
+            // set foundAll=true (NaN > N = false → else branch) even though we
+            // haven't found the actual sequence boundary yet.
+            const entryType = data.type as string | undefined;
+            if (entryType && entryType !== "chat:new-message") {
+              continue; // not a sequenced entry — skip, keep searching
+            }
+
             const seq = parseInt(data.sequence, 10);
+            if (isNaN(seq)) {
+              // Sequence field present but unparseable — skip defensively
+              continue;
+            }
+
             if (seq > input.lastSequence!) {
               missedMessages.push({
                 ...JSON.parse(data.payload || "{}"),
@@ -102,6 +118,7 @@ export const subscribeConversationHandler = async (
                 createdAt: data.createdAt,
               });
             } else {
+              // Found an entry at or before lastSequence — we have full coverage.
               foundAll = true;
               break;
             }
@@ -168,16 +185,113 @@ export const subscribeConversationHandler = async (
   });
 
   if (lastMessage && lastMessage.sequence > 0) {
-    await appRedis.zadd(
-      `delivered:${conversationId}`,
-      lastMessage.sequence,
-      userId
-    );
-    await appRedis.expire(`delivered:${conversationId}`, 7 * 24 * 60 * 60);
+    // Pipeline zadd + expire into a single Redis round-trip
+    const pipeline = appRedis.pipeline();
+    pipeline.zadd(`delivered:${conversationId}`, lastMessage.sequence, userId);
+    pipeline.expire(`delivered:${conversationId}`, 7 * 24 * 60 * 60);
+    await pipeline.exec();
   }
 
   // ✅ Track user as subscribed (for implicit delivery tracking)
   await appRedis.sadd(`subscriptions:${conversationId}`, userId);
+
+  // ── Mutation Delta (Offline Gap Sync) ──────────────────────────────────
+  // Replays edit/delete events missed while the client was offline.
+  // Only runs when the client sends lastOpenedAt (new clients only).
+  // Old clients without lastOpenedAt skip this block safely.
+  if (input.lastOpenedAt) {
+    const since = new Date(input.lastOpenedAt);
+    const MUTATION_CAP = 200;
+
+    // Run both queries in parallel — they are fully independent.
+    const [deletedMessages, editedMessages] = await Promise.all([
+      // 1. Messages deleted since the client was last connected
+      ctx.db.chatMessage.findMany({
+        where: {
+          conversationId,
+          deletedAt: { gt: since },
+        },
+        select: {
+          id: true,
+          authorUserId: true,
+          deletedAt: true,
+        },
+        orderBy: { deletedAt: "asc" },
+        take: MUTATION_CAP,
+      }),
+      // 2. Messages edited since the client was last connected
+      // Exclude deleted messages (they are handled by the delete replay above).
+      ctx.db.chatMessage.findMany({
+        where: {
+          conversationId,
+          isEdited: true,
+          editedAt: { gt: since },
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          authorUserId: true,
+          content: true,
+          editedAt: true,
+        },
+        orderBy: { editedAt: "asc" },
+        take: MUTATION_CAP,
+      }),
+    ]);
+
+    // Overflow: too many mutations to replay safely — force a full sync.
+    // Check both results before sending anything so the client gets a clean signal.
+    if (deletedMessages.length >= MUTATION_CAP || editedMessages.length >= MUTATION_CAP) {
+      socket.send(
+        createSuccessFrame(undefined, "chat:sync-required", {
+          conversationId,
+          reason: "mutation_delta_overflow",
+        })
+      );
+    } else {
+      for (const msg of deletedMessages) {
+        socket.send(
+          createSuccessFrame(undefined, "chat:message-deleted", {
+            messageId: msg.id,
+            conversationId,
+            deletedAt: msg.deletedAt!.toISOString(),
+            authorId: msg.authorUserId,
+          })
+        );
+      }
+
+      for (const msg of editedMessages) {
+        // content is stored as Json { text, schemaVersion } — extract text safely
+        const rawContent = msg.content as Record<string, unknown> | null;
+        const safeContent =
+          rawContent && typeof rawContent.text === "string"
+            ? rawContent.text
+            : String(rawContent ?? "");
+
+        socket.send(
+          createSuccessFrame(undefined, "chat:message-edited", {
+            messageId: msg.id,
+            conversationId,
+            content: safeContent,
+            editedAt: msg.editedAt!.toISOString(),
+            isEdited: true,
+            editorUserId: msg.authorUserId,
+            outboxId: null, // replay event — no live outbox
+          })
+        );
+      }
+    }
+
+    if (deletedMessages.length > 0 || editedMessages.length > 0) {
+      logger.info("Mutation delta sent on subscribe", {
+        userId,
+        conversationId,
+        deletedCount: deletedMessages.length,
+        editedCount: editedMessages.length,
+      });
+    }
+  }
+  // ── End Mutation Delta ──────────────────────────────────────────────────
 
   // Success Response
   socket.send(

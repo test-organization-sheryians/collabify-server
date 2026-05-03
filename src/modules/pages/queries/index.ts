@@ -12,3 +12,4 @@ export * as getPageSnapshot from "./get-page-snapshot";
 export * as getProjectPages from "./get-project-pages";
 export * as getPageCollaborators from "./get-page-collaborators";
 export * as getActivePageCollaborators from "./get-active-page-collaborators";
+export * as getPagesHome from "./get-pages-home";

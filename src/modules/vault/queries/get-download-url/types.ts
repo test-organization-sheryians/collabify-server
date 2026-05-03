@@ -1,4 +1,4 @@
 export interface VaultDownloadUrlResult {
   url: string;
-  expiresAt: Date;
+  expiresAt?: Date | null;
 }

@@ -7,12 +7,16 @@ export async function createProjectMember(
   projectId: string,
   workspaceId: string,
   userId: string,
-  db: PrismaClient
+  db: PrismaClient,
+  projectRoleId?: string | null
 ) {
   try {
     return await db.projectMember.create({
-      data: { projectId, workspaceId, userId },
-      include: { user: true },
+      data: { projectId, workspaceId, userId, ...(projectRoleId ? { projectRoleId } : {}) },
+      include: {
+        user: true,
+        projectRole: { select: { id: true, name: true } },
+      },
     });
   } catch (err) {
     if (

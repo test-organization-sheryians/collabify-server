@@ -6,7 +6,11 @@ import { WSSocketData } from "./types";
 import { wsRegistry } from "./subscription-registry";
 import { wsRouter } from "./router";
 import { db } from "../db";
+import { redis } from "../redis";
 import { wsConnections, wsMessagesTotal, wsErrorsTotal } from "../../app/metrics";
+
+// Redis key prefix for notification presence (matches notification/constants.ts)
+const PRESENCE_PREFIX = "notif:presence:";
 
 /**
  * Validates the connection request (Clerk Token)
@@ -88,8 +92,20 @@ export const createWSGateway = () => {
         logger.info("WS Connected", { workspaceId, userId, socketId });
         wsConnections.inc();
 
-        // Register Session
+        // Register session in local registry
         wsRegistry.startSession(ws);
+
+        // Subscribe this socket to its personal notification channel so
+        // RealtimeWorker's redis.publish("user:{userId}") reaches this socket.
+        wsRegistry.subscribe(socketId, `user:${userId}`).catch((err) =>
+          logger.warn("WS: failed to subscribe to notification channel", { err, userId })
+        );
+
+        // Mark user as online for presence-aware routing in the Decider.
+        // TTL = 90 s; refreshed every 60 s by the heartbeat below.
+        redis.set(`${PRESENCE_PREFIX}${userId}`, socketId, "EX", 90).catch(() => {
+          /* non-fatal */
+        });
       },
 
       message(ws: ServerWebSocket<WSSocketData>, message: string | Buffer) {
@@ -97,17 +113,29 @@ export const createWSGateway = () => {
         wsRegistry.touch(ws.data.socketId);
         wsMessagesTotal.inc({ direction: "inbound" });
 
+        // Refresh presence TTL on activity (90 s sliding window)
+        redis.expire(`${PRESENCE_PREFIX}${ws.data.userId}`, 90).catch(() => { /* non-fatal */ });
+
         // Mock Context with DB Injection
         wsRouter.handleMessage({ db } as unknown as Context, ws, message);
       },
 
       close(ws: ServerWebSocket<WSSocketData>) {
-        const { socketId } = ws.data;
+        const { socketId, userId } = ws.data;
         logger.info("WS Closed", { socketId });
         wsConnections.dec();
 
-        // Cleanup
+        // Cleanup session + unsubscribe all topics (including notification channel)
         wsRegistry.endSession(socketId);
+
+        // Clear presence key so Decider stops routing REALTIME to this user.
+        // If the user has other open tabs, the key stays until all tabs close.
+        redis.get(`${PRESENCE_PREFIX}${userId}`).then((stored) => {
+          // Only delete if THIS socket was the one that set the presence key
+          if (stored === socketId) {
+            redis.del(`${PRESENCE_PREFIX}${userId}`).catch(() => { /* non-fatal */ });
+          }
+        }).catch(() => { /* non-fatal */ });
       },
 
       // eslint-disable-next-line @typescript-eslint/no-unused-vars

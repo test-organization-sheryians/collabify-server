@@ -1,69 +1,24 @@
-import { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
+import type { ServiceContext } from "@/graphql/types";
 import type { DeleteGroupInput, DeleteGroupOutput } from "./types";
+import { assertAccess } from "./steps/assert-access";
+import { runDelete } from "./steps/run-delete";
 
+/**
+ * Delete Group Handler
+ *
+ * Steps:
+ *  1. assertAccess — maps active scope properties validating mapping limits securely against DB `GROUP_DM` restrictions. Returns member limits securely.
+ *  2. runDelete    — deletes map array bounds inherently while asynchronously dispatching `chat:group-deleted` Redis WS hooks across properties securely.
+ */
 export const handler = async (
   input: DeleteGroupInput,
   ctx: ServiceContext
 ): Promise<DeleteGroupOutput> => {
-  const { userId } = ctx.auth;
-  if (!userId) {
+  if (!ctx.auth?.userId) {
     throw AppError.unauthorized("User not authenticated");
   }
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
-  const { workspaceId, groupId } = input;
-
-  // Step 0 — channel member gate + permission
-  const cachedChannel = await ctx.authGate.getChannel(groupId);
-  if (!cachedChannel) throw AppError.notFound("Group not found");
-  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
-  await Promise.all([
-    ctx.authGate.assertChannelMember(groupId),
-    ctx.permissions.assert("conversation:delete", scope),
-  ]);
-
-  // Verify group exists and user is member (still needed to get members for fanout)
-  const group = await ctx.db.chatConversation.findFirst({
-    where: {
-      id: groupId,
-      workspaceId,
-      type: "GROUP_DM" as const,
-      members: { some: { userId } },
-    },
-    include: {
-      members: { select: { userId: true } },
-    },
-  });
-
-  if (!group) {
-    throw AppError.notFound("Group not found or access denied");
-  }
-
-  // Hard delete (cascades to messages, members)
-  await ctx.db.chatConversation.delete({
-    where: { id: groupId },
-  });
-
-  // Fanout to all members
-  await Promise.all(
-    group.members.map(async (member) => {
-      await ctx.redis.publish(
-        `user:${member.userId}:events`,
-        JSON.stringify({
-          type: "chat:group-deleted",
-          payload: {
-            groupId,
-            deletedBy: userId,
-            timestamp: new Date().toISOString(),
-          },
-        })
-      );
-    })
-  );
-
-  return {
-    success: true,
-    groupId,
-  };
+  const { members } = await assertAccess(input, ctx);
+  return await runDelete(input, members, ctx);
 };

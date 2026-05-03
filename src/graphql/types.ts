@@ -12,6 +12,7 @@ import { Redis } from "ioredis";
 import { S3Client } from "@aws-sdk/client-s3";
 import type { AuthGate } from "../modules/authorization/auth-gate/auth-gate";
 import type { PermissionEngine } from "../modules/authorization/engine/permission-engine";
+import type { FeatureFlagEngine } from "../modules/authorization/engine/feature-flag-engine";
 
 export interface ApplicationContext {
   c: HonoContext;
@@ -24,6 +25,8 @@ export interface ApplicationContext {
   authGate: AuthGate | null;
   /** RBAC permission engine — use for permission assertion */
   permissions: PermissionEngine | null;
+  /** Feature flag engine — resolves flags for current user/workspace/project context */
+  flags: FeatureFlagEngine | null;
   db: PrismaClient;
   redis: Redis;
   s3: S3Client;

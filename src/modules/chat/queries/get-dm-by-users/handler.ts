@@ -29,7 +29,7 @@ export const handler = async (
   ctx: ServiceContext
 ) => {
   try {
-    await assertAccess(ctx);
+    await assertAccess(input.projectId, ctx);
 
     // Safe: assertAccess guarantees an authenticated session before reaching here.
     const userId = ctx.auth.userId!;

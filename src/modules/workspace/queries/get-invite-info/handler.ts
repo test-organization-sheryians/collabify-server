@@ -25,7 +25,7 @@ export const getInviteInfo = async (
 
   return {
     workspaceName: invite.workspace.name,
-    workspaceLogoUrl: invite.workspace.logoUrl,
+    workspaceLogoUrl: invite.workspace.logoS3Key,
     inviterName: "Workspace Admin",
   };
 };

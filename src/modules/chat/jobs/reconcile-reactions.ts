@@ -2,6 +2,7 @@ import { Job } from "bullmq";
 import { db } from "@/infra/db";
 import { appRedis } from "@/infra/redis";
 import { createLogger } from "@/shared/lib/logger";
+import { createHash } from "node:crypto";
 
 const logger = createLogger("chat:jobs:reconcile-reactions");
 import {
@@ -168,36 +169,40 @@ export const reconcileReactionsHandler = async (
 };
 
 /**
- * Compute checksum from DB reactions
+ * Compute checksum from DB reactions.
+ *
+ * FIX E: Uses SHA-256 (truncated to 16 hex chars) instead of the previous
+ * length-based pseudo-checksum. The old implementation returned a string like
+ * "14-3" which is identical for any reactions whose sorted string representation
+ * has the same total character count — silently missing identity-preserving swaps
+ * (e.g., userId-A → userId-B with the same emoji and timestamp).
  */
 function computeReactionChecksum(
   reactions: Array<{ emoji: string; userId: string; createdAt: Date }>
 ): string {
   if (reactions.length === 0) return "empty";
 
-  // Sort for deterministic checksum
   const sorted = reactions
     .map((r) => `${r.emoji}:${r.userId}:${r.createdAt.getTime()}`)
     .sort();
 
-  // Simple hash (could use crypto.createHash for better collision resistance)
-  return sorted.join("|").length.toString() + "-" + sorted.length;
+  return createHash("sha256").update(sorted.join("|")).digest("hex").slice(0, 16);
 }
 
 /**
- * Compute checksum from Redis counts
+ * Compute checksum from Redis reaction counts.
+ *
+ * FIX E: Uses SHA-256 on a canonical sorted string instead of the previous
+ * checksum which only captured total count and string length — identical for
+ * distributions like {👍:5, ❤️:5} vs {🔥:5, 💯:5}.
  */
 function computeCountsChecksum(counts: Record<string, number>): string {
   if (Object.keys(counts).length === 0) return "empty";
 
-  const sorted = Object.entries(counts)
+  const canonical = Object.entries(counts)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([emoji, count]) => `${emoji}:${count}`)
     .join("|");
 
-  return (
-    sorted.length.toString() +
-    "-" +
-    Object.values(counts).reduce((a, b) => a + b, 0)
-  );
+  return createHash("sha256").update(canonical).digest("hex").slice(0, 16);
 }

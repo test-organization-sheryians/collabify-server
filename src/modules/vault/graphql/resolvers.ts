@@ -16,6 +16,12 @@ import { requireUser } from "@/shared/utils/graphql-helpers";
 import { toGraphQLFolder, toGraphQLFile, toGraphQLUsage } from "./mappers";
 import * as queries from "../queries";
 import * as services from "../services";
+import { getBatchDownloadUrlsHandler } from "../queries/get-batch-download-urls/handler";
+import { getBatchDownloadUrlsSchema } from "../queries/get-batch-download-urls/schema";
+import { registerExternalFileHandler } from "../services/register-external-file/handler";
+import { registerExternalFileSchema } from "../services/register-external-file/schema";
+import { markFilesUnreferencedHandler } from "../services/mark-unreferenced/handler";
+import { markFilesUnreferencedSchema } from "../services/mark-unreferenced/schema";
 
 export const resolvers: Resolvers = {
   // ── Queries ────────────────────────────────────────────────────────────────
@@ -77,6 +83,13 @@ export const resolvers: Resolvers = {
       const result = await queries.getVaultAncestors.handler(input, ctx);
       return result.map(toGraphQLFolder);
     },
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    getBatchDownloadUrls: async (_: unknown, args: any, ctx: any) => {
+      await requireUser(ctx);
+      const input = getBatchDownloadUrlsSchema.parse(args);
+      return getBatchDownloadUrlsHandler(input, ctx);
+    },
   },
 
   // ── Mutations ──────────────────────────────────────────────────────────────
@@ -95,6 +108,13 @@ export const resolvers: Resolvers = {
       const input = services.confirmVaultUpload.schema.parse(args.input);
       const result = await services.confirmVaultUpload.handler(input, ctx);
       return { file: toGraphQLFile(result.file) };
+    },
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    registerExternalFile: async (_: unknown, args: any, ctx: any) => {
+      await requireUser(ctx);
+      const input = registerExternalFileSchema.parse(args.input);
+      return registerExternalFileHandler(input, ctx);
     },
 
     // ── Folder Operations ──────────────────────────────────────────────────
@@ -159,6 +179,13 @@ export const resolvers: Resolvers = {
       await requireUser(ctx);
       const input = services.deleteVaultFile.schema.parse(args.input);
       return services.deleteVaultFile.handler(input, ctx);
+    },
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    markFilesUnreferenced: async (_: unknown, args: any, ctx: any) => {
+      await requireUser(ctx);
+      const input = markFilesUnreferencedSchema.parse(args.input);
+      return markFilesUnreferencedHandler(input, ctx);
     },
   },
 

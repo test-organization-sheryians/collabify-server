@@ -7,6 +7,7 @@ const conversationSelect = {
   type: true,
   name: true,
   topic: true,
+  isPublic: true,
   workspaceId: true,
   projectId: true,
   parentMessageId: true,

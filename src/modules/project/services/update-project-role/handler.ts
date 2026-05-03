@@ -2,11 +2,11 @@
  * updateProjectRole — Service Handler (thin orchestrator)
  *
  * Auth:
- *   - assertProjectManager
- *   - permissions.assert("project.role:update")
+ *   - permissions.assert("project:role:update") — MANAGER+ only (RBAC)
  * Steps:
- *   1. [auth] parallel
+ *   1. [auth] assert("project:role:update")
  *   2. updateProjectRoleData — guard isSystem + rank escalation, then partial update
+ *   3. [cache] invalidateRole — clear roleperms:{roleId} + all project members with this role
  */
 import { AppError } from "@/shared/errors";
 import type { UpdateProjectRoleInput } from "./schema";
@@ -20,10 +20,7 @@ export const updateProjectRole = async (
   const { roleId, projectId, workspaceId, actorUserId, name, description, rank } = input;
   if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
   const scope = { type: "project" as const, id: projectId, workspaceId };
-  await Promise.all([
-    ctx.authGate.assertProjectManager(projectId, workspaceId),
-    ctx.permissions.assert("project.role:update", scope),
-  ]);
+  await ctx.permissions.assert("project:role:update", scope);
 
   const updated = await updateProjectRoleData(
     roleId,
@@ -34,7 +31,15 @@ export const updateProjectRole = async (
     ctx.db
   );
 
-  // TODO: invalidate roleperms:{roleId} cache once AuthGateInvalidator is wired to ServiceContext
+  // Invalidate cached role permission set + all project members holding this role
+  const roleMembers = await ctx.db.projectMember.findMany({
+    where: { projectId, projectRoleId: roleId },
+    select: { userId: true },
+  });
+  await ctx.permissions.invalidate.invalidateRole(
+    roleId,
+    roleMembers.map((m) => m.userId)
+  );
 
   return {
     ...updated,

@@ -7,6 +7,7 @@ export const typeDefs = `
     user: User!
     userId: ID!
     role: String
+    roleId: ID
     joinedAt: String!
   }
 
@@ -18,9 +19,12 @@ export const typeDefs = `
     description: String
     isPrivate: Boolean
     isArchived: Boolean
+    logoS3Key: String
+    logoUrl: String
     createdAt: String!
     updatedAt: String!
     members: [ProjectMember!]!
+    activePlugins: [String!]!
   }
 
   type ProjectRole {

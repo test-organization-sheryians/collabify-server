@@ -5,7 +5,7 @@
  * For persistent collaborator list (all users with access), use getPageCollaborators.
  *
  * Execution:
- *   Step 1 — [auth] assertPageCollaborator + assert("page.collaborator:read") — parallel (cache-backed)
+ *   Step 1 — [auth] assertPageCollaborator + assert("page:collaborator:read") — parallel (cache-backed)
  *   Step 2 — fetchActiveIds    : ZRANGE page:{id}:subscribers → userId[]
  *   Step 3 — fetchUserProfiles : user.findMany batch + join → ActiveCollaborator[]
  */
@@ -40,7 +40,7 @@ export const getActivePageCollaboratorsHandler = async (
     };
     await Promise.all([
       ctx.authGate.assertPageCollaborator(input.pageId),
-      ctx.permissions.assert("page.collaborator:read", scope),
+      ctx.permissions.assert("page:collaborator:read", scope),
     ]);
 
     // Step 2 — presence ZSET read

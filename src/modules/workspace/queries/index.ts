@@ -8,3 +8,4 @@ export * from "./get-workspace-invites";
 export * from "./get-workspace-roles";
 export * from "./get-role-permissions";
 export * from "./get-workspace-overview";
+export * from "./get-workspace-permissions";

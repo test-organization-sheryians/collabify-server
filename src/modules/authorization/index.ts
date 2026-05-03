@@ -5,10 +5,23 @@
  * Deep imports (e.g. from checks/*, engine/*) are forbidden outside this module.
  */
 
+// ── GraphQL Interface (for Root Schema Merge) ─────────────────────────────────
+export { typeDefs as authorizationTypeDefs } from "./graphql/type-defs";
+export { resolvers as authorizationResolvers } from "./graphql/resolvers";
+
+// ── Queries ────────────────────────────────────────────────────────────────────
+export {
+  getActiveContext,
+  GetActiveContextSchema,
+  getActiveContextTypeDefs,
+} from "./queries";
+
 // ── Core classes ──────────────────────────────────────────────────────────────
 export { AuthGate } from "./auth-gate/auth-gate";
 export { PermissionEngine } from "./engine/permission-engine";
+export { FeatureFlagEngine } from "./engine/feature-flag-engine";
 export { Invalidator } from "./invalidation/invalidator";
+export { FeatureFlagInvalidator } from "./invalidation/feature-flag-invalidator";
 
 // ── Session warmer ────────────────────────────────────────────────────────────
 export {

@@ -23,6 +23,9 @@ export async function fetchProjectPermissions(
     where: {
       module: { notIn: [...WORKSPACE_ONLY_MODULES] },
       isDeprecated: false,
+      // project:create is WorkspaceScope-only — governed by workspace roles,
+      // not project roles. Exclude it from the project role matrix.
+      NOT: { resource: "project", action: "create" },
     },
     select: {
       id: true,

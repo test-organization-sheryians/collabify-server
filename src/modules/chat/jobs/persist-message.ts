@@ -1,9 +1,15 @@
 import { Job } from "bullmq";
 import { db } from "@/infra/db";
+import { appRedis } from "@/infra/redis";
 import { createLogger } from "@/shared/lib/logger";
-
 import { OutboxStatus } from "@prisma/client";
 import { SendMessageInput } from "../ws/events/send-message/schema";
+import { extractChatMentions } from "../lib/extract-chat-mentions";
+import { createMentionRecord } from "@/modules/mention/services/create-mentions/steps/create-mention-record";
+import { createBacklink } from "@/modules/mention/services/create-mentions/steps/create-backlink";
+import { emitMentionCreatedEvent } from "@/modules/mention/services/create-mentions/steps/emit-events";
+import { logMentionCreated } from "@/modules/mention/services/create-mentions/steps/log-audit";
+import { determineTier } from "@/modules/mention/services/create-mentions/handler";
 
 const logger = createLogger("chat:jobs:persist-message");
 /**
@@ -41,7 +47,7 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
   });
 
   try {
-    await db.$transaction(async (tx) => {
+    const txResult = await db.$transaction(async (tx) => {
       // 1. Validation Gate
       // ARCHITECTURE: Check-Then-Act pattern prevents "Blind Updates" and race conditions.
       const outboxEntry = await tx.outboxMessage.findUnique({
@@ -52,12 +58,12 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
         logger.warn("Outbox row missing/cleaned. Aborting retry.", {
           outboxId,
         });
-        return; // Idempotent success
+        return []; // Idempotent success
       }
 
       if (outboxEntry.status === "DONE") {
         logger.info("Outbox already DONE. Skipping.", { outboxId });
-        return;
+        return [];
       }
 
       // Integrity Check: Ensure Job matches Outbox context
@@ -94,7 +100,7 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
             } as any,
           },
         });
-        return;
+        return [];
       }
 
       // 2. Create Final Message (Archive)
@@ -105,7 +111,7 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
       });
       if (existingById) {
         logger.info("Message already persisted (by ID)", { dedupeId });
-        return;
+        return [];
       }
 
       // CHECK 2: By (conversationId, sequence) to prevent unique constraint violation
@@ -125,7 +131,7 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
             newId: dedupeId,
           }
         );
-        return;
+        return [];
       }
 
       // TODO (Scale): Switch to `createMany` with Batch Processor if throughput > 1000 msg/sec
@@ -146,6 +152,14 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
         },
       });
 
+      // Increment parent's reply count for inline replies (atomic in Postgres)
+      if (parentMessageId) {
+        await tx.chatMessage.update({
+          where: { id: parentMessageId },
+          data: { replyCount: { increment: 1 } },
+        });
+      }
+
       // 2.5 Update Conversation Last Sequence (Consistency Catch-up)
       // ARCHITECTURE: Dual-Write for Stability.
       // We rely on Redis for real-time ordering but must sync the "Committed Truth" to Postgres
@@ -158,6 +172,67 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
       });
       // TODO (Correctness): Use Raw Query with GREATEST(last_sequence, ?) to prevent flapping on out-of-order jobs
 
+      // ── Step 2.5: Extract & persist chat mentions (Tier 3) ──────────────────
+      // Content arrives as { text, schemaVersion } in the DB JSON field but the
+      // original client content string (with embedded mentions JSON) is in `content`.
+      // extractChatMentions handles both shapes and filters USER-type mentions.
+      const mentionRefs = extractChatMentions(content);
+
+      const persistedMentionRecords = [];
+
+      if (mentionRefs.length > 0) {
+        const minCtx = { db: tx }; // steps only need ctx.db
+
+        for (const ref of mentionRefs) {
+          try {
+            const mentionInput = {
+              sourceEntityId: dedupeId,
+              sourceEntityType: "CHAT_MESSAGE",
+              targetEntityId: ref.entityId,
+              targetEntityType: ref.entityType,
+              displayText: ref.displayText,
+              sourceLocation: { fieldName: "content" },
+            };
+
+            const tier = determineTier("CHAT_MESSAGE", ref.entityType);
+            const record = await createMentionRecord(
+              mentionInput as any,
+              authorId,
+              tier,
+              minCtx as any
+            );
+
+            await createBacklink(
+              {
+                sourceEntityId: dedupeId,
+                sourceEntityType: "CHAT_MESSAGE",
+                targetEntityId: ref.entityId,
+                targetEntityType: ref.entityType,
+                mentionId: record.id,
+                displayText: ref.displayText,
+              },
+              minCtx as any
+            );
+
+            persistedMentionRecords.push(record);
+            logger.debug("Chat mention persisted", {
+              messageId: dedupeId,
+              targetEntityId: ref.entityId,
+              entityType: ref.entityType,
+              tier,
+            });
+          } catch (mentionErr) {
+            // Per plan: mention failure must NEVER fail the message persist.
+            // Log and skip this mention.
+            logger.error("Failed to persist chat mention (skipped)", {
+              mentionErr,
+              messageId: dedupeId,
+              targetId: ref.entityId,
+            });
+          }
+        }
+      }
+
       // 3. Mark Intent as Done
       await tx.outboxMessage.update({
         where: { id: BigInt(outboxId) },
@@ -166,7 +241,20 @@ export const persistMessageHandler = async (job: Job<PersistMessageJob>) => {
           processedAt: new Date(),
         },
       });
+
+      // Hand off records for post-tx side effects
+      return persistedMentionRecords;
     });
+
+    // ── Post-transaction: emit + audit (best-effort, outside tx) ────────────
+    // These call Redis and write to MentionEvent — neither needs ACID guarantees.
+    if (Array.isArray(txResult) && txResult.length > 0) {
+      const postCtx = { db, redis: appRedis } as any;
+      for (const record of txResult) {
+        emitMentionCreatedEvent(record, postCtx).catch(() => {});
+        logMentionCreated(record.id, record, postCtx).catch(() => {});
+      }
+    }
 
     logger.info("Message Persisted Successfully", { outboxId });
   } catch (err: any) {

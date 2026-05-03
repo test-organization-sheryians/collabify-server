@@ -16,6 +16,7 @@ import type { ServiceContext } from "@/graphql/types";
 import type { ArchivePageInput } from "./schema";
 import { setArchived } from "./steps/set-archived";
 import { broadcast } from "./steps/broadcast";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 const logger = createLogger("pages:services:archive-page");
 
@@ -49,6 +50,23 @@ export const handler = async (input: ArchivePageInput, ctx: ServiceContext) => {
         err,
         pageId: input.pageId,
       })
+    );
+
+    // Step 4 — emit notification
+    await emit(ctx.db as any, {
+      type: "page.archived",
+      payload: {
+        pageId: page.id,
+        pageTitle: (cachedPage as any).title ?? "Untitled",
+        workspaceId: proj?.workspaceId ?? "",
+        workspaceSlug: proj?.slug ?? "",
+        actorId: userId,
+        actorName: "Someone",
+        collaboratorIds: [],
+      } as any,
+      deduplicationId: `page.archived:${page.id}:${Date.now()}`,
+    }).catch((err) =>
+      logger.error("Failed to emit page.archived notification", { err, pageId: input.pageId })
     );
 
     logger.info("Page archived", { pageId: input.pageId, userId });

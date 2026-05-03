@@ -1,5 +1,11 @@
 import type { Redis } from "ioredis";
 import { keys } from "../cache/keys";
+import { wsRegistry } from "@/infra/ws/subscription-registry";
+import type { OutboundEnvelope } from "@/infra/ws/types";
+import { createLogger } from "@/shared/lib/logger";
+
+const log = createLogger("authorization:permission-invalidator");
+
 
 /**
  * PermissionCacheInvalidator — invalidates PermissionEngine result cache.
@@ -30,7 +36,12 @@ export class PermissionInvalidator {
 
     // Also remove cached role-at-scope
     await this.redis.del(keys.roleAtScope(scopeId, userId));
+
+    // Notify client immediately — permission cache is stale
+    this.emitAuthInvalidated(userId);
+    log.debug("Permission cache invalidated + WS notified", { userId, scopeId });
   }
+
 
   /**
    * Invalidate ALL cached permissions for a user across all scopes.
@@ -46,7 +57,12 @@ export class PermissionInvalidator {
       pipeline.del(indexKey);
       await pipeline.exec();
     }
+
+    // Notify client immediately — all permission caches are stale
+    this.emitAuthInvalidated(userId);
+    log.debug("All permission caches invalidated + WS notified", { userId });
   }
+
 
   /**
    * Invalidate all permissions derived from a specific role.
@@ -82,6 +98,25 @@ export class PermissionInvalidator {
     const pipeline = this.redis.pipeline();
     keysFn.forEach((k) => pipeline.del(k));
     await pipeline.exec();
+
+    // Notify affected users — their resource-scoped cache is now stale
+    affectedUserIds.forEach((uid) => this.emitAuthInvalidated(uid));
+    log.debug("Resource permission cache invalidated + WS notified", { resource, resourceId });
+  }
+
+  // ── Private ────────────────────────────────────────────────────────────────
+
+  /**
+   * Emit auth.invalidated directly to all of the user's open sockets.
+   * Uses OutboundEnvelope shape so client event-router parses it identically.
+   * Fire-and-forget — WS send failures are swallowed by wsRegistry.sendToUser.
+   */
+  private emitAuthInvalidated(userId: string): void {
+    const frame: OutboundEnvelope = {
+      type: "auth.invalidated",
+      data: { userId },
+    };
+    wsRegistry.sendToUser(userId, JSON.stringify(frame));
   }
 }
 

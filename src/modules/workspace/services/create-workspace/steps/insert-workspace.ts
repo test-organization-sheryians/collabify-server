@@ -13,6 +13,10 @@ import { AppError } from "@/shared/errors";
 import { Prisma } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
 import type { Redis } from "ioredis";
+import { addRoleMember } from "@/modules/authorization";
+import { SYSTEM_GRANTS } from "../../../../../../prisma/seeds/shared/system-grants";
+
+
 
 const SYSTEM_ROLES = [
   { name: "OWNER", rank: 100, description: "Full control over the workspace" },
@@ -21,115 +25,13 @@ const SYSTEM_ROLES = [
   { name: "GUEST",  rank: 10, description: "Limited read-only access" },
 ] as const;
 
-/** Shared project role templates — available across all projects in the workspace. */
-const SYSTEM_PROJECT_ROLES = [
-  { name: "MANAGER",     rank: 80, description: "Full project access — manage members, content, and settings" },
-  { name: "CONTRIBUTOR", rank: 50, description: "Create and edit project content" },
-  { name: "VIEWER",      rank: 10, description: "Read-only access to project content" },
-] as const;
+
 
 // ── Role-permission grants ────────────────────────────────────────────────────
-// Format: { resource, action, roles[] }
-// Defines which permissions are granted to which WORKSPACE system roles.
-// Missing Permission rows are silently skipped (permissions must be seeded first).
+// Canonical source of truth imported from prisma/seeds/shared/system-grants.ts.
+// repair-role-permissions.ts uses the same constant, keeping both in sync.
+const GRANTS = SYSTEM_GRANTS;
 
-const GRANTS: Array<{ resource: string; action: string; roles: string[] }> = [
-  // Workspace
-  { resource: "workspace",        action: "create",           roles: ["OWNER", "ADMIN", "MEMBER"] },
-  { resource: "workspace",        action: "read",             roles: ["OWNER", "ADMIN", "MEMBER", "GUEST"] },
-  { resource: "workspace",        action: "update",           roles: ["OWNER", "ADMIN"] },
-  { resource: "workspace",        action: "delete",           roles: ["OWNER"] },
-  { resource: "workspace",        action: "transfer",         roles: ["OWNER"] },
-  // Workspace roles
-  { resource: "workspace.role",   action: "create",           roles: ["OWNER", "ADMIN"] },
-  { resource: "workspace.role",   action: "update",           roles: ["OWNER", "ADMIN"] },
-  { resource: "workspace.role",   action: "delete",           roles: ["OWNER", "ADMIN"] },
-  { resource: "workspace.role",   action: "assign-permission",roles: ["OWNER", "ADMIN"] },
-  // Workspace members
-  { resource: "workspace.member", action: "read",             roles: ["OWNER", "ADMIN", "MEMBER"] },
-  { resource: "workspace.member", action: "invite",           roles: ["OWNER", "ADMIN"] },
-  { resource: "workspace.member", action: "remove",           roles: ["OWNER", "ADMIN"] },
-  { resource: "workspace.member", action: "role-update",      roles: ["OWNER", "ADMIN"] },
-  // Project
-  { resource: "project",          action: "create",           roles: ["OWNER", "ADMIN", "MEMBER"] },
-  { resource: "project",          action: "read",             roles: ["OWNER", "ADMIN", "MEMBER", "GUEST"] },
-  { resource: "project",          action: "update",           roles: ["OWNER", "ADMIN"] },
-  { resource: "project",          action: "delete",           roles: ["OWNER", "ADMIN"] },
-  { resource: "project",          action: "archive",          roles: ["OWNER", "ADMIN"] },
-  // Project roles
-  { resource: "project.role",     action: "create",           roles: ["OWNER", "ADMIN"] },
-  { resource: "project.role",     action: "update",           roles: ["OWNER", "ADMIN"] },
-  { resource: "project.role",     action: "delete",           roles: ["OWNER", "ADMIN"] },
-  // Project members
-  { resource: "project.member",   action: "read",             roles: ["OWNER", "ADMIN", "MEMBER", "GUEST"] },
-  { resource: "project.member",   action: "add",              roles: ["OWNER", "ADMIN"] },
-  { resource: "project.member",   action: "remove",           roles: ["OWNER", "ADMIN"] },
-  { resource: "project.member",   action: "role-update",      roles: ["OWNER", "ADMIN"] },
-  // Issues
-  { resource: "issue",            action: "create",           roles: ["OWNER", "ADMIN", "MEMBER"] },
-  { resource: "issue",            action: "read",             roles: ["OWNER", "ADMIN", "MEMBER", "GUEST"] },
-  { resource: "issue",            action: "update",           roles: ["OWNER", "ADMIN", "MEMBER"] },
-  { resource: "issue",            action: "delete",           roles: ["OWNER", "ADMIN", "MEMBER"] },
-  { resource: "issue.status",     action: "create",           roles: ["OWNER", "ADMIN"] },
-  { resource: "issue.status",     action: "read",             roles: ["OWNER", "ADMIN", "MEMBER", "GUEST"] },
-  { resource: "issue.status",     action: "update",           roles: ["OWNER", "ADMIN"] },
-  { resource: "issue.status",     action: "delete",           roles: ["OWNER", "ADMIN"] },
-  { resource: "issue.label",      action: "create",           roles: ["OWNER", "ADMIN", "MEMBER"] },
-  { resource: "issue.label",      action: "read",             roles: ["OWNER", "ADMIN", "MEMBER", "GUEST"] },
-  { resource: "issue.label",      action: "update",           roles: ["OWNER", "ADMIN", "MEMBER"] },
-  { resource: "issue.label",      action: "delete",           roles: ["OWNER", "ADMIN"] },
-  // Pages
-  { resource: "page",             action: "create",           roles: ["OWNER", "ADMIN", "MEMBER"] },
-  { resource: "page",             action: "read",             roles: ["OWNER", "ADMIN", "MEMBER", "GUEST"] },
-  { resource: "page",             action: "update",           roles: ["OWNER", "ADMIN", "MEMBER"] },
-  { resource: "page",             action: "delete",           roles: ["OWNER", "ADMIN"] },
-  { resource: "page",             action: "archive",          roles: ["OWNER", "ADMIN"] },
-  { resource: "page",             action: "lock",             roles: ["OWNER", "ADMIN"] },
-  { resource: "page.collaborator",action: "read",             roles: ["OWNER", "ADMIN", "MEMBER", "GUEST"] },
-  { resource: "page.collaborator",action: "add",              roles: ["OWNER", "ADMIN", "MEMBER"] },
-  { resource: "page.collaborator",action: "remove",           roles: ["OWNER", "ADMIN"] },
-  // Boards
-  { resource: "board",            action: "create",           roles: ["OWNER", "ADMIN", "MEMBER"] },
-  { resource: "board",            action: "read",             roles: ["OWNER", "ADMIN", "MEMBER", "GUEST"] },
-  { resource: "board",            action: "update",           roles: ["OWNER", "ADMIN", "MEMBER"] },
-  { resource: "board",            action: "delete",           roles: ["OWNER", "ADMIN"] },
-  { resource: "board",            action: "archive",          roles: ["OWNER", "ADMIN"] },
-  { resource: "board",            action: "lock",             roles: ["OWNER", "ADMIN"] },
-  { resource: "board.collaborator",action: "read",            roles: ["OWNER", "ADMIN", "MEMBER", "GUEST"] },
-  { resource: "board.collaborator",action: "add",             roles: ["OWNER", "ADMIN", "MEMBER"] },
-  { resource: "board.collaborator",action: "remove",          roles: ["OWNER", "ADMIN"] },
-  // Chat
-  { resource: "channel",          action: "create",  roles: ["OWNER", "ADMIN"] },
-  { resource: "channel",          action: "read",    roles: ["OWNER", "ADMIN", "MEMBER", "GUEST"] },
-  { resource: "channel",          action: "update",  roles: ["OWNER", "ADMIN"] },
-  { resource: "channel",          action: "delete",  roles: ["OWNER", "ADMIN"] },
-  { resource: "channel",          action: "archive", roles: ["OWNER", "ADMIN"] },
-  { resource: "channel.member",   action: "read",    roles: ["OWNER", "ADMIN", "MEMBER", "GUEST"] },
-  { resource: "channel.member",   action: "add",     roles: ["OWNER", "ADMIN", "MEMBER"] },
-  { resource: "channel.member",   action: "remove",  roles: ["OWNER", "ADMIN"] },
-  // Conversations (DMs, Groups)
-  { resource: "conversation",        action: "read",   roles: ["OWNER", "ADMIN", "MEMBER", "GUEST"] },
-  { resource: "conversation",        action: "create", roles: ["OWNER", "ADMIN", "MEMBER"] },
-  { resource: "conversation",        action: "delete", roles: ["OWNER", "ADMIN"] },
-  { resource: "conversation.member", action: "read",   roles: ["OWNER", "ADMIN", "MEMBER", "GUEST"] },
-  { resource: "conversation.member", action: "add",    roles: ["OWNER", "ADMIN", "MEMBER"] },
-  { resource: "conversation.member", action: "remove", roles: ["OWNER", "ADMIN"] },
-  { resource: "message",          action: "create",  roles: ["OWNER", "ADMIN", "MEMBER"] },
-  { resource: "message",          action: "read",    roles: ["OWNER", "ADMIN", "MEMBER", "GUEST"] },
-  { resource: "message",          action: "update",  roles: ["OWNER", "ADMIN", "MEMBER"] },
-  { resource: "message",          action: "delete",  roles: ["OWNER", "ADMIN", "MEMBER"] },
-  { resource: "thread",           action: "create",  roles: ["OWNER", "ADMIN", "MEMBER"] },
-  { resource: "thread",           action: "read",    roles: ["OWNER", "ADMIN", "MEMBER", "GUEST"] },
-  { resource: "thread",           action: "close",   roles: ["OWNER", "ADMIN"] },
-  { resource: "thread",           action: "delete",  roles: ["OWNER", "ADMIN"] },
-  // Vault
-  { resource: "vault",            action: "read",             roles: ["OWNER", "ADMIN", "MEMBER", "GUEST"] },
-  { resource: "vault",            action: "write",            roles: ["OWNER", "ADMIN", "MEMBER"] },
-  { resource: "vault",            action: "upload",           roles: ["OWNER", "ADMIN", "MEMBER"] },
-  { resource: "vault",            action: "delete",           roles: ["OWNER", "ADMIN"] },
-  { resource: "vault",            action: "move",             roles: ["OWNER", "ADMIN", "MEMBER"] },
-  { resource: "vault",            action: "pin",              roles: ["OWNER", "ADMIN", "MEMBER"] },
-];
 
 export async function insertWorkspace(
   sanitizedName: string,
@@ -140,7 +42,7 @@ export async function insertWorkspace(
   redis: Redis
 ) {
   try {
-    return await db.$transaction(async (tx) => {
+    const txResult = await db.$transaction(async (tx) => {
       // 1. Create the workspace
       const workspace = await tx.workspace.create({
         data: {
@@ -166,24 +68,6 @@ export async function insertWorkspace(
         )
       );
 
-      // 2b. Seed system project role templates (scopeType=PROJECT, projectId=null)
-      //     These are workspace-wide templates reused across all projects.
-      //     Project admins can also create project-specific roles (projectId set).
-      await Promise.all(
-        SYSTEM_PROJECT_ROLES.map((r) =>
-          tx.role.create({
-            data: {
-              workspaceId: workspace.id,
-              projectId: null,  // template — not tied to a specific project
-              name: r.name,
-              rank: r.rank,
-              description: r.description,
-              isSystem: true,
-              scopeType: "PROJECT",
-            },
-          })
-        )
-      );
 
       // 3. Build a name → id map for workspace system roles
       const roleMap = new Map(roles.map((r) => [r.name, r.id]));
@@ -196,14 +80,32 @@ export async function insertWorkspace(
 
       // 5. Assign role-permissions for all workspace system roles
       const rolePermData: { roleId: string; permissionId: string; effect: "ALLOW" }[] = [];
+      const missingPerms: string[] = [];
       for (const grant of GRANTS) {
         const permId = permMap.get(`${grant.resource}:${grant.action}`);
-        if (!permId) continue; // permission row missing — skip; don't fail workspace creation
+        if (!permId) {
+          // Permission row missing from DB — run seed-permissions.ts first.
+          // Collect missing permissions for the warning log below.
+          missingPerms.push(`${grant.resource}:${grant.action}`);
+          continue;
+        }
         for (const roleName of grant.roles) {
           const roleId = roleMap.get(roleName);
           if (!roleId) continue;
           rolePermData.push({ roleId, permissionId: permId, effect: "ALLOW" });
         }
+      }
+
+      if (missingPerms.length > 0) {
+        // Log to TX context — visible in server logs immediately.
+        // Run `bun run prisma/seeds/seed-permissions.ts` then
+        // `bun run prisma/seeds/repair-role-permissions.ts` to fix.
+        console.warn(
+          `⚠️  insertWorkspace: ${missingPerms.length} permissions missing from DB — ` +
+          `these will NOT be assigned to system roles for workspace ${workspace.id}. ` +
+          `Missing: ${missingPerms.join(", ")}. ` +
+          `Run seed-permissions.ts + repair-role-permissions.ts to fix.`
+        );
       }
 
       if (rolePermData.length > 0) {
@@ -220,8 +122,19 @@ export async function insertWorkspace(
         },
       });
 
-      return workspace;
+      return { workspace, ownerRoleId: ownerRole.id };
     });
+
+    // Seed role-member index for the new OWNER outside the transaction
+    // (Redis failure must never roll back workspace creation)
+    await addRoleMember(txResult.ownerRoleId, userId, redis).catch(() => {
+      console.warn(
+        `insertWorkspace: failed to seed role-member index for owner ${userId} — ` +
+        `will re-populate on next invalidateRole call`
+      );
+    });
+
+    return txResult.workspace;
   } catch (error: unknown) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2002") {

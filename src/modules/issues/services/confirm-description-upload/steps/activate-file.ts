@@ -2,6 +2,8 @@
  * Atomically:
  *   a. Supersede any currently ACTIVE files for this issue
  *   b. Activate this file (set status=ACTIVE, record sizeBytes + confirmedAt)
+ *   b.5 Activate vault storage usage (C-B8) — must happen inside same tx so it
+ *       rolls back if the issue update fails
  *   c. Update issue.descriptionS3Key to point to this file
  *
  * Order ensures no window where two ACTIVE rows coexist.
@@ -10,6 +12,7 @@ import type { PrismaClient } from "@prisma/client";
 import type { IssueRow } from "../../../queries/get-project-issues/types";
 import type { PendingFileRecord } from "./fetch-pending-file";
 import type { S3Meta } from "./verify-s3-object";
+import { activateVaultUsage } from "@/modules/vault/lib/quota-guard";
 
 export async function activateFile(
   fileRecord: PendingFileRecord,
@@ -31,6 +34,15 @@ export async function activateFile(
         sizeBytes: meta.contentLength,
         confirmedAt: new Date(),
       },
+    });
+
+    // b.5 Activate vault storage usage (C-B8)
+    // Passes `tx` (not `db`) so this rolls back if step c fails.
+    await activateVaultUsage({
+      projectId: fileRecord.projectId,
+      workspaceId: fileRecord.workspaceId,
+      sizeBytes: BigInt(meta.contentLength),
+      db: tx as unknown as PrismaClient,
     });
 
     // c. Update issue pointer

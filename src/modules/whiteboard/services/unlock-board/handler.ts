@@ -7,7 +7,7 @@ import type { UnlockBoardInput } from "./types";
  *
  * Auth:
  *   - assertBoardCollaborator — cache-backed membership gate
- *   - permissions.assert("board:update") — RBAC check
+ *   - permissions.assert("whiteboard:update") — RBAC check
  * Note: creator-only rule preserved after auth gate
  */
 export const handler = async (input: UnlockBoardInput, ctx: ServiceContext) => {
@@ -30,7 +30,7 @@ export const handler = async (input: UnlockBoardInput, ctx: ServiceContext) => {
     };
     await Promise.all([
       ctx.authGate.assertBoardCollaborator(boardId),
-      ctx.permissions.assert("board:update", scope),
+      ctx.permissions.assert("whiteboard:update", scope),
     ]);
 
     // Step 2 — creator-only sub-check

@@ -2,10 +2,9 @@
  * createWorkspaceRole — Service Handler (thin orchestrator)
  *
  * Auth:
- *   - assertWorkspaceAdminOrAbove — ADMIN+ can manage roles
- *   - permissions.assert("workspace.role:create")
+ *   - permissions.assert("workspace:role:create") — ADMIN+ only (RBAC)
  * Steps:
- *   1. [auth] assertWorkspaceAdminOrAbove + assert("workspace.role:create") — parallel
+ *   1. [auth] assert("workspace:role:create")
  *   2. guardRank — actor rank must be > target rank (privilege escalation guard)
  *   3. insertRole — duplicate-name check then create Role row
  */
@@ -22,10 +21,7 @@ export const createWorkspaceRole = async (
   const { workspaceId, actorUserId, name, rank, description } = input;
   if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
   const scope = { type: "workspace" as const, id: workspaceId };
-  await Promise.all([
-    ctx.authGate.assertWorkspaceAdminOrAbove(workspaceId),
-    ctx.permissions.assert("workspace.role:create", scope),
-  ]);
+  await ctx.permissions.assert("workspace:role:create", scope);
 
   await guardRank(workspaceId, actorUserId, rank, ctx.db);
   const role = await insertRole(workspaceId, name, rank, description, ctx.db);

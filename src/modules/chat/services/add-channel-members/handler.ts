@@ -1,110 +1,35 @@
-import { ServiceContext } from "@/graphql/types";
+import { createLogger } from "@/shared/lib/logger";
 import { AppError } from "@/shared/errors";
+import type { ServiceContext } from "@/graphql/types";
 import type { AddChannelMembersInput, AddChannelMembersOutput } from "./types";
+import { assertAccess } from "./steps/assert-access";
+import { addMembers } from "./steps/add-members";
 
+const log = createLogger("chat:services:add-channel-members");
+
+/**
+ * addChannelMembers — registers a bulk array of userIds into a specific target channel.
+ *
+ * Steps:
+ *  1. assertAccess — asserts authentication, retrieves authGate channel instance to fetch `channelName`.
+ *  2. addMembers   — performs $transaction bulk mapped member creation & fanout broadcast.
+ *
+ * @throws AppError 401  if not authenticated
+ * @throws AppError 404  if channel is unavailable or invalid type
+ * @throws AppError 403  if insufficient `chat:channel:member:add` permissions
+ */
 export const handler = async (
   input: AddChannelMembersInput,
   ctx: ServiceContext
 ): Promise<AddChannelMembersOutput> => {
-  const { userId } = ctx.auth;
-  if (!userId) {
-    throw AppError.unauthorized("User not authenticated");
+  try {
+    if (!ctx.auth?.userId) throw AppError.unauthorized();
+
+    const { channelName } = await assertAccess(input.workspaceId, input.channelId, ctx);
+    return await addMembers(input, channelName, ctx);
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    log.error("[add-channel-members] Unexpected failure", { err, ...input });
+    throw err;
   }
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
-
-  const { workspaceId, channelId, userIds } = input;
-
-  // Step 0 — channel member gate (cache-backed) + permission
-  const cachedChannel = await ctx.authGate.getChannel(channelId);
-  if (!cachedChannel) throw AppError.notFound("Channel not found");
-  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
-  await Promise.all([
-    ctx.authGate.assertChannelMember(channelId),
-    ctx.permissions.assert("channel.member:add", scope),
-  ]);
-
-  // Verify channel exists (with type filter for safety)
-  const channel = await ctx.db.chatConversation.findFirst({
-    where: {
-      id: channelId,
-      workspaceId,
-      type: "CHANNEL",
-      deletedAt: null,
-    },
-  });
-
-  if (!channel) {
-    throw AppError.notFound("Channel not found");
-  }
-
-  // Get existing members
-  const existingMembers = await ctx.db.chatMember.findMany({
-    where: {
-      conversationId: channelId,
-      userId: { in: userIds },
-    },
-    select: { userId: true },
-  });
-
-  const existingIds = new Set(existingMembers.map((m) => m.userId));
-  const newUserIds = userIds.filter((id) => !existingIds.has(id));
-
-  if (newUserIds.length === 0) {
-    throw AppError.badRequest("All users are already members");
-  }
-
-  // Bulk add members in transaction
-  const newMembers = await ctx.db.$transaction(
-    newUserIds.map((uid) =>
-      ctx.db.chatMember.create({
-        data: {
-          conversationId: channelId,
-          userId: uid,
-          role: "MEMBER",
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              fullName: true,
-              email: true,
-              avatarUrl: true,
-            },
-          },
-        },
-      })
-    )
-  );
-
-  // Fanout to new members
-  await Promise.all(
-    newMembers.map(async (member) => {
-      await ctx.redis.publish(
-        `user:${member.userId}:events`,
-        JSON.stringify({
-          type: "chat:channel-member-added",
-          payload: {
-            channelId,
-            channelName: channel.name,
-            timestamp: new Date().toISOString(),
-          },
-        })
-      );
-    })
-  );
-
-  return {
-    success: true,
-    addedCount: newMembers.length,
-    skippedCount: existingIds.size,
-    members: newMembers.map((m) => ({
-      userId: m.userId,
-      user: {
-        id: m.user.id,
-        fullName: m.user.fullName || "Unknown",
-        email: m.user.email,
-        avatarUrl: m.user.avatarUrl,
-      },
-    })),
-  };
 };

@@ -1,6 +1,9 @@
 import { Resolvers } from "@/graphql/generated";
 import { AppError } from "@/shared/errors";
 import { requireUser } from "@/shared/utils/graphql-helpers";
+import * as prefWriter from "@/modules/notification/shared/preferences/preference-writer";
+import { generatePresignedGet } from "@/modules/vault/lib/s3-keys";
+import { VAULT_S3 } from "@/modules/vault/lib/constants";
 
 // Features (Mutations)
 import {
@@ -40,6 +43,12 @@ import {
   AssignRolePermissionSchema,
   removeRolePermission,
   RemoveRolePermissionSchema,
+  renameWorkspaceSlug,
+  RenameWorkspaceSlugSchema,
+  requestWorkspaceLogoUpload,
+  RequestWorkspaceLogoUploadSchema,
+  updateWorkspaceNotifPrefs,
+  UpdateWorkspaceNotifPrefsSchema,
 } from "../services";
 
 // Queries
@@ -64,6 +73,8 @@ import {
   GetRolePermissionsSchema,
   getWorkspaceOverview,
   GetWorkspaceOverviewSchema,
+  getWorkspacePermissions,
+  GetWorkspacePermissionsSchema,
 } from "../queries";
 
 export const resolvers: Resolvers = {
@@ -154,6 +165,14 @@ export const resolvers: Resolvers = {
       return getRolePermissions(data, ctx);
     },
 
+    workspacePermissions: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = GetWorkspacePermissionsSchema.parse({
+        workspaceId: args.workspaceId,
+      });
+      return getWorkspacePermissions(data, ctx);
+    },
+
     workspaceOverview: async (_root, args, ctx) => {
       if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
       const data = GetWorkspaceOverviewSchema.parse({ workspaceId: args.workspaceId });
@@ -197,6 +216,7 @@ export const resolvers: Resolvers = {
       const data = InviteToWorkspaceSchema.parse({
         workspaceId: args.input.workspaceId,
         emails: args.input.emails,
+        roleId: args.input.roleId,
         actorUserId: ctx.auth.userId,
       });
       return inviteToWorkspace(data, ctx);
@@ -217,7 +237,7 @@ export const resolvers: Resolvers = {
       const data = UpdateMemberRoleSchema.parse({
         workspaceId: args.workspaceId,
         memberId: args.memberId,
-        role: args.role,
+        roleId: args.roleId,
         actorUserId: ctx.auth.userId,
       });
       return updateMemberRole(data, ctx);
@@ -344,6 +364,58 @@ export const resolvers: Resolvers = {
         actorUserId: ctx.auth.userId,
       });
       return removeRolePermission(data, ctx);
+    },
+
+    renameWorkspaceSlug: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = RenameWorkspaceSlugSchema.parse({
+        workspaceId: args.workspaceId,
+        actorUserId: ctx.auth.userId,
+        slug: args.slug,
+      });
+      return renameWorkspaceSlug(data, ctx);
+    },
+
+    requestWorkspaceLogoUpload: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = RequestWorkspaceLogoUploadSchema.parse({
+        workspaceId: args.workspaceId,
+        actorUserId: ctx.auth.userId,
+        mimeType: args.mimeType,
+        sizeBytes: args.sizeBytes,
+      });
+      return requestWorkspaceLogoUpload(data, ctx);
+    },
+    // @ts-expect-error - NotificationCategory from events/types vs graphql/generated are structurally identical strings
+    updateWorkspaceNotifPrefs: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      const data = UpdateWorkspaceNotifPrefsSchema.parse({
+        userId: ctx.auth.userId,
+        workspaceId: args.workspaceId,
+        ...args.input,
+      });
+      return updateWorkspaceNotifPrefs(data, ctx);
+    },
+    muteWorkspace: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      await prefWriter.updateWorkspace(ctx.auth.userId, args.workspaceId, {
+        muteUntil: args.until ? new Date(args.until) : null,
+      });
+      return true;
+    },
+    unmuteWorkspace: async (_root, args, ctx) => {
+      if (!ctx.auth.userId) throw AppError.unauthorized("Unauthorized");
+      await prefWriter.updateWorkspace(ctx.auth.userId, args.workspaceId, {
+        muteUntil: null,
+      });
+      return true;
+    },
+  },
+
+  Workspace: {
+    logoUrl: async (workspace, _args, _ctx) => {
+      if (!workspace.logoS3Key) return null;
+      return generatePresignedGet(workspace.logoS3Key, VAULT_S3.PRESIGNED_GET_TTL_SECONDS);
     },
   },
 };

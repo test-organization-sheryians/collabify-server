@@ -1,81 +1,39 @@
-import { ServiceContext } from "@/graphql/types";
+import type { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
-import type { UnarchiveChannelInput, UnarchiveChannelOutput } from "./types";
+import { createLogger } from "@/shared/lib/logger";
 
+import type { UnarchiveChannelInput, UnarchiveChannelOutput } from "./types";
+import { assertAccess } from "./steps/assert-access";
+import { executeUnarchive } from "./steps/execute-unarchive";
+
+const log = createLogger("chat:services:unarchive-channel");
+
+/**
+ * Unarchive Channel Handler (Phase D)
+ * Evaluates target access scopes mapped inside Project boundaries correctly executing `<try/catch>` bounds tracing error IDs robustly mapping execution limits safely.
+ */
 export const handler = async (
   input: UnarchiveChannelInput,
   ctx: ServiceContext
 ): Promise<UnarchiveChannelOutput> => {
-  const { userId } = ctx.auth;
-  if (!userId) {
+  if (!ctx.auth?.userId) {
     throw AppError.unauthorized("User not authenticated");
   }
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
-  const { workspaceId, channelId } = input;
-
-  // Step 0 — channel member gate + permission (before DB fetch)
-  const cachedChannel = await ctx.authGate.getChannel(channelId);
-  if (!cachedChannel) throw AppError.notFound("Channel not found");
-  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
-  await Promise.all([
-    ctx.authGate.assertChannelMember(channelId),
-    ctx.permissions.assert("channel:archive", scope),
-  ]);
-
-  // Fetch channel (needed for archived check + members for fanout + name for response)
-  const channel = await ctx.db.chatConversation.findFirst({
-    where: {
-      id: channelId,
-      workspaceId,
-      type: "CHANNEL",
-    },
-    include: {
-      members: {
-        select: { userId: true },
-      },
-    },
-  });
-
-  if (!channel) {
-    throw AppError.notFound("Channel not found");
+  try {
+    const { channel } = await assertAccess(input, ctx);
+    return await executeUnarchive(input, channel, ctx);
+  } catch (err) {
+    if (err instanceof AppError) {
+      throw err;
+    }
+    
+    // Explicit tracing limits inside unknown throws natively
+    log.error("[chat:services:unarchive-channel] Unexpected failure", {
+      err,
+      input: { channelId: input.channelId },
+    });
+    
+    throw err;
   }
-
-  // Check if channel is archived
-  if (!channel.deletedAt) {
-    throw AppError.badRequest("Channel is not archived");
-  }
-
-  // Unarchive channel (set deletedAt to null)
-  const updated = await ctx.db.chatConversation.update({
-    where: { id: channelId },
-    data: {
-      deletedAt: null,
-      isArchived: false, // Also update isArchived flag
-    },
-  });
-
-  // Fanout unarchive event
-  await Promise.all(
-    channel.members.map(async (member) => {
-      await ctx.redis.publish(
-        `user:${member.userId}:events`,
-        JSON.stringify({
-          type: "chat:channel-unarchived",
-          payload: {
-            channelId,
-            workspaceId,
-            name: channel.name,
-            timestamp: new Date().toISOString(),
-          },
-        })
-      );
-    })
-  );
-
-  return {
-    success: true,
-    channelId: updated.id,
-    name: updated.name || "Unnamed Channel",
-  };
 };

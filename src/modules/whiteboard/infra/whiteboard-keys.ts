@@ -63,6 +63,11 @@ export const WhiteboardKeys = {
   LoopCircuitBreaker: (boardId: string) => `board:${boardId}:loop_circuit`,
 
   // Pattern Matching (for SCAN operations)
+  /**
+   * @deprecated SCAN-based board discovery was replaced by coordinator-assigned SMEMBERS
+   * in the Whiteboard stream-worker (Fix B — Phase 0 SRE). This pattern is no longer used
+   * by any active code path. Remove in next release cycle.
+   */
   BoardStreamPattern: () => `board:*:stream`,
 } as const;
 

@@ -7,7 +7,7 @@ import type { GetBoardInput } from "./types";
  *
  * Auth:
  *   - assertBoardCollaborator — cache-backed membership gate
- *   - permissions.assert("board:read") — RBAC check
+ *   - permissions.assert("whiteboard:read") — RBAC check
  */
 export const handler = async (input: GetBoardInput, ctx: ServiceContext) => {
   const { userId } = ctx.auth;
@@ -29,7 +29,7 @@ export const handler = async (input: GetBoardInput, ctx: ServiceContext) => {
     };
     await Promise.all([
       ctx.authGate.assertBoardCollaborator(boardId),
-      ctx.permissions.assert("board:read", scope),
+      ctx.permissions.assert("whiteboard:read", scope),
     ]);
 
     // Step 2 — fetch full board

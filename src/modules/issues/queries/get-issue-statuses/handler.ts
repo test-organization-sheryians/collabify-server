@@ -40,7 +40,7 @@ export const getIssueStatusesHandler = async (
 
   await Promise.all([
     ctx.authGate.assertProjectMember(input.projectId),
-    ctx.permissions.assert("issue.status:read", scope),
+    ctx.permissions.assert("issue:read", scope),
   ]);
 
   const statuses = await fetchStatuses(input.projectId, ctx.db);

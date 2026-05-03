@@ -4,7 +4,7 @@ import type { PrismaClient } from "@prisma/client";
 
 interface UpdateData {
   name?: string;
-  logoUrl?: string | null;
+  logoS3Key?: string | null;
   domainWhitelist?: string | null;
 }
 
@@ -15,7 +15,7 @@ export async function updateWorkspaceFields(
 ) {
   if (
     !data.name &&
-    data.logoUrl === undefined &&
+    data.logoS3Key === undefined &&
     data.domainWhitelist === undefined
   ) {
     const existing = await db.workspace.findUnique({

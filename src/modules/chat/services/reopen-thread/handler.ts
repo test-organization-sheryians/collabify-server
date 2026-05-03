@@ -1,76 +1,39 @@
-import { ServiceContext } from "@/graphql/types";
+import type { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
-import type { ReopenThreadInput, ReopenThreadOutput } from "./types";
+import { createLogger } from "@/shared/lib/logger";
 
+import type { ReopenThreadInput, ReopenThreadOutput } from "./types";
+import { assertAccess } from "./steps/assert-access";
+import { executeReopen } from "./steps/execute-reopen";
+
+const log = createLogger("chat:services:reopen-thread");
+
+/**
+ * Reopen Thread Handler (Phase D)
+ * Evaluates Project level limits resolving `chat:channel:update`. Drops internal WS maps wrapped reliably across dynamic `createLogger` states matching upstream faults.
+ */
 export const handler = async (
   input: ReopenThreadInput,
   ctx: ServiceContext
 ): Promise<ReopenThreadOutput> => {
-  const { userId } = ctx.auth;
-  if (!userId) {
+  if (!ctx.auth?.userId) {
     throw AppError.unauthorized("User not authenticated");
   }
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
-  const { workspaceId, threadId } = input;
-
-  // Step 0 — channel member gate + permission
-  const cachedChannel = await ctx.authGate.getChannel(threadId);
-  if (!cachedChannel) throw AppError.notFound("Thread not found");
-  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
-  await Promise.all([
-    ctx.authGate.assertChannelMember(threadId),
-    ctx.permissions.assert("conversation:update", scope),
-  ]);
-
-  // Verify thread exists and user is member
-  const thread = await ctx.db.chatConversation.findFirst({
-    where: {
-      id: threadId,
-      workspaceId,
-      type: "THREAD",
-      members: { some: { userId } },
-      deletedAt: null,
-    },
-    include: {
-      members: { select: { userId: true } },
-    },
-  });
-
-  if (!thread) {
-    throw AppError.notFound("Thread not found or access denied");
+  try {
+    const { thread } = await assertAccess(input, ctx);
+    return await executeReopen(input, thread, ctx);
+  } catch (err) {
+    if (err instanceof AppError) {
+      throw err;
+    }
+    
+    // Explicit trace blocks matching generic 500 server crashes dynamically logged cleanly downstream
+    log.error("[chat:services:reopen-thread] Unexpected failure", {
+      err,
+      input: { threadId: input.threadId },
+    });
+    
+    throw err;
   }
-
-  // Check if already open
-  if (!thread.closedAt) {
-    throw AppError.badRequest("Thread is already open");
-  }
-
-  // Reopen thread
-  await ctx.db.chatConversation.update({
-    where: { id: threadId },
-    data: { closedAt: null },
-  });
-
-  // Fanout to all members
-  await Promise.all(
-    thread.members.map(async (member) => {
-      await ctx.redis.publish(
-        `user:${member.userId}:events`,
-        JSON.stringify({
-          type: "chat:thread-reopened",
-          payload: {
-            threadId,
-            reopenedBy: userId,
-            timestamp: new Date().toISOString(),
-          },
-        })
-      );
-    })
-  );
-
-  return {
-    success: true,
-    threadId,
-  };
 };

@@ -9,6 +9,10 @@ import type { MessageRow } from "./fetch-messages";
  *    value, since rows are ordered DESC — used as the next cursor)
  *  - Returns null minSequence when there are no messages
  *
+ * Additionally reconstructs rich content by merging message text with
+ * associated mentions. This ensures GraphQL responses match the format
+ * expected by the client (RichChatContent).
+ *
  * Messages remain in DESC sequence order (newest→oldest) — consistent with
  * cursor-based "scroll back" pagination on the client side.
  */
@@ -25,6 +29,7 @@ export function buildResponse(messages: MessageRow[], limit: number) {
     // override these at query time — stubs are needed only to satisfy the GQL type.
     messages: sliced.map((m) => ({
       ...m,
+      content: reconstructRichContent(m),
       replyCount: 0,
       isEdited: false,
       editedAt: null,
@@ -32,4 +37,56 @@ export function buildResponse(messages: MessageRow[], limit: number) {
     hasMore,
     minSequence,
   };
+}
+
+/**
+ * Reconstruct rich content from message content and mentions.
+ *
+ * Returns:
+ * - Plain string if no mentions exist (legacy messages)
+ * - { text, mentions } object if mentions exist (rich format for client)
+ *
+ * The client (RichChatContent) expects mentions to be in the format:
+ * { entityId, entityType, displayText, offset }
+ *
+ * Offset is computed by scanning the text for @displayText patterns.
+ */
+function reconstructRichContent(
+  message: MessageRow & {
+    mentions: Array<{
+      id: string;
+      targetEntityId: string;
+      targetEntityType: string;
+      displayText: string;
+    }>;
+  }
+): string | { text: string; mentions: Array<{ entityId: string; entityType: string; displayText: string; offset: number }> } {
+  // Extract text from content (may be { text, schemaVersion } or plain string)
+  let text: string;
+  if (message.content && typeof message.content === "object") {
+    const contentObj = message.content as Record<string, unknown>;
+    text = (typeof contentObj.text === "string" ? contentObj.text : String(message.content)) as string;
+  } else {
+    text = String(message.content ?? "");
+  }
+
+  // If no mentions, return plain text
+  if (!message.mentions || message.mentions.length === 0) {
+    return text;
+  }
+
+  // Compute correct offsets by scanning text for @displayText patterns
+  const mentions = message.mentions.map((m) => {
+    // Find the position of @displayText in the text
+    const pattern = `@${m.displayText}`;
+    const offset = text.indexOf(pattern);
+    return {
+      entityId: m.targetEntityId,
+      entityType: m.targetEntityType,
+      displayText: m.displayText,
+      offset: offset >= 0 ? offset : 0, // Fallback to 0 if not found
+    };
+  });
+
+  return { text, mentions };
 }

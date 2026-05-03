@@ -2,11 +2,10 @@
  * deleteProject — Service Handler (thin orchestrator)
  *
  * Auth:
- *   - assertProjectManager — FORBIDDEN if actor cannot manage project
- *   - permissions.assert("project:delete") — RBAC check
+ *   - permissions.assert("project:delete") — MANAGER+ only (RBAC)
  * Steps:
- *   1. getProject — cache-backed fetch for workspaceId
- *   2. [auth] assertProjectManager + assert("project:delete") — parallel
+ *   1. getProject — cache-backed fetch for workspaceId (needed for scope)
+ *   2. [auth] assert("project:delete")
  *   3. softDeleteProject — set deletedAt = now
  */
 import { AppError } from "@/shared/errors";
@@ -31,10 +30,7 @@ export const deleteProject = async (
     id: projectId,
     workspaceId: project.workspaceId,
   };
-  await Promise.all([
-    ctx.authGate.assertProjectManager(projectId, project.workspaceId),
-    ctx.permissions.assert("project:delete", scope),
-  ]);
+  await ctx.permissions.assert("project:delete", scope);
 
   await softDeleteProject(projectId, db);
   return true;

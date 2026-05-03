@@ -36,6 +36,7 @@ export async function validateAccess(
       lastSnapshotStreamId: true,
       lastSnapshotAt: true,
       workspaceId: true,
+      projectId: true,
     },
   });
 
@@ -43,9 +44,16 @@ export async function validateAccess(
     throw AppError.notFound("Page not found");
   }
 
-  // Step 0b — RBAC permission check (workspace-scoped)
-  await ctx.permissions.assert("page:read", { type: "workspace", id: page.workspaceId });
+  // Step 0b — RBAC permission check (project-scoped).
+  // MUST use project scope, not workspace scope.
+  // Resolver skips project-role evaluation when scope.type === "workspace",
+  // which causes false 403s for users whose page:read is granted via project role.
+  await ctx.permissions.assert("page:read", {
+    type: "project",
+    id: page.projectId,
+    workspaceId: page.workspaceId,
+  });
 
-  const { workspaceId: _ws, ...pageRow } = page;
+  const { workspaceId: _ws, projectId: _proj, ...pageRow } = page;
   return pageRow as PageRow;
 }

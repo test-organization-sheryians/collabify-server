@@ -7,6 +7,7 @@
  *   3. assertProjectMember     — auth gate (cache-backed)
  *   4. assert issue:update     — RBAC permission check (upload = update)
  *   5. validateSize            — guard sizeBytes ≤ 2 MB
+ *   5.5 enforceVaultQuota     — reserve storage; throws if project/workspace over limit (C-B7)
  *   6. createPendingFile       — pre-generate UUID, build S3 key, INSERT PENDING row
  *   7. generatePresignedPut    — return presignedUrl + expiresAt (TTL: 15 min)
  */
@@ -19,6 +20,7 @@ import { fetchIssue } from "./steps/fetch-issue";
 import { validateSize } from "./steps/validate-size";
 import { createPendingFile } from "./steps/create-pending-file";
 import { generatePresignedPut } from "./steps/generate-presigned-put";
+import { enforceVaultQuota } from "@/modules/vault/lib/quota-guard";
 
 const logger = createLogger("issues:services:request-description-upload");
 
@@ -52,6 +54,17 @@ export const requestDescriptionUploadHandler = async (
   ]);
 
   validateSize(input.sizeBytes);
+
+  // Step 5.5 — enforce project/workspace storage quota (C-B7)
+  // Atomically reserves sizeBytes. Throws 403 if project or workspace is over limit.
+  // If createPendingFile fails after this, reserved bytes are swept by cleanup-pending job.
+  await enforceVaultQuota({
+    projectId: issue.projectId,
+    workspaceId: project.workspaceId,
+    incomingSizeBytes: input.sizeBytes,
+    db: ctx.db,
+  });
+
   const { fileId, s3Key } = await createPendingFile(
     issue,
     input.issueId,

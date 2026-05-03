@@ -4,7 +4,7 @@ export const UpdateWorkspaceSchema = z.object({
   workspaceId: z.string(),
   actorUserId: z.string(),
   name: z.string().min(1).max(100).optional(),
-  logoUrl: z.string().url().nullable().optional(),
+  logoS3Key: z.string().nullable().optional(),
   domainWhitelist: z.string().nullable().optional(),
 });
 

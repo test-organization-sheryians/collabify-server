@@ -16,21 +16,38 @@ export async function assertAccess(
   parentMessageId: string,
   ctx: ServiceContext
 ): Promise<{ conversationId: string }> {
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
+  if (!ctx.authGate || !ctx.permissions || !ctx.auth?.userId) {
+    throw AppError.unauthorized();
+  }
 
   const parentMessage = await ctx.db.chatMessage.findUnique({
     where: { id: parentMessageId },
     select: { conversationId: true },
   });
-  if (!parentMessage) throw AppError.notFound("Message not found");
+  if (!parentMessage) {
+    throw AppError.notFound("Message not found", "MESSAGE_NOT_FOUND");
+  }
 
   const cachedChannel = await ctx.authGate.getChannel(parentMessage.conversationId);
-  if (!cachedChannel) throw AppError.notFound("Conversation not found");
+  if (!cachedChannel) {
+    throw AppError.notFound("Conversation not found", "CHANNEL_NOT_FOUND");
+  }
 
-  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
+  if (!cachedChannel.projectId) {
+    throw AppError.badRequest(
+      "Channel must belong to a project to evaluate permissions.",
+      "INVALID_CHANNEL_TYPE"
+    );
+  }
+
+  const scope = {
+    type: "project" as const,
+    id: cachedChannel.projectId,
+    workspaceId: cachedChannel.workspaceId,
+  };
   await Promise.all([
     ctx.authGate.assertChannelMember(parentMessage.conversationId),
-    ctx.permissions.assert("conversation:read", scope),
+    ctx.permissions.assert("chat:channel:read", scope),
   ]);
 
   return { conversationId: parentMessage.conversationId };

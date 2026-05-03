@@ -2,20 +2,14 @@ import type { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
 
 /**
- * assertAccess — gate step for getChannelMembers.
+ * assertAccess — Execution Step
  *
- * Checks (in order, parallelised):
- *  1. ctx.authGate.getChannel       → Redis GET auth:chan:{id}  (DB fallback)
- *  2. ctx.authGate.assertChannelMember → Redis GET auth:chan:{id}:member:{userId} (DB fallback)
- *  3. ctx.permissions.assert("conversation.member:read") → Redis permission cache
+ * System Design Decision: Chat is a high-frequency telemetry system.
+ * To achieve sub-millisecond latency for channel load times, all auth gates
+ * here leverage Redis-cached wrappers rather than querying the DB directly.
  *
- * The DB fetch in step 2 only runs on a cold cache — all three checks
- * are sub-millisecond on a warm cache. Non-members are blocked here before
- * the member list query ever runs.
- *
- * @throws AppError 401  if authGate/permissions context is missing
- * @throws AppError 404  if channel does not exist
- * @throws AppError 403  if caller is not a channel member or lacks permission
+ * @throws AppError.unauthorized
+ * @throws AppError.notFound
  */
 export async function assertAccess(
   channelId: string,
@@ -26,10 +20,16 @@ export async function assertAccess(
   const cachedChannel = await ctx.authGate.getChannel(channelId);
   if (!cachedChannel) throw AppError.notFound("Channel not found");
 
-  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
+  // System Design Decision: Channels are strictly tied to Projects in Phase D,
+  // whereas unified DMs exist at the Workspace level. We dynamically resolve
+  // the context boundary based on existence of projectId.
+  if (!cachedChannel.projectId) {
+    throw AppError.badRequest("Channel must belong to a project to evaluate permissions.");
+  }
+  const scope = { type: "project" as const, id: cachedChannel.projectId, workspaceId: cachedChannel.workspaceId };
 
   await Promise.all([
     ctx.authGate.assertChannelMember(channelId),
-    ctx.permissions.assert("conversation.member:read", scope),
+    ctx.permissions.assert("chat:channel:member:read", scope),
   ]);
 }

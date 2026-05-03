@@ -21,6 +21,7 @@ import type { DeleteVaultFolderInput } from "./schema";
 import { fetchFolder } from "./steps/fetch-folder";
 import { checkFolderEmpty } from "./steps/check-empty";
 import { softDeleteRecursive } from "./steps/soft-delete-recursive";
+import { orphanMentions } from "@/modules/mention/services";
 
 const logger = createLogger("vault:services:delete-folder");
 
@@ -42,7 +43,7 @@ export const deleteVaultFolderHandler = async (
     };
     await Promise.all([
       ctx.authGate.assertProjectMember(folder.projectId),
-      ctx.permissions.assert("vault.folder:delete", scope),
+      ctx.permissions.assert("vault:folder:delete", scope),
     ]);
 
     if (!input.cascade) {
@@ -50,6 +51,8 @@ export const deleteVaultFolderHandler = async (
     }
 
     await softDeleteRecursive(input.folderId, ctx.db);
+
+    await orphanMentions.handler({ targetEntityId: input.folderId }, ctx);
 
     logger.info("Vault folder soft-deleted", {
       folderId: input.folderId,

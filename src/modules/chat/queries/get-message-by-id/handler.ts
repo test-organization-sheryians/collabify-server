@@ -26,8 +26,10 @@ export const handler = async (
   ctx: ServiceContext
 ) => {
   try {
+    if (!ctx.auth?.userId) throw AppError.unauthorized();
+
     const message = await fetchMessage(input.messageId, ctx);
-    if (!message) throw AppError.notFound("Message not found");
+    if (!message) throw AppError.notFound("Message not found", "MESSAGE_NOT_FOUND");
 
     await assertAccess(message.conversationId, ctx);
 

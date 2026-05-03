@@ -67,7 +67,7 @@ export async function seedProjectDefaults(
           topic: "General discussion for the project team.",
           type: "CHANNEL",
           members: {
-            create: [{ userId, role: "OWNER" }],
+            create: [{ userId }],
           },
         },
       });

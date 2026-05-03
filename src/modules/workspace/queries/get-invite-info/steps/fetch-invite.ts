@@ -9,7 +9,7 @@ export async function fetchInvite(token: string, db: PrismaClient) {
   const invite = await db.workspaceInvite.findUnique({
     where: { token },
     include: {
-      workspace: { select: { name: true, logoUrl: true } },
+      workspace: { select: { name: true, logoS3Key: true } },
     },
   });
 

@@ -1,10 +1,13 @@
 /**
  * Issue module — permission manifest.
- * Each entry seeds one row in the `Permission` table.
- * hasConditions = true means the engine will call resolver with a resourceContext.
+ *
+ * Convention: resource uses COLON-separated hierarchy (no dots).
+ * Permission string = `${resource}:${action}`
+ *
+ * @example "issue:create", "issue:status:manage", "issue:comment:delete-any"
  */
 export const ISSUE_PERMISSIONS = [
-  // Core issue CRUD
+  // ── Core issue CRUD ──────────────────────────────────────────────────────────
   {
     resource: "issue",
     action: "create",
@@ -23,7 +26,7 @@ export const ISSUE_PERMISSIONS = [
     resource: "issue",
     action: "update",
     module: "issues",
-    description: "Edit issue title/description/fields",
+    description: "Edit issue title, description, and fields",
     hasConditions: false,
   },
   {
@@ -33,62 +36,49 @@ export const ISSUE_PERMISSIONS = [
     description: "Delete an issue",
     hasConditions: false,
   },
-  // Issue status (Kanban columns)
   {
-    resource: "issue.status",
+    resource: "issue",
+    action: "assign",
+    module: "issues",
+    description: "Assign or unassign members to an issue",
+    hasConditions: false,
+  },
+  // ── Status (Kanban columns) ──────────────────────────────────────────────────
+  {
+    resource: "issue:status",
+    action: "manage",
+    module: "issues",
+    description: "Create, reorder, and delete issue status columns",
+    hasConditions: false,
+  },
+  // ── Labels ───────────────────────────────────────────────────────────────────
+  {
+    resource: "issue:label",
+    action: "manage",
+    module: "issues",
+    description: "Create, update, and delete issue labels",
+    hasConditions: false,
+  },
+  // ── Comments ─────────────────────────────────────────────────────────────────
+  {
+    resource: "issue:comment",
     action: "create",
     module: "issues",
-    description: "Create a new status column",
+    description: "Add a comment to an issue",
     hasConditions: false,
   },
   {
-    resource: "issue.status",
-    action: "read",
-    module: "issues",
-    description: "List status columns",
-    hasConditions: false,
-  },
-  {
-    resource: "issue.status",
-    action: "update",
-    module: "issues",
-    description: "Edit status name/color/icon",
-    hasConditions: false,
-  },
-  {
-    resource: "issue.status",
+    resource: "issue:comment",
     action: "delete",
     module: "issues",
-    description: "Delete a status column",
-    hasConditions: false,
-  },
-  // Issue labels
-  {
-    resource: "issue.label",
-    action: "create",
-    module: "issues",
-    description: "Create a label",
-    hasConditions: false,
+    description: "Delete own comments",
+    hasConditions: true, // createdBy condition
   },
   {
-    resource: "issue.label",
-    action: "read",
+    resource: "issue:comment",
+    action: "delete-any",
     module: "issues",
-    description: "List labels",
-    hasConditions: false,
-  },
-  {
-    resource: "issue.label",
-    action: "update",
-    module: "issues",
-    description: "Edit label name/color",
-    hasConditions: false,
-  },
-  {
-    resource: "issue.label",
-    action: "delete",
-    module: "issues",
-    description: "Delete a label",
+    description: "Delete any comment (manager/admin action)",
     hasConditions: false,
   },
 ] as const;

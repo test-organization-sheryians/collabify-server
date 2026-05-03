@@ -7,7 +7,7 @@ import type { UpdateBoardDescriptionInput } from "./types";
  *
  * Auth:
  *   - assertBoardCollaborator — cache-backed; FORBIDDEN if not a collaborator
- *   - permissions.assert("board:update") — RBAC check
+ *   - permissions.assert("whiteboard:update") — RBAC check
  */
 export const handler = async (
   input: UpdateBoardDescriptionInput,
@@ -32,7 +32,7 @@ export const handler = async (
     };
     await Promise.all([
       ctx.authGate.assertBoardCollaborator(boardId),
-      ctx.permissions.assert("board:update", scope),
+      ctx.permissions.assert("whiteboard:update", scope),
     ]);
 
     // Step 2 — update description

@@ -25,11 +25,21 @@ const envSchema = z.object({
   // Email
   EMAIL_FROM: z.string().email(),
   EMAIL_PROVIDER: z
-    .enum(["ses", "console", "sendgrid", "nodemailer"])
+    .enum(["ses", "console", "sendgrid", "nodemailer", "resend"])
     .default("console"),
+
+  // Push
+  PUSH_PROVIDER: z
+    .enum(["fcm", "console"])
+    .default("console"),
+  FIREBASE_PROJECT_ID:           z.string().optional(),
+  FIREBASE_SERVICE_ACCOUNT_JSON: z.string().optional(), // JSON string of service account key
 
   // SendGrid
   SENDGRID_API_KEY: z.string().optional(),
+
+  // Resend
+  RESEND_API_KEY: z.string().optional(),
 
   // SMTP (Nodemailer adapter — works with any SMTP server or Ethereal for local dev)
   SMTP_HOST: z.string().optional(),
@@ -44,6 +54,12 @@ const envSchema = z.object({
   AWS_REGION: z.string().default("us-east-1"),
   S3_WHITEBOARD_BUCKET: z.string().min(1).default("collabify-dev-whiteboards"),
   S3_VAULT_BUCKET: z.string().min(1).default("collabify-dev-vault"),
+
+  // Vault Lifecycle — dev/test overrides (ignored in production)
+  // VAULT_FAST_CLEANUP_MS: override the 30-min unreferenced grace period (e.g. 10000 = 10s)
+  // VAULT_CLEANUP_INTERVAL_MS: override the 30-min job run cadence (e.g. 15000 = 15s)
+  VAULT_FAST_CLEANUP_MS: z.coerce.number().optional(),
+  VAULT_CLEANUP_INTERVAL_MS: z.coerce.number().optional(),
 
   // Chat Debug / Chaos
   DEBUG_CHAT: z.enum(["true", "false"]).default("false"),

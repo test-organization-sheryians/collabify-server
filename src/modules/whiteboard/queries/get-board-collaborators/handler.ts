@@ -7,7 +7,7 @@ import type { GetBoardCollaboratorsInput, BoardCollaborator } from "./types";
  *
  * Auth:
  *   - assertBoardCollaborator — cache-backed membership gate
- *   - permissions.assert("board.collaborator:read") — RBAC check
+ *   - permissions.assert("whiteboard:collaborator:read") — RBAC check
  */
 export const handler = async (
   input: GetBoardCollaboratorsInput,
@@ -32,7 +32,7 @@ export const handler = async (
     };
     await Promise.all([
       ctx.authGate.assertBoardCollaborator(boardId),
-      ctx.permissions.assert("board.collaborator:read", scope),
+      ctx.permissions.assert("whiteboard:collaborator:read", scope),
     ]);
 
     // Step 2 — fetch collaborators with user info

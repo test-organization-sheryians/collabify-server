@@ -268,6 +268,22 @@ export const wsRegistry = {
     return sockets;
   },
 
+  /**
+   * Send a raw message string to all sockets belonging to a user.
+   * Multi-tab aware — all open tabs/devices receive the message.
+   * Best-effort: dead sockets are skipped silently; Janitor handles cleanup.
+   */
+  sendToUser(userId: string, message: string): void {
+    const sockets = this.getUserSockets(userId);
+    for (const socket of sockets) {
+      try {
+        socket.send(message);
+      } catch {
+        // Socket may be mid-close — ignore, Janitor will remove it
+      }
+    }
+  },
+
   getMetrics() {
     return {
       activeSockets: globalSocketMap.size,

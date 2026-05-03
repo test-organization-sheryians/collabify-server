@@ -1,83 +1,38 @@
-import { ServiceContext } from "@/graphql/types";
+import type { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
-import type { RemoveGroupMemberInput, RemoveGroupMemberOutput } from "./types";
+import { createLogger } from "@/shared/lib/logger";
 
+import type { RemoveGroupMemberInput, RemoveGroupMemberOutput } from "./types";
+import { assertAccess } from "./steps/assert-access";
+import { executeRemove } from "./steps/execute-remove";
+
+const log = createLogger("chat:services:remove-group-member");
+
+/**
+ * Remove Group Member Handler (Phase D)
+ * Evaluates Project level limits resolving `chat:channel:member:remove`, drops DB targets dynamically clearing Redis explicitly.
+ */
 export const handler = async (
   input: RemoveGroupMemberInput,
   ctx: ServiceContext
 ): Promise<RemoveGroupMemberOutput> => {
-  const { userId: actorId } = ctx.auth;
-  if (!actorId) {
+  if (!ctx.auth?.userId) {
     throw AppError.unauthorized("User not authenticated");
   }
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
-  const { workspaceId, groupId, userId: targetUserId } = input;
-
-  // Step 0 — channel member gate + permission
-  const cachedChannel = await ctx.authGate.getChannel(groupId);
-  if (!cachedChannel) throw AppError.notFound("Group not found");
-  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
-  await Promise.all([
-    ctx.authGate.assertChannelMember(groupId),
-    ctx.permissions.assert("conversation.member:remove", scope),
-  ]);
-
-  // Verify group exists
-  const group = await ctx.db.chatConversation.findFirst({
-    where: {
-      id: groupId,
-      workspaceId,
-      type: "GROUP_DM" as const,
-      deletedAt: null,
-    },
-  });
-
-  if (!group) {
-    throw AppError.notFound("Group not found");
+  try {
+    const { group } = await assertAccess(input, ctx);
+    return await executeRemove(input, group, ctx);
+  } catch (err) {
+    if (err instanceof AppError) {
+      throw err;
+    }
+    
+    log.error("[chat:services:remove-group-member] Unexpected failure", {
+      err,
+      input: { groupId: input.groupId, userId: input.userId },
+    });
+    
+    throw err;
   }
-
-  // Verify target membership exists
-  const membership = await ctx.db.chatMember.findUnique({
-    where: {
-      conversationId_userId: {
-        conversationId: groupId,
-        userId: targetUserId,
-      },
-    },
-  });
-
-  if (!membership) {
-    throw AppError.notFound("User is not a member of this group");
-  }
-
-  // Remove member
-  await ctx.db.chatMember.delete({
-    where: {
-      conversationId_userId: {
-        conversationId: groupId,
-        userId: targetUserId,
-      },
-    },
-  });
-
-  // Fanout to removed user
-  await ctx.redis.publish(
-    `user:${targetUserId}:events`,
-    JSON.stringify({
-      type: "chat:group-member-removed",
-      payload: {
-        groupId,
-        groupName: group.name,
-        removedBy: actorId,
-        timestamp: new Date().toISOString(),
-      },
-    })
-  );
-
-  return {
-    success: true,
-    groupId,
-    userId: targetUserId,
-  };
 };

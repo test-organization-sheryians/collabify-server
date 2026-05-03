@@ -23,6 +23,7 @@ import { typeDefs as unlockPageTypeDefs } from "../services/unlock-page/type-def
 import { typeDefs as reorderPageTypeDefs } from "../services/reorder-page/type-defs";
 import { typeDefs as addPageCollaboratorsTypeDefs } from "../services/add-page-collaborators/type-defs";
 import { typeDefs as removePageCollaboratorTypeDefs } from "../services/remove-page-collaborator/type-defs";
+import { typeDefs as updatePageDetailsTypeDefs } from "../services/update-page-details/type-defs";
 
 // ─── Queries ─────────────────────────────────────────────────────────────────
 
@@ -31,6 +32,7 @@ import { typeDefs as getPageSnapshotTypeDefs } from "../queries/get-page-snapsho
 import { typeDefs as getProjectPagesTypeDefs } from "../queries/get-project-pages/type-defs";
 import { typeDefs as getPageCollaboratorsTypeDefs } from "../queries/get-page-collaborators/type-defs";
 import { typeDefs as getActivePageCollaboratorsTypeDefs } from "../queries/get-active-page-collaborators/type-defs";
+import { typeDefs as getPagesHomeTypeDefs } from "../queries/get-pages-home/type-defs";
 
 // ─── Shared Base Types ───────────────────────────────────────────────────────
 
@@ -124,10 +126,12 @@ export const typeDefs = [
   reorderPageTypeDefs,
   addPageCollaboratorsTypeDefs,
   removePageCollaboratorTypeDefs,
+  updatePageDetailsTypeDefs,
   // Queries
   getPageTypeDefs,
   getPageSnapshotTypeDefs,
   getProjectPagesTypeDefs,
   getPageCollaboratorsTypeDefs,
   getActivePageCollaboratorsTypeDefs,
+  getPagesHomeTypeDefs,
 ];

@@ -118,6 +118,63 @@ const FLOW_GROUPS: Record<string, GroupFlag[]> = {
   "vault:services:confirm-upload:verify-s3": ["vault-upload-flow"],
   "vault:services:confirm-upload:activate": ["vault-upload-flow"],
   "vault:lib:quota-guard": ["vault-upload-flow"],
+
+  // ── Vault Media Delete Lifecycle ──────────────────────────────────────
+  "vault:services:mark-unreferenced": ["vault-media-lifecycle"],
+  "vault:jobs:unreferenced-cleanup":   ["vault-media-lifecycle"],
+  "vault:lib:is-file-referenced":      ["vault-media-lifecycle"],
+
+  // ── Notification: Outbox Ingestion Flow ───────────────────────────────
+  // Covers: emit → poller pickup → decider queue handoff
+  "notification:debug":                ["notification-outbox-flow", "notification-delivery-flow", "notification-channel-flow"],
+  "notification:outbox:writer":        ["notification-outbox-flow"],
+  "notification:engine:poller":        ["notification-outbox-flow"],
+  "notification:engine:bootstrap":     ["notification-outbox-flow", "notification-delivery-flow"],
+
+  // ── Notification: Delivery Decision Flow ─────────────────────────────
+  // Covers: decider worker, fanout, batching, preference resolution, presence, rate-limit
+  "notification:engine:decider":          ["notification-delivery-flow"],
+  "notification:engine:fanout":           ["notification-delivery-flow"],
+  "notification:engine:batch":            ["notification-delivery-flow"],
+  "notification:engine:recovery":         ["notification-delivery-flow"],
+  "notification:engine:cleanup":          ["notification-delivery-flow"],
+  "notification:shared:preference-resolver": ["notification-delivery-flow", "notification-shared-flow"],
+  "notification:shared:preference-cache":    ["notification-delivery-flow", "notification-shared-flow"],
+  "notification:shared:preference-seeder":   ["notification-delivery-flow", "notification-shared-flow"],
+  "notification:shared:preference-writer":   ["notification-delivery-flow", "notification-shared-flow"],
+  "notification:shared:presence":            ["notification-delivery-flow", "notification-shared-flow"],
+  "notification:shared:rate-limit":          ["notification-delivery-flow", "notification-shared-flow"],
+  "notification:shared:fanout":              ["notification-delivery-flow", "notification-shared-flow"],
+  "notification:shared:fanout-cursor":       ["notification-delivery-flow", "notification-shared-flow"],
+  "notification:shared:batch-engine":        ["notification-delivery-flow", "notification-shared-flow"],
+  "notification:shared:batch-store":         ["notification-delivery-flow", "notification-shared-flow"],
+
+  // ── Notification: Channel Workers Flow ───────────────────────────────
+  // Covers: all 4 channel workers + their direct dependencies
+  "notification:channel:email":              ["notification-channel-flow"],
+  "notification:channel:push":               ["notification-channel-flow"],
+  "notification:channel:inapp":              ["notification-channel-flow"],
+  "notification:channel:inapp:store":        ["notification-channel-flow"],
+  "notification:channel:inapp:count-cache":  ["notification-channel-flow"],
+  "notification:channel:realtime":           ["notification-channel-flow"],
+  "notification:channel:realtime:publisher": ["notification-channel-flow"],
+
+  // ── Notification: Shared Infrastructure Flow ──────────────────────────
+  // Covers: dedup, idempotency, permission guard, lib utilities
+  "notification:shared:dedup":        ["notification-shared-flow"],
+  "notification:shared:idempotency":  ["notification-shared-flow"],
+  "notification:shared:permission":   ["notification-shared-flow"],
+  "notification:lib":                 ["notification-shared-flow"],
+  "notification:services:read":       ["notification-shared-flow"],
+
+  // ── Notification: Management ──────────────────────────────────────────
+  "notification:management:queries:get-notifications":   ["notification-shared-flow"],
+  "notification:management:queries:get-preferences":     ["notification-shared-flow"],
+  "notification:management:queries:get-unread-count":    ["notification-shared-flow"],
+  "notification:management:services:mark-read":          ["notification-shared-flow"],
+  "notification:management:services:mark-all-read":      ["notification-shared-flow"],
+  "notification:management:services:mute-conversation":  ["notification-shared-flow"],
+  "notification:management:services:update-preferences": ["notification-shared-flow"],
 };
 
 

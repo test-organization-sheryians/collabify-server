@@ -4,7 +4,7 @@
  * Upsert-semantics: invites new collaborators or updates existing roles in one call.
  *
  * Execution:
- *   Step 1 — [auth] assertPageCollaborator + assert("page.collaborator:add") — parallel (cache-backed)
+ *   Step 1 — [auth] assertPageCollaborator + assert("page:collaborator:add") — parallel (cache-backed)
  *   Step 2 — validateUsers        : all target userIds must exist in DB
  *   Step 3 — upsertCollaborators  : parallel upsert (create + role update) with user join
  */
@@ -15,6 +15,7 @@ import type { ServiceContext } from "@/graphql/types";
 import type { AddPageCollaboratorsInput } from "./schema";
 import { validateUsers } from "./steps/validate-users";
 import { upsertCollaborators } from "./steps/upsert-collaborators";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 const logger = createLogger("pages:services:add-page-collaborators");
 
@@ -39,7 +40,7 @@ export const handler = async (
     };
     await Promise.all([
       ctx.authGate.assertPageCollaborator(input.pageId),
-      ctx.permissions.assert("page.collaborator:add", scope),
+      ctx.permissions.assert("page:collaborator:add", scope),
     ]);
 
     // Step 2 — pre-flight user existence check
@@ -52,6 +53,30 @@ export const handler = async (
       input.collaborators,
       ctx.db
     );
+
+    // Step 4 — emit notification for each collaborator added
+    for (const collaborator of addedCollaborators) {
+      await emit(ctx.db as any, {
+        type: "page.collaborator.added",
+        payload: {
+          pageId: input.pageId,
+          pageTitle: (cachedPage as any).title ?? "Untitled",
+          workspaceId: proj?.workspaceId ?? "",
+          workspaceSlug: proj?.slug ?? "",
+          newMemberId: collaborator.userId,
+          actorId: userId,
+          actorName: "Someone",
+          accessLevel: collaborator.role ?? "viewer",
+        } as any,
+        deduplicationId: `page.collaborator.added:${input.pageId}:${collaborator.userId}:${Date.now()}`,
+      }).catch((err) =>
+        logger.error("Failed to emit page.collaborator.added notification", {
+          err,
+          pageId: input.pageId,
+          collaboratorId: collaborator.userId,
+        })
+      );
+    }
 
     logger.info("Collaborators added/updated", {
       pageId: input.pageId,

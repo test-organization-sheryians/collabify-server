@@ -1,74 +1,47 @@
-import { ServiceContext } from "@/graphql/types";
+import type { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
+import { createLogger } from "@/shared/lib/logger";
+
 import type { SubscribeThreadInput, SubscribeThreadOutput } from "./types";
+import { assertAccess } from "./steps/assert-access";
+import { executeSubscribe } from "./steps/execute-subscribe";
+
+const log = createLogger("chat:services:subscribe-thread");
 
 /**
- * Subscribe Thread Handler
- *
- * Explicitly subscribe to a thread (even if not participant).
- * Creates ChatMember entry if doesn't exist.
+ * Subscribe Thread Handler (Phase D)
+ * Evaluates `assertChannelMember` properly clearing duplicate connections mappings securely isolating trace bounds globally across internal trace limits seamlessly masking executions natively inside logger arrays.
  */
 export const handler = async (
   input: SubscribeThreadInput,
   ctx: ServiceContext
 ): Promise<SubscribeThreadOutput> => {
-  const { userId } = ctx.auth;
-  if (!userId) {
+  if (!ctx.auth?.userId) {
     throw AppError.unauthorized("User not authenticated");
   }
-  if (!ctx.authGate) throw AppError.unauthorized();
 
-  const { threadId } = input;
+  try {
+    const { isAlreadySubscribed } = await assertAccess(input, ctx);
 
-  // Step 0 — channel member gate (verifies access to thread/parent)
-  const cachedChannel = await ctx.authGate.getChannel(threadId);
-  if (!cachedChannel) throw AppError.notFound("Thread not found");
-  await ctx.authGate.assertChannelMember(threadId);
+    if (isAlreadySubscribed) {
+      return {
+        success: true,
+        threadId: input.threadId,
+        isSubscribed: true,
+      };
+    }
 
-  // Verify thread exists
-  const thread = await ctx.db.chatConversation.findFirst({
-    where: {
-      id: threadId,
-      type: "THREAD",
-      deletedAt: null,
-    },
-  });
-
-  if (!thread) {
-    throw AppError.notFound("Thread not found");
+    return await executeSubscribe(input, ctx);
+  } catch (err) {
+    if (err instanceof AppError) {
+      throw err;
+    }
+    
+    log.error("[chat:services:subscribe-thread] Unexpected failure", {
+      err,
+      input: { threadId: input.threadId },
+    });
+    
+    throw err;
   }
-
-  // Check if already member
-  const existing = await ctx.db.chatMember.findUnique({
-    where: {
-      conversationId_userId: {
-        conversationId: threadId,
-        userId,
-      },
-    },
-  });
-
-  if (existing) {
-    // Already subscribed
-    return {
-      success: true,
-      threadId,
-      isSubscribed: true,
-    };
-  }
-
-  // Create subscription (member entry)
-  await ctx.db.chatMember.create({
-    data: {
-      conversationId: threadId,
-      userId,
-      role: "MEMBER",
-    },
-  });
-
-  return {
-    success: true,
-    threadId,
-    isSubscribed: true,
-  };
 };

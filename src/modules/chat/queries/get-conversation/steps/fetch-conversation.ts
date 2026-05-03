@@ -10,6 +10,7 @@ const conversationSelect = {
   name: true,
   topic: true,
   isArchived: true,
+  isPublic: true,
   workspaceId: true,
   projectId: true,
   parentMessageId: true,
@@ -19,7 +20,6 @@ const conversationSelect = {
   members: {
     select: {
       userId: true,
-      role: true,
       isMuted: true,
       joinedAt: true,
       lastReadSeq: true,
@@ -29,6 +29,13 @@ const conversationSelect = {
           fullName: true,
           email: true,
           avatarUrl: true,
+          projectMembers: {
+            select: {
+              projectRole: {
+                select: { name: true },
+              },
+            },
+          },
         },
       },
     },

@@ -5,13 +5,14 @@ import type {
   AddBoardCollaboratorsInput,
   AddBoardCollaboratorsResult,
 } from "./types";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 /**
  * addBoardCollaborators — Service Handler
  *
  * Auth:
  *   - assertBoardCollaborator — cache-backed; FORBIDDEN if not a collaborator
- *   - permissions.assert("board.collaborator:add") — RBAC check
+ *   - permissions.assert("whiteboard:collaborator:add") — RBAC check
  */
 export const handler = async (
   input: AddBoardCollaboratorsInput,
@@ -36,7 +37,7 @@ export const handler = async (
     };
     await Promise.all([
       ctx.authGate.assertBoardCollaborator(boardId),
-      ctx.permissions.assert("board.collaborator:add", scope),
+      ctx.permissions.assert("whiteboard:collaborator:add", scope),
     ]);
 
     // Step 2 — validate all users are workspace members
@@ -62,6 +63,22 @@ export const handler = async (
           data: { whiteboardId: boardId, userId: uid },
         });
         addedCount++;
+
+        // Emit notification for each collaborator added
+        await emit(ctx.db as any, {
+          type: "whiteboard.collaborator.added",
+          payload: {
+            whiteboardId: boardId,
+            whiteboardName: (cachedBoard as any).title ?? "Untitled",
+            workspaceId: proj?.workspaceId ?? "",
+            workspaceSlug: proj?.slug ?? "",
+            newMemberId: uid,
+            actorId: ctx.auth?.userId ?? "",
+            actorName: "Someone",
+            accessLevel: "editor",
+          } as any,
+          deduplicationId: `whiteboard.collaborator.added:${boardId}:${uid}:${Date.now()}`,
+        }).catch(() => { /* non-fatal */ });
       } catch (error) {
         if (
           error instanceof Prisma.PrismaClientKnownRequestError &&

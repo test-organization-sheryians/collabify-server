@@ -11,9 +11,11 @@ import * as getVaultSidebar from "../queries/get-sidebar";
 import * as getVaultDownloadUrl from "../queries/get-download-url";
 import * as getVaultUsage from "../queries/get-vault-usage";
 import * as getVaultAncestors from "../queries/get-ancestors";
+import * as getBatchDownloadUrls from "../queries/get-batch-download-urls";
 
 import * as requestVaultUpload from "../services/request-upload";
 import * as confirmVaultUpload from "../services/confirm-upload";
+import * as registerExternalFile from "../services/register-external-file";
 import * as createVaultFolder from "../services/create-folder";
 import * as renameVaultFolder from "../services/rename-folder";
 import * as deleteVaultFolder from "../services/delete-folder";
@@ -23,6 +25,7 @@ import * as renameVaultFile from "../services/rename-file";
 import * as deleteVaultFile from "../services/delete-file";
 import * as pinVaultFolder from "../services/pin-folder";
 import * as unpinVaultFolder from "../services/unpin-folder";
+import * as markFilesUnreferenced from "../services/mark-unreferenced";
 
 const sharedTypeDefs = /* GraphQL */ `
   enum VaultNodeType {
@@ -105,7 +108,7 @@ const sharedTypeDefs = /* GraphQL */ `
 
   type VaultDownloadUrl {
     url: String!
-    expiresAt: DateTime!
+    expiresAt: DateTime
   }
 
   type VaultUsage {
@@ -137,8 +140,10 @@ export const vaultTypeDefs = [
   getVaultDownloadUrl.typeDefs,
   getVaultUsage.typeDefs,
   getVaultAncestors.typeDefs,
+  getBatchDownloadUrls.typeDefs,
   requestVaultUpload.typeDefs,
   confirmVaultUpload.typeDefs,
+  registerExternalFile.typeDefs,
   createVaultFolder.typeDefs,
   renameVaultFolder.typeDefs,
   deleteVaultFolder.typeDefs,
@@ -148,4 +153,5 @@ export const vaultTypeDefs = [
   deleteVaultFile.typeDefs,
   pinVaultFolder.typeDefs,
   unpinVaultFolder.typeDefs,
+  markFilesUnreferenced.typeDefs,
 ];

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const syncReactionsSchema = z.object({
-  conversationId: z.string().uuid(),
+  conversationId: z.string().min(1),
   lastEventId: z.string().default("0-0"),
 });
 

@@ -5,6 +5,7 @@ import { appRedis } from "@/infra/redis";
 import { createSuccessFrame } from "@/infra/ws/types";
 import { WhiteboardKeys } from "../../infra/whiteboard-keys";
 import { cleanupBoardResources } from "./cleanup";
+import { orphanMentions } from "@/modules/mention/services";
 import type { DeleteBoardInput, DeleteBoardResult } from "./types";
 
 const logger = createLogger("whiteboard:services:delete-board");
@@ -16,7 +17,7 @@ const logger = createLogger("whiteboard:services:delete-board");
  *
  * Auth:
  *   - assertBoardCollaborator — cache-backed membership gate
- *   - permissions.assert("board:delete") — RBAC check
+ *   - permissions.assert("whiteboard:delete") — RBAC check
  * Note: creator-only rule preserved after auth gate
  */
 export const handler = async (
@@ -42,7 +43,7 @@ export const handler = async (
     };
     await Promise.all([
       ctx.authGate.assertBoardCollaborator(boardId),
-      ctx.permissions.assert("board:delete", scope),
+      ctx.permissions.assert("whiteboard:delete", scope),
     ]);
 
     // Step 2 — fetch board + creator check, soft-delete atomically
@@ -69,6 +70,8 @@ export const handler = async (
         select: { id: true, workspaceId: true },
       });
     });
+
+    await orphanMentions.handler({ targetEntityId: boardId }, ctx);
 
     logger.info("Board soft-deleted", {
       boardId,

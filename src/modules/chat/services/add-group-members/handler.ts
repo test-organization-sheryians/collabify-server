@@ -1,110 +1,35 @@
-import { ServiceContext } from "@/graphql/types";
+import { createLogger } from "@/shared/lib/logger";
 import { AppError } from "@/shared/errors";
+import type { ServiceContext } from "@/graphql/types";
 import type { AddGroupMembersInput, AddGroupMembersOutput } from "./types";
+import { assertAccess } from "./steps/assert-access";
+import { addMembers } from "./steps/add-members";
 
+const log = createLogger("chat:services:add-group-members");
+
+/**
+ * addGroupMembers — registers a bulk array of userIds into a specific target GROUP_DM.
+ *
+ * Steps:
+ *  1. assertAccess — asserts authentication, retrieves authGate channel instance to fetch `groupName`.
+ *  2. addMembers   — performs $transaction bulk mapped member creation & fanout broadcast.
+ *
+ * @throws AppError 401  if not authenticated
+ * @throws AppError 404  if group is unavailable or invalid type
+ * @throws AppError 403  if insufficient `chat:channel:member:add` permissions
+ */
 export const handler = async (
   input: AddGroupMembersInput,
   ctx: ServiceContext
 ): Promise<AddGroupMembersOutput> => {
-  const { userId } = ctx.auth;
-  if (!userId) {
-    throw AppError.unauthorized("User not authenticated");
+  try {
+    if (!ctx.auth?.userId) throw AppError.unauthorized();
+
+    const { groupName } = await assertAccess(input.workspaceId, input.groupId, ctx);
+    return await addMembers(input, groupName, ctx);
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    log.error("[add-group-members] Unexpected failure", { err, ...input });
+    throw err;
   }
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
-
-  const { workspaceId, groupId, userIds } = input;
-
-  // Step 0 — channel member gate + permission
-  const cachedChannel = await ctx.authGate.getChannel(groupId);
-  if (!cachedChannel) throw AppError.notFound("Group not found");
-  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
-  await Promise.all([
-    ctx.authGate.assertChannelMember(groupId),
-    ctx.permissions.assert("conversation.member:add", scope),
-  ]);
-
-  // Verify group exists
-  const group = await ctx.db.chatConversation.findFirst({
-    where: {
-      id: groupId,
-      workspaceId,
-      type: "GROUP_DM" as const,
-      deletedAt: null,
-    },
-  });
-
-  if (!group) {
-    throw AppError.notFound("Group not found");
-  }
-
-  // Get existing members
-  const existingMembers = await ctx.db.chatMember.findMany({
-    where: {
-      conversationId: groupId,
-      userId: { in: userIds },
-    },
-    select: { userId: true },
-  });
-
-  const existingIds = new Set(existingMembers.map((m) => m.userId));
-  const newUserIds = userIds.filter((id) => !existingIds.has(id));
-
-  if (newUserIds.length === 0) {
-    throw AppError.badRequest("All users are already members");
-  }
-
-  // Bulk add in transaction
-  const newMembers = await ctx.db.$transaction(
-    newUserIds.map((uid) =>
-      ctx.db.chatMember.create({
-        data: {
-          conversationId: groupId,
-          userId: uid,
-          role: "MEMBER",
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              fullName: true,
-              email: true,
-              avatarUrl: true,
-            },
-          },
-        },
-      })
-    )
-  );
-
-  // Fanout to new members
-  await Promise.all(
-    newMembers.map(async (member) => {
-      await ctx.redis.publish(
-        `user:${member.userId}:events`,
-        JSON.stringify({
-          type: "chat:group-member-added",
-          payload: {
-            groupId,
-            groupName: group.name,
-            timestamp: new Date().toISOString(),
-          },
-        })
-      );
-    })
-  );
-
-  return {
-    success: true,
-    addedCount: newMembers.length,
-    skippedCount: existingIds.size,
-    members: newMembers.map((m) => ({
-      userId: m.userId,
-      user: {
-        id: m.user.id,
-        fullName: m.user.fullName || "Unknown",
-        email: m.user.email,
-        avatarUrl: m.user.avatarUrl,
-      },
-    })),
-  };
 };

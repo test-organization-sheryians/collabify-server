@@ -26,6 +26,7 @@ export async function updateIssue(
       where: { id: input.issueId },
       data: {
         ...(input.title !== undefined && { title: input.title }),
+        ...(input.statusId !== undefined && { statusId: input.statusId }),
         ...(input.priority !== undefined && { priority: input.priority }),
         ...(input.assigneeId !== undefined && { assigneeId: input.assigneeId }),
         ...(input.dueDate !== undefined && { dueDate: input.dueDate }),

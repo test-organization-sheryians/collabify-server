@@ -22,10 +22,8 @@ export const getMyProjects = async (
 
   if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
-  const scope = { type: "workspace" as const, id: workspaceId };
-  const [, , isAdmin] = await Promise.all([
+  const [, isAdmin] = await Promise.all([
     ctx.authGate.assertWorkspaceMember(workspaceId),
-    ctx.permissions.assert("project:read", scope),
     ctx.authGate.isWorkspaceAdminOrAbove(workspaceId),
   ]);
 

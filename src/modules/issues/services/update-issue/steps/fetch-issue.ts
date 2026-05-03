@@ -1,8 +1,13 @@
-/** Loads issue (id, projectId) and throws NOT_FOUND if missing or deleted. */
+/** Loads issue lean fields and throws NOT_FOUND if missing or deleted. */
 import { AppError } from "@/shared/errors";
 import type { PrismaClient } from "@prisma/client";
 
-export type LeanIssue = { id: string; projectId: string };
+export type LeanIssue = {
+  id:         string;
+  projectId:  string;
+  assigneeId: string | null;
+  statusId:   string;
+};
 
 export async function fetchIssue(
   issueId: string,
@@ -10,7 +15,7 @@ export async function fetchIssue(
 ): Promise<LeanIssue> {
   const issue = await db.issue.findUnique({
     where: { id: issueId, deletedAt: null },
-    select: { id: true, projectId: true },
+    select: { id: true, projectId: true, assigneeId: true, statusId: true },
   });
   if (!issue) throw AppError.notFound("Issue not found.");
   return issue;

@@ -1,50 +1,61 @@
-import { Job } from "bullmq";
 import { createWorker } from "@/services/bullmq";
-import { QUEUE_NAMES, REDIS_KEYS } from "../../core/constants";
-import { PushJobData } from "../../core/types";
+import { pushProvider } from "@/services/push-provider";
+import { QUEUE_NAMES, CONCURRENCY } from "../../constants";
 import { createLogger } from "@/shared/lib/logger";
+import * as idempotencyGuard from "../../shared/idempotency/idempotency-guard";
+import type { PushJobData } from "../../events/types";
+import { notifDebug } from "../../shared/debug/notification-debug";
+
+// =============================================================================
+// Push Worker (Phase 4.3)
+//
+// Processes PushQueue jobs. Responsibilities:
+//   1. Idempotency check (channel-scoped: push:{eventId}:{userId})
+//   2. Send via pushProvider (console adapter by default — FCM when configured)
+//
+// Token management will be added here when a device token registry is built.
+// For now pushProvider.send() receives the userId and resolves tokens internally
+// (or logs to console in dev).
+// =============================================================================
 
 const logger = createLogger("notification:channel:push");
-import { redis } from "@/infra/redis";
-import { pushProvider } from "@/services/push-provider";
-import { ProviderError } from "../../core/errors";
 
-export const createPushWorker = () => {
-  return createWorker<PushJobData>(
+export const createPushWorker = () =>
+  createWorker<PushJobData>(
     QUEUE_NAMES.PUSH,
-    async (job: Job<PushJobData>) => {
-      const { userId, title, body, eventId } = job.data;
+    async (job) => {
+      const { eventId, recipientUserId, content } = job.data;
 
-      const lockKey = `${REDIS_KEYS.IDEMPOTENCY_PREFIX}${eventId}:push`;
-      const acquired = await redis.set(lockKey, "1", "EX", 86400, "NX");
-
-      if (!acquired) {
-        logger.debug("Duplicate Push Job Dropped", { eventId, userId });
+      // ── 1. Idempotency ───────────────────────────────────────────────────
+      const allowed = await idempotencyGuard.check(eventId, "push", recipientUserId);
+      if (!allowed) {
+        logger.debug("Push job: duplicate dropped", { eventId, recipientUserId });
         return;
       }
 
-      logger.debug("Processing Push Notification", {
-        jobId: job.id,
-        userId,
-        title,
+      // ── 2. Send ──────────────────────────────────────────────────────────
+      logger.debug("Push job: sending", {
+        jobId:  job.id,
+        eventId,
+        userId: recipientUserId,
+        title:  content.title,
       });
 
       try {
-        // TODO: Integrate actual Push Provider (FCM/APNS)
-        const stringData = job.data.data
-          ? Object.fromEntries(
-              Object.entries(job.data.data).map(([k, v]) => [k, String(v)])
-            )
-          : undefined;
+        // pushProvider accepts (userIds[], title, body, data)
+        await pushProvider.send(
+          [recipientUserId],
+          content.title,
+          content.body,
+          content.data
+        );
 
-        await pushProvider.send([userId], title, body, stringData);
-
-        logger.info("Push Notification Sent (Simulated)", { eventId, userId });
-      } catch (err: unknown) {
-        throw new ProviderError("PUSH", err as Error);
-      } finally {
-        await redis.del(lockKey);
+        logger.info("Push job: delivered", { eventId, userId: recipientUserId });
+        notifDebug.channel({ channel: "PUSH", eventId, userId: recipientUserId, extra: { title: content.title } });
+      } catch (err) {
+        logger.error("Push job: delivery failed", { err, eventId, userId: recipientUserId });
+        throw err; // BullMQ will retry
       }
-    }
+    },
+    { concurrency: CONCURRENCY.PUSH }
   );
-};

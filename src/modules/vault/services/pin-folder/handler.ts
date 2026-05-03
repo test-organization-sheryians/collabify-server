@@ -35,7 +35,7 @@ export const pinVaultFolderHandler = async (
     };
     await Promise.all([
       ctx.authGate.assertProjectMember(input.projectId),
-      ctx.permissions.assert("vault.folder:read", scope),
+      ctx.permissions.assert("vault:folder:create", scope),
     ]);
     const folder = await fetchFolderForPin(
       input.folderId,

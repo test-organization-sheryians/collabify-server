@@ -2,16 +2,23 @@
  * acceptInvite — Service Handler (thin orchestrator)
  *
  * ⚠️ All steps run inside a SINGLE db.$transaction to preserve atomicity.
+ * Cache invalidation runs AFTER the transaction commits (non-fatal — Redis errors
+ * must never roll back a successful DB membership creation).
  *
  * Steps (tx-scoped):
  *   1. fetchInvite             — find invite, guard expiry
  *   2. verifyInviteEmail       — assert email matches authenticated user
  *   3. checkExistingMembership — if already a member: delete invite, early return
  *   4. createMembership        — resolve role → create member + delete invite + fetch slug
+ * Post-tx:
+ *   5. invalidateWorkspaceMember — clear auth/membership/role-at-scope Redis keys
+ *   6. addRoleMember             — add new member to role-member index
  */
 import type { AcceptInviteInput } from "./types";
 import type { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
+import { addRoleMember } from "@/modules/authorization";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 export const acceptInvite = async (
   input: AcceptInviteInput,
@@ -20,7 +27,7 @@ export const acceptInvite = async (
   const { token, userId, userEmail } = input;
   const { db } = ctx;
 
-  return db.$transaction(async (tx) => {
+  const result = await db.$transaction(async (tx) => {
     // Step 1: fetch invite inside tx
     const invite = await tx.workspaceInvite.findUnique({ where: { token } });
     if (!invite || invite.expiresAt < new Date()) {
@@ -44,41 +51,73 @@ export const acceptInvite = async (
         success: true,
         message: "You are already a member.",
         workspaceSlug: "unknown",
+        workspaceId: invite.workspaceId,
+        inviterId: invite.inviterId,
+        userId,
+        roleId: existing.roleId,
       };
     }
 
-    // Step 4: resolve the Role row for this workspace by invite.role name.
-    // Using findFirst: Prisma's compound unique key input types don't accept
-    // null for nullable fields — projectId: null means workspace-level role.
-    const role = await tx.role.findFirst({
-      where: {
-        workspaceId: invite.workspaceId,
-        projectId: null, // workspace-level role — never a project-specific role
-        name: invite.role,
-      },
-    });
-    if (!role) {
-      throw new AppError(
-        `Role "${invite.role}" not found in workspace ${invite.workspaceId}`,
-        "INTERNAL_SERVER_ERROR",
-        500
-      );
-    }
-
-    // Step 4 cont: create membership + delete invite + get slug
+    // Step 4: create membership using roleId directly from the invite FK.
+    // The FK guarantees the role exists — no separate lookup needed.
     await tx.workspaceMember.create({
-      data: { workspaceId: invite.workspaceId, userId, roleId: role.id },
+      data: { workspaceId: invite.workspaceId, userId, roleId: invite.roleId },
     });
     await tx.workspaceInvite.delete({ where: { token } });
     const workspace = await tx.workspace.findUniqueOrThrow({
       where: { id: invite.workspaceId },
-      select: { slug: true },
+      select: { name: true, slug: true },
     });
 
     return {
       success: true,
       message: "Joined workspace successfully",
       workspaceSlug: workspace.slug,
+      workspaceName: workspace.name,
+      workspaceId: invite.workspaceId,
+      inviterId: invite.inviterId,
+      userId,
+      roleId: invite.roleId,
     };
   });
+
+  // Post-tx: cache invalidation — runs outside transaction so Redis errors don't roll back DB writes
+  if (ctx.authGate) {
+    await Promise.all([
+      ctx.authGate.invalidate.workspaceMember(result.workspaceId, userId),
+      addRoleMember(result.roleId, userId, ctx.redis),
+    ]).catch((err) => {
+      console.warn("acceptInvite: post-tx cache update failed (non-fatal):", err);
+    });
+  }
+
+  // Emit notification only for new members (not for already-member case)
+  if (result.message !== "You are already a member.") {
+    const [inviter, invitee, actor] = await Promise.all([
+      db.user.findUnique({ where: { id: result.inviterId }, select: { fullName: true } }),
+      db.user.findUnique({ where: { id: userId }, select: { fullName: true } }),
+      db.user.findUnique({ where: { id: userId }, select: { fullName: true } }),
+    ]);
+
+    await emit(db as any, {
+      type: "workspace.invite.accepted",
+      payload: {
+        workspaceId: result.workspaceId,
+        workspaceName: result.workspaceName ?? "",
+        workspaceSlug: result.workspaceSlug,
+        inviteeId: userId,
+        inviteeName: invitee?.fullName ?? "Someone",
+        ownerId: result.inviterId,
+        actorName: actor?.fullName ?? "Someone",
+      },
+      deduplicationId: `workspace.invite.accepted:${result.workspaceId}:${userId}`,
+    }).catch(() => { /* non-fatal */ });
+  }
+
+  return {
+    success: result.success,
+    message: result.message,
+    workspaceSlug: result.workspaceSlug,
+  };
 };
+

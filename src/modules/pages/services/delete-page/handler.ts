@@ -18,6 +18,8 @@ import type { DeletePageInput } from "./schema";
 import { checkNoActiveSubscribers } from "./steps/check-no-active-subscribers";
 import { softDelete } from "./steps/soft-delete";
 import { broadcast } from "./steps/broadcast";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
+import { orphanMentions } from "@/modules/mention/services";
 
 const logger = createLogger("pages:services:delete-page");
 
@@ -48,12 +50,32 @@ export const handler = async (input: DeletePageInput, ctx: ServiceContext) => {
     // Step 3 — soft delete
     await softDelete(input.pageId, ctx.db);
 
+    // Step 3b — orphan mentions targeting this page
+    await orphanMentions.handler({ targetEntityId: input.pageId }, ctx);
+
     // Step 4 — broadcast (best-effort)
     await broadcast(input.pageId, userId, ctx.redis).catch((err) =>
       logger.error("Broadcast failed after delete", {
         err,
         pageId: input.pageId,
       })
+    );
+
+    // Step 5 — emit notification
+    await emit(ctx.db as any, {
+      type: "page.deleted",
+      payload: {
+        pageId: input.pageId,
+        pageTitle: (cachedPage as any).title ?? "Untitled",
+        workspaceId: proj?.workspaceId ?? "",
+        workspaceSlug: proj?.slug ?? "",
+        actorId: userId,
+        actorName: "Someone",
+        collaboratorIds: [],
+      } as any,
+      deduplicationId: `page.deleted:${input.pageId}:${Date.now()}`,
+    }).catch((err) =>
+      logger.error("Failed to emit page.deleted notification", { err, pageId: input.pageId })
     );
 
     logger.info("Page soft-deleted", { pageId: input.pageId, userId });

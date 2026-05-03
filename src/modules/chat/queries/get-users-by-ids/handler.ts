@@ -21,7 +21,7 @@ export const handler = async (
   input: GetUsersByIdsInput,
   ctx: ServiceContext
 ) => {
-  if (!ctx.auth.userId) throw AppError.unauthorized();
+  if (!ctx.auth?.userId) throw AppError.unauthorized();
 
   try {
     const users = await fetchUsers(input.userIds, ctx);

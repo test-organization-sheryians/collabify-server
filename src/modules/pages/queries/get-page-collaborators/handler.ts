@@ -5,7 +5,7 @@
  * For live presence (currently online users), use getActivePageCollaborators.
  *
  * Execution:
- *   Step 1 — [auth] assertPageCollaborator + assert("page.collaborator:read") — parallel (cache-backed)
+ *   Step 1 — [auth] assertPageCollaborator + assert("page:collaborator:read") — parallel (cache-backed)
  *   Step 2 — fetchCollaborators  : findMany with user join, ordered joinedAt ASC
  */
 
@@ -38,7 +38,7 @@ export const getPageCollaboratorsHandler = async (
     };
     await Promise.all([
       ctx.authGate.assertPageCollaborator(input.pageId),
-      ctx.permissions.assert("page.collaborator:read", scope),
+      ctx.permissions.assert("page:collaborator:read", scope),
     ]);
 
     // Step 2 — fetch full list with user join

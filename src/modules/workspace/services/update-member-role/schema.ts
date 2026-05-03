@@ -1,9 +1,8 @@
 import { z } from "zod";
-import { RoleType } from "@prisma/client";
 
 export const UpdateMemberRoleSchema = z.object({
   workspaceId: z.string(),
   memberId: z.string(),
-  role: z.nativeEnum(RoleType),
+  roleId: z.string().min(1), // resolved as DB role ID
   actorUserId: z.string(),
 });

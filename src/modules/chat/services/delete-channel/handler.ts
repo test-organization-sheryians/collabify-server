@@ -1,89 +1,26 @@
-import { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
+import type { ServiceContext } from "@/graphql/types";
 import type { DeleteChannelInput, DeleteChannelOutput } from "./types";
+import { assertAccess } from "./steps/assert-access";
+import { runDelete } from "./steps/run-delete";
 
 /**
  * Delete Channel Handler
  *
  * Permanently deletes a channel (hard delete).
- * Requirements:
- * - Channel must be archived (deletedAt !== null)
- * - User must be workspace admin or channel creator
+ *
+ * Steps:
+ *  1. assertAccess — maps active RBAC paths protecting deletions solely restricting un-archived target deletions.
+ *  2. runDelete    — destructs `chatConversation` mapping triggers universally cascaded over members/messages.
  */
 export const handler = async (
   input: DeleteChannelInput,
   ctx: ServiceContext
 ): Promise<DeleteChannelOutput> => {
-  const { userId } = ctx.auth;
-  if (!userId) {
+  if (!ctx.auth?.userId) {
     throw AppError.unauthorized("User not authenticated");
   }
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
-  const { workspaceId, channelId } = input;
-
-  // Step 0 — channel member gate + permission
-  const cachedChannel = await ctx.authGate.getChannel(channelId);
-  if (!cachedChannel) throw AppError.notFound("Channel not found");
-  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
-  await Promise.all([
-    ctx.authGate.assertChannelMember(channelId),
-    ctx.permissions.assert("channel:delete", scope),
-  ]);
-
-  // Fetch channel (still needed for archived check + members for fanout)
-  const channel = await ctx.db.chatConversation.findFirst({
-    where: {
-      id: channelId,
-      workspaceId,
-      type: "CHANNEL",
-    },
-  });
-
-  if (!channel) {
-    throw AppError.notFound("Channel not found");
-  }
-
-  // Check if channel is archived
-  if (!channel.deletedAt) {
-    throw AppError.badRequest("Channel must be archived before deletion");
-  }
-
-  // Check permissions (workspace admin check would go here if we had that field)
-  // For now, we'll allow any member of the workspace to delete archived channels
-  // TODO: Add proper workspace admin check when available
-
-  // Get all members for fanout before deletion
-  const members = await ctx.db.chatMember.findMany({
-    where: { conversationId: channelId },
-    select: { userId: true },
-  });
-
-  // Hard delete  channel (cascades to messages, members, etc.)
-  await ctx.db.chatConversation.delete({
-    where: { id: channelId },
-  });
-
-  // Fanout deletion event to all members
-  // await Promise.all(
-  //   members.map(async (member) => {
-  //     await ctx.redis.publish(
-  //       `user:${member.userId}:events`,
-  //       JSON.stringify({
-  //         type: "chat:channel-deleted",
-  //         payload: {
-  //           channelId,
-  //           workspaceId,
-  //           deletedBy: userId,
-  //           timestamp: new Date().toISOString(),
-  //         },
-  //       })
-  //     );
-  //   })
-  // );
-
-  return {
-    success: true,
-    channelId,
-  };
+  await assertAccess(input, ctx);
+  return await runDelete(input, ctx);
 };

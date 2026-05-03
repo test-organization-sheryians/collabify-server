@@ -7,7 +7,7 @@ import type { RenameBoardInput } from "./types";
  *
  * Auth:
  *   - assertBoardCollaborator — cache-backed; FORBIDDEN if not a collaborator
- *   - permissions.assert("board:update") — RBAC check
+ *   - permissions.assert("whiteboard:update") — RBAC check
  */
 export const handler = async (input: RenameBoardInput, ctx: ServiceContext) => {
   const { userId } = ctx.auth;
@@ -29,7 +29,7 @@ export const handler = async (input: RenameBoardInput, ctx: ServiceContext) => {
     };
     await Promise.all([
       ctx.authGate.assertBoardCollaborator(boardId),
-      ctx.permissions.assert("board:update", scope),
+      ctx.permissions.assert("whiteboard:update", scope),
     ]);
 
     // Step 2 — update title

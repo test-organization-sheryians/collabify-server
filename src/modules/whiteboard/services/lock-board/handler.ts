@@ -1,13 +1,14 @@
 import { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
 import type { LockBoardInput } from "./types";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 /**
  * lockBoard — Service Handler
  *
  * Auth:
  *   - assertBoardCollaborator — cache-backed; FORBIDDEN if not a collaborator
- *   - permissions.assert("board:update") — RBAC check
+ *   - permissions.assert("whiteboard:update") — RBAC check
  * Note: creator-only rule preserved after auth gate
  */
 export const handler = async (input: LockBoardInput, ctx: ServiceContext) => {
@@ -30,22 +31,37 @@ export const handler = async (input: LockBoardInput, ctx: ServiceContext) => {
     };
     await Promise.all([
       ctx.authGate.assertBoardCollaborator(boardId),
-      ctx.permissions.assert("board:update", scope),
+      ctx.permissions.assert("whiteboard:update", scope),
     ]);
 
     // Step 2 — creator-only sub-check
-    const board = await ctx.db.whiteboard.findUnique({
+    const existingBoard = await ctx.db.whiteboard.findUnique({
       where: { id: boardId },
-      select: { createdBy: true },
+      select: { createdBy: true, title: true },
     });
-    if (!board) throw AppError.notFound("Whiteboard not found");
-    if (board.createdBy !== userId)
+    if (!existingBoard) throw AppError.notFound("Whiteboard not found");
+    if (existingBoard.createdBy !== userId)
       throw AppError.forbidden("Only the creator can lock this board");
 
     const updatedBoard = await ctx.db.whiteboard.update({
       where: { id: boardId },
       data: { isLocked: true },
     });
+
+    // Emit notification
+    await emit(ctx.db as any, {
+      type: "whiteboard.locked",
+      payload: {
+        whiteboardId: updatedBoard.id,
+        whiteboardName: existingBoard.title ?? "Untitled",
+        workspaceId: proj?.workspaceId ?? "",
+        workspaceSlug: proj?.slug ?? "",
+        actorId: ctx.auth?.userId ?? "",
+        actorName: "Someone",
+        collaboratorIds: [],
+      } as any,
+      deduplicationId: `whiteboard.locked:${updatedBoard.id}:${Date.now()}`,
+    }).catch(() => { /* non-fatal */ });
 
     return updatedBoard;
   } catch (error: unknown) {

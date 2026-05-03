@@ -20,6 +20,7 @@ import { typeDefs as deleteGroupTypeDefs } from "../services/delete-group";
 import { typeDefs as addGroupMembersTypeDefs } from "../services/add-group-members";
 import { typeDefs as removeGroupMemberTypeDefs } from "../services/remove-group-member";
 import { typeDefs as leaveGroupTypeDefs } from "../services/leave-group";
+import { typeDefs as setConversationNotifModeTypeDefs } from "../services/set-conversation-notif-mode";
 // Phase 4 service imports
 import { typeDefs as closeThreadTypeDefs } from "../services/close-thread";
 import { typeDefs as reopenThreadTypeDefs } from "../services/reopen-thread";
@@ -43,6 +44,7 @@ import { typeDefs as getReadReceiptsTypeDefs } from "../queries/get-read-receipt
 import { typeDefs as getUserConversationsTypeDefs } from "../queries/get-user-conversations";
 import { typeDefs as getConversationTypeDefs } from "../queries/get-conversation";
 import { typeDefs as getDmByUsersTypeDefs } from "../queries/get-dm-by-users";
+import { typeDefs as getProjectDmsTypeDefs } from "../queries/get-project-dms";
 import { typeDefs as getUsersByIdsTypeDefs } from "../queries/get-users-by-ids";
 
 const sharedTypeDefs = /* GraphQL */ `
@@ -65,6 +67,9 @@ const sharedTypeDefs = /* GraphQL */ `
     # Computed/Loaded fields
     members: [ConversationMember!]
     lastMessage: LastMessagePreview
+    # Notification preference fields (per-user, resolved via field resolver)
+    myNotifMode: ConversationNotifMode
+    isMuted:     Boolean!
   }
 
   enum ConversationType {
@@ -177,6 +182,7 @@ export const typeDefs = [
   addGroupMembersTypeDefs,
   removeGroupMemberTypeDefs,
   leaveGroupTypeDefs,
+  setConversationNotifModeTypeDefs,
   // Phase 4 services
   closeThreadTypeDefs,
   reopenThreadTypeDefs,
@@ -201,5 +207,6 @@ export const typeDefs = [
   getUserConversationsTypeDefs,
   getConversationTypeDefs,
   getDmByUsersTypeDefs,
+  getProjectDmsTypeDefs,
   getUsersByIdsTypeDefs,
 ];

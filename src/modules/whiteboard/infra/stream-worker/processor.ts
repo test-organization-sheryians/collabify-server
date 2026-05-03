@@ -10,6 +10,7 @@ import { ThresholdRegistry } from "./thresholds";
 import { StreamLengthThreshold } from "./thresholds/stream-length";
 import { executeAtomicSnapshotUpdate } from "./lua-scripts";
 import { safeApplyUpdate } from "@/shared/lib/safe-apply-update";
+import { db } from "@/infra/db";
 
 const logger = createLogger("whiteboard:stream-worker-v2:processor");
 
@@ -285,7 +286,24 @@ async function rebuildSnapshotFromStream(boardId: string): Promise<void> {
 
   logger.info("✅ S3 sync complete", { boardId });
 
-  // STEP 8: Cleanup
+  // STEP 8: Persist snapshotS3Key to DB for vault cleanup reference scanning.
+  // Best-effort — failure here does not break the snapshot pipeline.
+  const s3Key = WhiteboardKeys.S3SnapshotLatest(boardId);
+  try {
+    await db.whiteboard.update({
+      where: { id: boardId },
+      data: { snapshotS3Key: s3Key },
+    });
+    logger.debug("✅ snapshotS3Key persisted", { boardId, s3Key });
+  } catch (err) {
+    logger.warn("⚠️  Failed to persist snapshotS3Key — vault cleanup may fall back to Redis only", {
+      boardId,
+      s3Key,
+      err,
+    });
+  }
+
+  // STEP 9: Cleanup
   doc.destroy();
   logger.debug("🧹 Y.Doc destroyed (cleanup)", { boardId });
 

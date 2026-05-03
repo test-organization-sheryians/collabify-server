@@ -3,8 +3,9 @@ import { db } from "@/infra/db";
 import type { ConversationMember } from "@/graphql/generated";
 
 /**
- * DataLoader for fetching conversation members
- * Explicitly maps Prisma ChatMember → GraphQL ConversationMember
+ * DataLoader for fetching conversation members.
+ * Member role is resolved from ProjectMember.projectRole (project-level RBAC).
+ * Falls back to "MEMBER" for users without a project-scoped role.
  */
 export const createMembersByChannelIdLoader = () =>
   new DataLoader<string, ConversationMember[]>(async (channelIds) => {
@@ -23,15 +24,21 @@ export const createMembersByChannelIdLoader = () =>
                 fullName: true,
                 email: true,
                 avatarUrl: true,
+                projectMembers: {
+                  select: {
+                    projectRole: {
+                      select: { name: true },
+                    },
+                  },
+                },
               },
             },
           },
         });
 
-        // Explicit mapping: Prisma ChatMember → GraphQL ConversationMember
         return members.map((m) => ({
           userId: m.userId,
-          role: m.role,
+          role: m.user.projectMembers?.[0]?.projectRole?.name ?? "MEMBER",
           isMuted: m.isMuted,
           joinedAt: m.joinedAt,
           user: {

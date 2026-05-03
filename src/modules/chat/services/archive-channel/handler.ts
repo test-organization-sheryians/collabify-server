@@ -1,36 +1,35 @@
-import { ServiceContext } from "@/graphql/types";
+import { createLogger } from "@/shared/lib/logger";
 import { AppError } from "@/shared/errors";
-import { ArchiveChannelInput } from "./types";
+import type { ServiceContext } from "@/graphql/types";
+import type { ArchiveChannelInput } from "./types";
+import { assertAccess } from "./steps/assert-access";
+import { archive } from "./steps/archive";
 
+const log = createLogger("chat:services:archive-channel");
+
+/**
+ * archiveChannel — archives the specific target channel.
+ *
+ * Steps:
+ *  1. assertAccess — asserts authentication and permissions scoped to `chat:channel:archive`.
+ *  2. archive      — executes the soft delete `$update` Prisma logic.
+ *
+ * @throws AppError 401  if not authenticated
+ * @throws AppError 404  if channel is unavailable
+ * @throws AppError 403  if insufficient permissions
+ */
 export const handler = async (
   input: ArchiveChannelInput,
   ctx: ServiceContext
 ) => {
-  const { userId } = ctx.auth;
-  if (!userId) throw AppError.unauthorized("User not authenticated");
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
-
   try {
-    // Step 0 — channel member gate + permission
-    const cachedChannel = await ctx.authGate.getChannel(input.channelId);
-    if (!cachedChannel) throw AppError.notFound("Channel not found");
-    const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
-    await Promise.all([
-      ctx.authGate.assertChannelMember(input.channelId),
-      ctx.permissions.assert("channel:archive", scope),
-    ]);
+    if (!ctx.auth?.userId) throw AppError.unauthorized();
 
-    // 3. Action: Archive (sets both isArchived and deletedAt for soft delete)
-    return await ctx.db.chatConversation.update({
-      where: { id: input.channelId },
-      data: {
-        isArchived: true,
-        deletedAt: new Date(), // Set soft delete timestamp
-      },
-    });
-  } catch (error: any) {
-    if (error instanceof AppError) throw error;
-    // Fallback for Prisma/System errors
+    await assertAccess(input.channelId, ctx);
+    return await archive(input.channelId, ctx);
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    log.error("[archive-channel] Unexpected failure", { err, ...input });
     throw new AppError("Failed to archive channel");
   }
 };

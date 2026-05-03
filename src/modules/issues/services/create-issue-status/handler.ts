@@ -41,7 +41,7 @@ export const createIssueStatusHandler = async (
 
   await Promise.all([
     ctx.authGate.assertProjectMember(input.projectId),
-    ctx.permissions.assert("issue.status:create", scope),
+    ctx.permissions.assert("issue:status:manage", scope),
   ]);
 
   const status = await insertStatus(input, ctx.db);

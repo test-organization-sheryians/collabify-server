@@ -13,7 +13,7 @@
 // ═══════════════════════════════════════════════════════════════
 // MASTER SWITCH — set true to enable every logger at once
 // ═══════════════════════════════════════════════════════════════
-export const ALL = true; // ❌ Off
+export const ALL = true;
 
 // ═══════════════════════════════════════════════════════════════
 // GROUP FLAGS — enable an entire feature or module at once
@@ -22,7 +22,7 @@ export const GROUPS = {
   // ─── Module groups ──────────────────────────────────────────
   chat: false,           // all chat module logs
   whiteboard: false,     // all whiteboard module logs
-  notification: false,   // all notification module logs
+  notification: true,    // all notification module logs
   user: false,           // all user module logs
   workspace: false,      // all workspace module logs
   project: false,        // all project module logs
@@ -90,6 +90,39 @@ export const GROUPS = {
    */
   "vault-upload-flow": false,
 
+  /**
+   * Media delete lifecycle: mark-unreferenced → cleanup job → S3 delete
+   * Enables: mark-unreferenced service, unreferenced-cleanup job, is-file-referenced lib
+   * Toggle this to trace the full delete → unref → S3 removal pipeline.
+   */
+  "vault-media-lifecycle": false, // ✅ Enable for lifecycle testing — set false in prod
+
+  // ─── Notification composite flows ───────────────────────────
+
+  /**
+   * Outbox ingestion: writer → poller → decider queue handoff
+   * Enables: outbox-writer, outbox-poller, notification:debug
+   */
+  "notification-outbox-flow": true,
+
+  /**
+   * Delivery decision pipeline: decider worker → preference resolver → dispatch
+   * Enables: decider, fanout, batch-engine, preference-resolver, presence, rate-limit
+   */
+  "notification-delivery-flow": true,
+
+  /**
+   * Channel workers: in-app (store + cache) + realtime publisher + email + push
+   * Enables: all 4 channel workers and their dependencies
+   */
+  "notification-channel-flow": true,
+
+  /**
+   * Shared infrastructure: preferences, dedup, idempotency, permission, fanout cursor
+   * Enables: all notification:shared:* loggers
+   */
+  "notification-shared-flow": true,
+
   // ─── Development/Testing ─────────────────────────────────────
   stream: false,         // all Redis stream logs
   auth: false,           // authentication & authorization
@@ -108,6 +141,17 @@ export const FILES: Record<string, boolean | undefined> = {
   "app:graphql": false,
   "app:middlewares": false,
   "app:webhooks": false,
+
+  // ─────────────────────────────────────────────────────────────
+  // Auth
+  // ─────────────────────────────────────────────────────────────
+  "auth:workspace-member": false,
+  "authorization:feature-flag-engine": false,
+  "authorization:feature-flag-invalidator": false,
+  "authorization:permission-invalidator": false,
+  "bootstrap:authorization": false,
+  "bootstrap:sync-permissions": false,
+  "bootstrap:sync-system-roles": false,
 
   // ─────────────────────────────────────────────────────────────
   // Infrastructure
@@ -132,6 +176,7 @@ export const FILES: Record<string, boolean | undefined> = {
   "services:providers": false,              // legacy (ses/sendgrid adapters)
   "services:email-provider:console": true, // console.adapter.ts
   "services:email-provider:nodemailer": false, // nodemailer.adapter.ts
+  "services:push-provider:fcm": false,
 
   // ─────────────────────────────────────────────────────────────
   // Middleware
@@ -143,6 +188,7 @@ export const FILES: Record<string, boolean | undefined> = {
   // ─────────────────────────────────────────────────────────────
   "internal:assign-workspace": false,
   "internal:metrics": false,
+  "internal:metrics-collector": false, // extra from research
 
   // ─────────────────────────────────────────────────────────────
   // User Module
@@ -157,11 +203,16 @@ export const FILES: Record<string, boolean | undefined> = {
   "workspace:services:create-onboarding-workspace": false,
   "workspace:services:invite-to-workspace": false,
   "workspace:services:check-slug-availability": false,
+  "workspace:services:rename-workspace-slug": false,
+  "workspace:services:request-workspace-logo-upload": false,
 
   // ─────────────────────────────────────────────────────────────
   // Project Module
   // ─────────────────────────────────────────────────────────────
   "project:services:create-project": false,
+  "project:services:seed-project-defaults": false,
+  "project:services:request-project-logo-upload": false,
+  "project:services:toggle-project-plugin": false,
 
   // ─────────────────────────────────────────────────────────────
   // Issues Module
@@ -191,19 +242,54 @@ export const FILES: Record<string, boolean | undefined> = {
   // ─────────────────────────────────────────────────────────────
   // Notification Module
   // ─────────────────────────────────────────────────────────────
+  // Master debug console — enables [NOTIF:EMIT/PICKUP/DECIDER/RECIPIENT/DISPATCH/CHANNEL/DROP] logs
+  "notification:debug": true, // ✅ ON for testing — set false to silence pipeline tracing
+  // Notification preference services
+  "notification:services:update-preferences": false,
+  "user:services:update-global-notif-prefs": false,
+  "workspace:services:update-workspace-notif-prefs": false,
+  "project:services:update-project-notif-prefs": false,
+  "chat:services:set-conversation-notif-mode": false,
+  // Shared infrastructure
+  "notification:shared:preference-seeder": false,
+  "notification:shared:preference-writer": false,
+  "notification:shared:preference-resolver": false,
+  "notification:shared:preference-cache": false,
   "notification:engine:bootstrap": false,
   "notification:engine:poller": false,
-  "notification:engine:fan-out": false,
+  "notification:engine:fanout": false, // fixed mismatch (was fan-out)
   "notification:engine:decider": false,
   "notification:engine:batch": false,
   "notification:engine:recovery": false,
   "notification:engine:cleanup": false,
   "notification:channel:email": false,
   "notification:channel:push": false,
-  "notification:channel:in-app": false,
+  "notification:channel:inapp": false, // fixed mismatch (was in-app)
+  "notification:channel:inapp:store": false,
+  "notification:channel:inapp:count-cache": false,
   "notification:channel:realtime": false,
+  "notification:channel:realtime:publisher": false,
+  "notification:outbox:writer": false,
   "notification:lib": false,
   "notification:services:read": false,
+  // Management
+  "notification:management:queries:get-notifications": false,
+  "notification:management:queries:get-preferences": false,
+  "notification:management:queries:get-unread-count": false,
+  "notification:management:services:mark-read": false,
+  "notification:management:services:mark-all-read": false,
+  "notification:management:services:mute-conversation": false,
+  "notification:management:services:update-preferences": false,
+  // Shared
+  "notification:shared:presence": false,
+  "notification:shared:rate-limit": false,
+  "notification:shared:dedup": false,
+  "notification:shared:idempotency": false,
+  "notification:shared:permission": false,
+  "notification:shared:fanout": false,
+  "notification:shared:fanout-cursor": false,
+  "notification:shared:batch-engine": false,
+  "notification:shared:batch-store": false,
 
   // ─────────────────────────────────────────────────────────────
   // Chat Module
@@ -243,6 +329,7 @@ export const FILES: Record<string, boolean | undefined> = {
   "chat:queries:get-user-conversations": false,
   "chat:queries:get-conversation": false,
   "chat:queries:get-dm-by-users": false,
+  "chat:queries:get-project-dms": false,
   "chat:queries:get-channel-members": false,
   "chat:queries:get-unread-counts": false,
   "chat:queries:get-read-receipts": false,
@@ -253,6 +340,26 @@ export const FILES: Record<string, boolean | undefined> = {
   "chat:queries:get-users-by-ids": false,
   // Services
   "chat:services:create-channel": false,
+  "chat:services:create-channel:create": false,
+  "chat:services:archive-channel": false,
+  "chat:services:unarchive-channel": false,
+  "chat:services:rename-channel": false,
+  "chat:services:update-channel-description": false,
+  "chat:services:update-channel-visibility": false,
+  "chat:services:check-channel-availability": false,
+  "chat:services:add-channel-members": false,
+  "chat:services:remove-channel-member": false,
+  "chat:services:create-dm": false,
+  "chat:services:create-dm:create": false,
+  "chat:services:mute-conversation": false,
+  "chat:services:rename-group": false,
+  "chat:services:add-group-members": false,
+  "chat:services:remove-group-member": false,
+  "chat:services:leave-group": false,
+  "chat:services:subscribe-thread": false,
+  "chat:services:unsubscribe-thread": false,
+  "chat:services:close-thread": false,
+  "chat:services:reopen-thread": false,
   // Domain
   "chat:domain:reactions:batch": false,
   "chat:domain:reactions:helpers": false,
@@ -293,13 +400,20 @@ export const FILES: Record<string, boolean | undefined> = {
   // Vault Module
   // ─────────────────────────────────────────────────────────────
   "vault:intake": false,
+  "vault:proxy": false,
   "vault:infra:pending-cleanup": false,
+  // Jobs
+  // vault:jobs:index and cleanup-pending are always on so startup + sweep logs are visible
+  "vault:jobs:index": false,               // [VAULT_JOBS_STARTED] always visible
+  "vault:jobs:cleanup-pending": false,      // pending upload sweep always visible
+  "vault:jobs:entity-purge": false,
   // Queries
   "vault:queries:get-node": false,
   "vault:queries:get-children": false,
   "vault:queries:get-ancestors": false,
   "vault:queries:get-sidebar": false,
   "vault:queries:get-download-url": false,
+  "vault:queries:get-batch-download-urls": false,
   "vault:queries:get-vault-usage": false,
   // Services — request-upload pipeline
   "vault:services:request-upload": false,
@@ -322,8 +436,16 @@ export const FILES: Record<string, boolean | undefined> = {
   "vault:services:delete-file": false,
   "vault:services:rename-file": false,
   "vault:services:move-file": false,
+  "vault:services:register-external-file": false,
   // Lib
   "vault:lib:quota-guard": false,
+  // Media lifecycle pipeline (mark → cleanup → S3 delete)
+  // Set to undefined so vault-media-lifecycle FLOW_GROUP controls them.
+  // With vault-media-lifecycle: true in GROUPS, these will log automatically.
+  // Set to true here for explicit per-file override regardless of GROUPS.
+  "vault:services:mark-unreferenced": false, // → vault-media-lifecycle group
+  "vault:jobs:unreferenced-cleanup": false,  // → vault-media-lifecycle group
+  "vault:lib:is-file-referenced": false,     // → vault-media-lifecycle group
 
   // ─────────────────────────────────────────────────────────────
   // Pages Module
@@ -353,6 +475,8 @@ export const FILES: Record<string, boolean | undefined> = {
   "pages:queries:get-page-snapshot": false,
   "pages:queries:get-page-snapshot:load-snapshot": false,
   "pages:queries:get-page-snapshot:compute-diff": false,
+  "pages:queries:get-page-snapshot:apply-stream-delta": false,   // apply-stream-delta.ts
+  "pages:queries:get-page-snapshot:bidirectional-sync": false,   // bidirectional-sync.ts
   "pages:queries:get-page": false,
   "pages:queries:get-project-pages": false,
   "pages:queries:get-page-collaborators": false,
@@ -368,6 +492,7 @@ export const FILES: Record<string, boolean | undefined> = {
   "pages:services:reorder-page": false,
   "pages:services:add-page-collaborators": false,
   "pages:services:remove-page-collaborator": false,
+  "pages:services:update-page-details": false,
   // Stream Worker
   "pages:stream-worker": false,
   "pages:stream-worker:loops": false,

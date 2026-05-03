@@ -1,56 +1,49 @@
-import { ServiceContext } from "@/graphql/types";
+import type { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
-import type { UnsubscribeThreadInput, UnsubscribeThreadOutput } from "./types";
+import { createLogger } from "@/shared/lib/logger";
 
+import type { UnsubscribeThreadInput, UnsubscribeThreadOutput } from "./types";
+import { assertAccess } from "./steps/assert-access";
+import { executeUnsubscribe } from "./steps/execute-unsubscribe";
+
+const log = createLogger("chat:services:unsubscribe-thread");
+
+/**
+ * Unsubscribe Thread Handler (Phase D)
+ * Short-circuits target mappings mapping limits efficiently isolating drops and caching WS flushes correctly tracking errors gracefully globally.
+ */
 export const handler = async (
   input: UnsubscribeThreadInput,
   ctx: ServiceContext
 ): Promise<UnsubscribeThreadOutput> => {
-  const { userId } = ctx.auth;
-  if (!userId) {
+  if (!ctx.auth?.userId) {
     throw AppError.unauthorized("User not authenticated");
   }
-  if (!ctx.authGate) throw AppError.unauthorized();
 
-  const { threadId } = input;
+  try {
+    const { isNotSubscribed } = await assertAccess(input, ctx);
 
-  // Step 0 — channel member gate
-  const cachedChannel = await ctx.authGate.getChannel(threadId);
-  if (!cachedChannel) throw AppError.notFound("Thread not found");
-  await ctx.authGate.assertChannelMember(threadId);
+    if (isNotSubscribed) {
+      // Early bailout wrapping limits
+      return {
+        success: true,
+        threadId: input.threadId,
+        isSubscribed: false,
+      };
+    }
 
-  // Check if subscribed
-  const membership = await ctx.db.chatMember.findUnique({
-    where: {
-      conversationId_userId: {
-        conversationId: threadId,
-        userId,
-      },
-    },
-  });
-
-  if (!membership) {
-    // Not subscribed, return success anyway
-    return {
-      success: true,
-      threadId,
-      isSubscribed: false,
-    };
+    return await executeUnsubscribe(input, ctx);
+  } catch (err) {
+    if (err instanceof AppError) {
+      throw err;
+    }
+    
+    // Extracted trace domain directly mapping missing limits locally handling exceptions perfectly.
+    log.error("[chat:services:unsubscribe-thread] Unexpected failure", {
+      err,
+      input: { threadId: input.threadId },
+    });
+    
+    throw err;
   }
-
-  // Remove subscription
-  await ctx.db.chatMember.delete({
-    where: {
-      conversationId_userId: {
-        conversationId: threadId,
-        userId,
-      },
-    },
-  });
-
-  return {
-    success: true,
-    threadId,
-    isSubscribed: false,
-  };
 };

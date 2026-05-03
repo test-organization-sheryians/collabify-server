@@ -15,6 +15,8 @@ import type { DeleteIssueInput } from "./schema";
 import type { DeleteIssueResult } from "./types";
 import { fetchIssue } from "./steps/fetch-issue";
 import { softDeleteIssue } from "./steps/soft-delete-issue";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
+import { orphanMentions } from "@/modules/mention/services";
 
 const logger = createLogger("issues:services:delete-issue");
 
@@ -45,6 +47,25 @@ export const deleteIssueHandler = async (
   ]);
 
   await softDeleteIssue(input.issueId, ctx.db);
+
+  await orphanMentions.handler({ targetEntityId: input.issueId }, ctx);
+
+  // Emit notification for issue deletion
+  await emit(ctx.db as any, {
+    type: "issue.deleted",
+    payload: {
+      issueId: input.issueId,
+      issueTitle: "Untitled",
+      issueNumber: 0,
+      projectId: existing.projectId,
+      projectName: project.name ?? "",
+      workspaceSlug: project.slug ?? "",
+      actorId: ctx.auth?.userId ?? "",
+      actorName: "Someone",
+      watcherIds: [],
+    } as any,
+    deduplicationId: `issue.deleted:${input.issueId}:${Date.now()}`,
+  }).catch(() => { /* non-fatal */ });
 
   logger.info("deleteIssue done", { issueId: input.issueId });
   return { success: true, id: input.issueId };

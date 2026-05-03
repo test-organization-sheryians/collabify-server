@@ -40,7 +40,7 @@ export const getIssueLabelsHandler = async (
 
   await Promise.all([
     ctx.authGate.assertProjectMember(input.projectId),
-    ctx.permissions.assert("issue.label:read", scope),
+    ctx.permissions.assert("issue:label:manage", scope),
   ]);
 
   const labels = await fetchLabels(input.projectId, ctx.db);

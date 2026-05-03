@@ -35,6 +35,15 @@ export const getProjectBySlug = async (
     await ctx.authGate.assertProjectMember(project.id);
   }
 
-  return project;
+  // 4. Fetch active plugins — joined in the same DB call context, no waterfall
+  const pluginRows = await ctx.db.projectPlugin.findMany({
+    where: { projectId: project.id },
+    select: { type: true },
+  });
+
+  return {
+    ...project,
+    activePlugins: pluginRows.map((p) => p.type as string),
+  };
 };
 

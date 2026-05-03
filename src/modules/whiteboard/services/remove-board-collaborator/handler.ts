@@ -4,13 +4,14 @@ import type {
   RemoveBoardCollaboratorInput,
   RemoveBoardCollaboratorResult,
 } from "./types";
+import { emit } from "@/modules/notification/outbox/outbox-writer";
 
 /**
  * removeBoardCollaborator — Service Handler
  *
  * Auth:
  *   - assertBoardCollaborator — cache-backed membership gate
- *   - permissions.assert("board.collaborator:remove") — RBAC check
+ *   - permissions.assert("whiteboard:collaborator:remove") — RBAC check
  * Note: creator-only rule preserved after auth gate
  */
 export const handler = async (
@@ -36,7 +37,7 @@ export const handler = async (
     };
     await Promise.all([
       ctx.authGate.assertBoardCollaborator(boardId),
-      ctx.permissions.assert("board.collaborator:remove", scope),
+      ctx.permissions.assert("whiteboard:collaborator:remove", scope),
     ]);
 
     // Step 2 — creator-only sub-check
@@ -52,6 +53,21 @@ export const handler = async (
     await ctx.db.whiteboardCollaborator.deleteMany({
       where: { whiteboardId: boardId, userId },
     });
+
+    // Step 4 — emit notification
+    await emit(ctx.db as any, {
+      type: "whiteboard.collaborator.removed",
+      payload: {
+        whiteboardId: boardId,
+        whiteboardName: (cachedBoard as any).title ?? "Untitled",
+        workspaceId: proj?.workspaceId ?? "",
+        workspaceSlug: proj?.slug ?? "",
+        removedUserId: userId,
+        actorId: requesterId,
+        actorName: "Someone",
+      } as any,
+      deduplicationId: `whiteboard.collaborator.removed:${boardId}:${userId}:${Date.now()}`,
+    }).catch(() => { /* non-fatal */ });
 
     return { success: true };
   } catch (error: unknown) {

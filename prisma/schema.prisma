@@ -12,13 +12,6 @@ enum UserStatus {
   DELETED
 }
 
-enum RoleType {
-  OWNER
-  ADMIN
-  MEMBER
-  GUEST
-}
-
 enum PolicyEffect {
   ALLOW
   DENY
@@ -35,6 +28,16 @@ enum PrincipalType {
   ALL
 }
 
+// ─── Plugin Architecture ──────────────────────────────────────────────────────
+
+enum PluginType {
+  CHAT
+  WHITEBOARD
+  PAGES
+  VAULT
+  ISSUES
+}
+
 model User {
   id           String     @id @unique
   email        String     @unique
@@ -42,6 +45,14 @@ model User {
   fullName     String?    @map("full_name")
   avatarUrl    String?    @map("avatar_url")
   status       UserStatus @default(ACTIVE)
+
+  // ── Profile Fields ────────────────────────────────────────────────────────
+  bio              String?  @db.Text
+  timezone         String?  @default("UTC")
+  language         String?  @default("en")
+
+  // ── Billing Link ──────────────────────────────────────────────────────────
+  stripeCustomerId String?  @unique @map("stripe_customer_id")
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -77,7 +88,8 @@ model User {
   notifications           Notification[]
   sentNotifications       Notification[]            @relation("NotificationActor")
   aiConversations         CollabifyAiConversation[]
-  notificationPreferences NotificationPreference[]
+  notificationPreferences             NotificationPreference[]
+  conversationNotifPreferences        ConversationNotificationPreference[]
 
   @@index([email])
   @@map("users")
@@ -115,7 +127,7 @@ model Workspace {
   id              String  @id @default(cuid())
   slug            String  @unique
   name            String
-  logoUrl         String? @map("logo_url")
+  logoS3Key       String? @map("logo_s3_key")
   domainWhitelist String? @map("domain_whitelist")
 
   createdAt DateTime  @default(now()) @map("created_at")
@@ -134,6 +146,8 @@ model Workspace {
   vaultWorkspaceUsage VaultWorkspaceUsage?
   whiteboards         Whiteboard[]
   chats               ChatConversation[]
+
+  plugins                 WorkspacePlugin[]
 
   usageRecords            UsageRecord[]
   notificationPreferences NotificationPreference[]  
@@ -169,12 +183,14 @@ model WorkspaceInvite {
   workspaceId String   @map("workspace_id")
   email       String
   token       String   @unique
-  role        RoleType @default(MEMBER)
-  inviterId   String   @map("inviter_id")
-  expiresAt   DateTime @map("expires_at")
-  createdAt   DateTime @default(now()) @map("created_at")
+  // FK to Role row — resolves which workspace role the invitee will receive on accept
+  roleId    String   @map("role_id")
+  inviterId String   @map("inviter_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignedRole Role      @relation("WorkspaceInviteRole", fields: [roleId], references: [id])
 
   @@index([email])
   @@map("workspace_invites")
@@ -229,6 +245,7 @@ model Role {
   permissions      RolePermission[]
   workspaceMembers WorkspaceMember[] @relation("WorkspaceMemberRole")
   projectMembers   ProjectMember[]   @relation("ProjectMemberRole")
+  workspaceInvites WorkspaceInvite[] @relation("WorkspaceInviteRole")
 
   // name is unique per (workspace + project) scope
   // projectId=null means workspace-wide; projects share role name namespace per workspace
@@ -282,6 +299,7 @@ model Project {
   description String?
   isPrivate   Boolean @default(true) @map("is_private")
   isArchived  Boolean @default(false) @map("is_archived")
+  logoS3Key   String? @map("logo_s3_key")
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -290,6 +308,8 @@ model Project {
   workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   members   ProjectMember[]
   roles     Role[]           @relation("ProjectScopedRoles")
+
+  plugins                  ProjectPlugin[]
 
   pages                    Page[]
   vaultFolders             VaultFolder[]
@@ -322,6 +342,33 @@ model ProjectCounter {
 
   @@unique([projectId, counterType])
   @@map("project_counters")
+}
+
+// Junction table: which plugins are active for a given project.
+// All 5 plugins are seeded on project creation. Admins can toggle via ToggleProjectPlugin.
+model ProjectPlugin {
+  projectId String     @map("project_id")
+  type      PluginType
+  isSystem  Boolean    @default(false) @map("is_system")
+  settings  Json?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, type])
+  @@map("project_plugins")
+}
+
+// Junction table: which plugins are active at the workspace level (future use).
+model WorkspacePlugin {
+  workspaceId String     @map("workspace_id")
+  type        PluginType
+  isSystem    Boolean    @default(false) @map("is_system")
+  settings    Json?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, type])
+  @@map("workspace_plugins")
 }
 
 model ProjectMember {
@@ -453,6 +500,7 @@ model VaultFolder {
 
   @@index([projectId, parentFolderId]) // getVaultChildren: primary navigation query
   @@index([projectId, isSystem]) // getVaultSidebar: system folder lookup
+  @@unique([projectId, name]) // one folder per name per project (partial: only non-deleted enforced in migration)
   @@map("vault_folders")
 }
 
@@ -477,6 +525,14 @@ model VaultFile {
   source   VaultFileSource @default(VAULT) @map("source")
   sourceId String?         @map("source_id") // pageId | conversationId | boardId | taskId
 
+  // Unreferenced tracking — set by the editor on save when a file is removed from content.
+  // The cleanup job uses this to soft-delete files that are no longer in the saved document
+  // after a grace period (default 30 min), giving in-session undo a safe recovery window.
+  // All three fields are nullable: null = file is still actively referenced.
+  unrefAt         DateTime?       @map("unref_at")          // when the editor first marked this file unreferenced
+  unrefEntityId   String?         @map("unref_entity_id")   // the entityId whose save triggered the mark
+  unrefEntityType VaultFileSource? @map("unref_entity_type") // PAGE or TASK
+
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
@@ -490,6 +546,7 @@ model VaultFile {
   @@index([projectId, source]) // filter files by source (e.g. From Chat)
   @@index([status, createdAt]) // cleanup job: find orphaned PENDING files
   @@index([workspaceId, status]) // workspace-wide ACTIVE file count
+  @@index([status, unrefAt]) // unreferenced-cleanup job: find ACTIVE files past grace period
   @@map("vault_files")
 }
 
@@ -566,6 +623,12 @@ model Whiteboard {
   // Allows the UI to show board info/size without loading the binary.
   elementCount  Int    @default(0) @map("element_count")
   fileSizeBytes BigInt @default(0) @map("file_size_bytes")
+
+  // --- Vault Media Reference Scan ---
+  // S3 key for the latest.yjs snapshot; written by the stream worker after each
+  // snapshot rebuild. Used by the vault cleanup job to parse the Y.Doc and verify
+  // whether a VaultFile is still referenced in yAssets before hard-deleting.
+  snapshotS3Key String? @map("snapshot_s3_key")
 
   // --- State & Lifecycle ---
   isArchived Boolean @default(false) @map("is_archived")
@@ -833,9 +896,14 @@ model ChatConversation {
   workspaceId  String           @map("workspace_id")
   projectId    String?          @map("project_id")
   type         ConversationType @default(CHANNEL)
+  // Deterministic dedup key for 1:1 and group DMs.
+  // Format (1:1): "proj_{projectId}_{minUserId}_{maxUserId}"
+  // NULL for channels and threads. @@unique eliminates race conditions lock-free.
+  dmHash       String?          @unique @map("dm_hash")
   name         String?
   topic        String?
   isArchived   Boolean          @default(false) @map("is_archived")
+  isPublic     Boolean          @default(true) @map("is_public")
   lastSequence Int              @default(0) @map("last_sequence")
   updatedAt    DateTime         @updatedAt @map("updated_at")
   createdAt    DateTime         @default(now()) @map("created_at")
@@ -854,8 +922,9 @@ model ChatConversation {
   childThreads       ChatConversation[] @relation("ThreadParent")
   parentMessage      ChatMessage?       @relation("MessageThreads", fields: [parentMessageId], references: [id], onDelete: Cascade)
 
-  members  ChatMember[]
-  messages ChatMessage[]
+  members                         ChatMember[]
+  messages                        ChatMessage[]
+  conversationNotifPreferences    ConversationNotificationPreference[]
 
   @@unique([projectId, name])
   @@unique([parentMessageId])
@@ -876,7 +945,6 @@ model ChatMember {
 
   // Metadata
   joinedAt DateTime @default(now()) @map("joined_at")
-  role     String   @default("MEMBER")
   isMuted  Boolean  @default(false) @map("is_muted")
 
   conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -917,6 +985,7 @@ model ChatMessage {
   parentMessage ChatMessage?      @relation("ThreadReplies", fields: [parentMessageId], references: [id])
   replies       ChatMessage[]     @relation("ThreadReplies")
   reactions     MessageReaction[]
+  mentions      Mention[]         @relation("MessageMentions")
 
   // Thread conversations spawned from this message
   threads ChatConversation[] @relation("MessageThreads")
@@ -925,6 +994,8 @@ model ChatMessage {
   @@unique([conversationId, sequence]) // DUAL SEQUENCING CONSTRAINT
   @@index([conversationId, createdAt(sort: Desc)])
   @@index([parentMessageId, createdAt(sort: Asc)])
+  @@index([conversationId, deletedAt]) // mutation delta: deleted messages since lastOpenedAt
+  @@index([conversationId, editedAt])  // mutation delta: edited messages since lastOpenedAt
   @@map("chat_messages")
 }
 
@@ -1031,21 +1102,24 @@ model NotificationOutbox {
 }
 
 model NotificationPreference {
-  id           String   @id @default(cuid())
-  userId       String   @map("user_id")
-  workspaceId  String?  @map("workspace_id")
-  projectId    String?  @map("project_id")
-  categoryKey  String   @map("category_key")
-  emailEnabled Boolean  @default(true) @map("email_enabled")
-  pushEnabled  Boolean  @default(true) @map("push_enabled")
-  inAppEnabled Boolean  @default(true) @map("in_app_enabled")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id           String    @id @default(cuid())
+  userId       String    @map("user_id")
+  workspaceId  String?   @map("workspace_id")
+  projectId    String?   @map("project_id")
+  categoryKey  String    @map("category_key")
+  emailEnabled Boolean   @default(true)  @map("email_enabled")
+  pushEnabled  Boolean   @default(true)  @map("push_enabled")
+  inAppEnabled Boolean   @default(true)  @map("in_app_enabled")
+  globalMode   String?   @default("ALL") @map("global_mode")
+  muteUntil    DateTime?                 @map("mute_until")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
 
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   project   Project?   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([userId, workspaceId, projectId, categoryKey], map: "unique_user_preference_scope")
+  @@index([userId])
   @@map("notification_preferences")
 }
 
@@ -1075,6 +1149,42 @@ model Notification {
   @@index([recipientUserId, isRead, createdAt(sort: Desc)])
   @@index([recipientUserId, createdAt(sort: Desc)])
   @@map("notifications")
+}
+
+enum ConversationNotifMode {
+  ALL_MESSAGES
+  MENTIONS_ONLY
+  NOTHING
+}
+
+// Conversation-level notification preference (most granular scope).
+// Controls per-channel/DM notification mode and temporary mutes.
+// Replaces the binary ChatMember.isMuted for richer control.
+model ConversationNotificationPreference {
+  id             String               @id @default(cuid())
+  userId         String               @map("user_id")
+  conversationId String               @map("conversation_id")
+
+  // Notification mode for this conversation
+  mode           ConversationNotifMode @default(ALL_MESSAGES) @map("mode")
+
+  // Temporary mute — null means mode is permanent.
+  // After muteUntil passes, resolver treats as if muteUntil=null automatically.
+  muteUntil      DateTime?            @map("mute_until")
+
+  // Per-channel overrides at conversation scope (null = inherit from global/workspace/project)
+  pushEnabled    Boolean?             @map("push_enabled")
+  emailEnabled   Boolean?             @map("email_enabled")
+
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, conversationId], map: "unique_conv_notif_pref")
+  @@index([userId])
+  @@map("conversation_notification_preferences")
 }
 
 model AuditLog {
@@ -1171,4 +1281,126 @@ model UsageRecord {
   @@unique([userId, resourceKey])
   @@unique([workspaceId, resourceKey])
   @@map("usage_records")
+}
+
+// ─── Feature Flags ────────────────────────────────────────────────────────────
+
+enum FlagContextType {
+  GLOBAL
+  WORKSPACE
+  PROJECT
+  USER
+}
+
+/// Global feature flag registry. Each row is a flag definition.
+/// The `defaultEnabled` value is the fallback when no override exists.
+model FeatureFlag {
+  id             String  @id @default(cuid())
+  key            String  @unique // e.g. "ai.summary", "vault.video-preview"
+  defaultEnabled Boolean @default(false) @map("default_enabled")
+  description    String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  overrides FeatureFlagOverride[]
+
+  @@map("feature_flags")
+}
+
+/// Per-context override for a feature flag.
+/// Resolution order: USER > PROJECT > WORKSPACE > GLOBAL (defaultEnabled)
+model FeatureFlagOverride {
+  id          String          @id @default(cuid())
+  flagId      String          @map("flag_id")
+  contextType FlagContextType @map("context_type")
+  // contextId: userId | projectId | workspaceId (null for GLOBAL override)
+  contextId   String?         @map("context_id")
+  enabled     Boolean
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  flag FeatureFlag @relation(fields: [flagId], references: [id], onDelete: Cascade)
+
+  @@unique([flagId, contextType, contextId])
+  @@index([flagId])
+  @@index([contextId])
+  @@map("feature_flag_overrides")
+}
+
+// ─── Mention System ──────────────────────────────────────────────────────────────
+
+enum MentionTier {
+  TIER_1
+  TIER_2
+  TIER_3
+}
+
+enum MentionStatus {
+  ACTIVE
+  ORPHANED
+  REMOVED
+}
+
+model Mention {
+  id               String        @id @default(cuid())
+
+  sourceEntityId   String        @map("source_entity_id")
+  sourceEntityType String        @map("source_entity_type")
+
+  targetEntityId   String        @map("target_entity_id")
+  targetEntityType String        @map("target_entity_type")
+
+  displayText      String        @map("display_text")
+  sourceLocation   Json?        @map("source_location")
+
+  tier             MentionTier   @default(TIER_2)
+  status           MentionStatus @default(ACTIVE)
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+  createdById      String       @map("created_by_id")
+
+  backlinks        Backlink[]
+  message          ChatMessage?  @relation("MessageMentions", fields: [sourceEntityId], references: [id], onDelete: Cascade)
+
+  @@index([sourceEntityId, status])
+  @@index([targetEntityId, status])
+  @@index([createdById])
+  @@map("mentions")
+}
+
+model Backlink {
+  id               String   @id @default(cuid())
+  
+  sourceEntityId   String   @map("source_entity_id")
+  sourceEntityType String   @map("source_entity_type")
+  
+  targetEntityId   String   @map("target_entity_id")
+  targetEntityType String   @map("target_entity_type")
+  
+  mentionId        String   @map("mention_id")
+  mention          Mention  @relation(fields: [mentionId], references: [id], onDelete: Cascade)
+  
+  context          String?  @db.VarChar(100)
+  
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@unique([sourceEntityId, targetEntityId])
+  @@index([targetEntityId])
+  @@index([sourceEntityId])
+  @@map("backlinks")
+}
+
+model MentionEvent {
+  id           String   @id @default(cuid())
+  mentionId    String   @map("mention_id")
+  eventType    String   @map("event_type")
+  payload      Json
+  actorId      String?  @map("actor_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([mentionId])
+  @@index([createdAt])
+  @@map("mention_events")
 }

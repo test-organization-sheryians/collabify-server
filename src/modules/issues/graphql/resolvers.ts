@@ -70,7 +70,15 @@ export const resolvers: Resolvers = {
 
     updateIssue: async (_, args, ctx) => {
       await requireUser(ctx);
-      const input = services.updateIssue.schema.parse(args.input);
+      const rawInput = args.input as Record<string, unknown>;
+      const normalized = {
+        ...rawInput,
+        dueDate:
+          rawInput.dueDate instanceof Date
+            ? (rawInput.dueDate as Date).toISOString()
+            : rawInput.dueDate,
+      };
+      const input = services.updateIssue.schema.parse(normalized);
       const result = await services.updateIssue.handler(input, ctx);
       return { issue: toGraphQLIssue(result.issue) };
     },

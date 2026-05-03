@@ -3,7 +3,6 @@ import { env } from "@/shared/config/env";
 import { createLogger } from "@/shared/lib/logger";
 
 const logger = createLogger("services:providers");
-import { AppError } from "@/shared/errors";
 
 // Define the shape of SendGrid errors
 interface SendGridError extends Error {
@@ -14,11 +13,11 @@ interface SendGridError extends Error {
   };
 }
 
-export const sendWithSendGrid = async (
+export async function sendWithSendGrid(
   to: string,
   subject: string,
   html: string
-): Promise<void> => {
+): Promise<{ success: boolean; error?: string }> {
   try {
     const msg = {
       to,
@@ -33,23 +32,18 @@ export const sendWithSendGrid = async (
       subject,
       provider: "SendGrid",
     });
+    return { success: true };
   } catch (rawError: unknown) {
-    // Safe cast for error handling purposes
+    // Never expose SendGrid internal errors to client — log for debugging
     const error = rawError as SendGridError;
-
-    logger.error("Failed to send email via SendGrid", { error, to, subject });
-
-    // Convert SendGrid error to AppError
-    throw new AppError(
-      "Failed to send email via SendGrid",
-      "NOTIFICATION_PROVIDER_ERROR",
-      502,
-      true,
-      {
-        provider: "sendgrid",
-        originalError:
-          error.response?.body || error.message || "Unknown SendGrid Error",
-      }
-    );
+    logger.error("Failed to send email via SendGrid", {
+      error: error.response?.body || error.message || "Unknown SendGrid Error",
+      to,
+      subject,
+    });
+    return {
+      success: false,
+      error: "Email delivery failed",
+    };
   }
-};
+}

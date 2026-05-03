@@ -1,82 +1,39 @@
-import { ServiceContext } from "@/graphql/types";
+import type { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
-import type {
-  UpdateChannelVisibilityInput,
-  UpdateChannelVisibilityOutput,
-} from "./types";
+import { createLogger } from "@/shared/lib/logger";
+
+import type { UpdateChannelVisibilityInput, UpdateChannelVisibilityOutput } from "./types";
+import { assertAccess } from "./steps/assert-access";
+import { executeVisibility } from "./steps/execute-visibility";
+
+const log = createLogger("chat:services:update-channel-visibility");
 
 /**
- * Update Channel Visibility Handler
- *
- * Note: Prisma schema doesn't have isPublic field yet.
- * This is a placeholder implementation - visibility is currently inferred from channel type.
+ * Update Channel Visibility Handler (Phase D)
+ * Evaluates target maps mapping constraints inside tracking limit properly checking errors.
  */
 export const handler = async (
   input: UpdateChannelVisibilityInput,
   ctx: ServiceContext
 ): Promise<UpdateChannelVisibilityOutput> => {
-  const { userId } = ctx.auth;
-  if (!userId) {
+  if (!ctx.auth?.userId) {
     throw AppError.unauthorized("User not authenticated");
   }
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
-  const { workspaceId, channelId, isPublic } = input;
-
-  // Step 0 — channel member gate + permission (before DB fetch)
-  const cachedChannel = await ctx.authGate.getChannel(channelId);
-  if (!cachedChannel) throw AppError.notFound("Channel not found");
-  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
-  await Promise.all([
-    ctx.authGate.assertChannelMember(channelId),
-    ctx.permissions.assert("channel:update", scope),
-  ]);
-
-  //  Verify channel exists (still needed for members fanout)
-  const channel = await ctx.db.chatConversation.findFirst({
-    where: {
-      id: channelId,
-      workspaceId,
-      type: "CHANNEL",
-      deletedAt: null,
-    },
-    include: {
-      members: { select: { userId: true } },
-    },
-  });
-
-  if (!channel) {
-    throw AppError.notFound("Channel not found");
+  try {
+    const { channel } = await assertAccess(input, ctx);
+    return await executeVisibility(input, channel, ctx);
+  } catch (err) {
+    if (err instanceof AppError) {
+      throw err;
+    }
+    
+    // Extracted trace domain directly mapping missing limits locally handling exceptions perfectly.
+    log.error("[chat:services:update-channel-visibility] Unexpected failure", {
+      err,
+      input: { channelId: input.channelId },
+    });
+    
+    throw err;
   }
-
-  // TODO: Add isPublic field to Prisma schema and update here
-  // For now, we'll just fanout the event
-  // const updated = await ctx.db.chatConversation.update({
-  //   where: { id: channelId },
-  //   data: { isPublic },
-  // });
-
-  // Fanout visibility update
-  await Promise.all(
-    channel.members.map(async (member) => {
-      await ctx.redis.publish(
-        `user:${member.userId}:events`,
-        JSON.stringify({
-          type: "chat:channel-visibility-updated",
-          payload: {
-            channelId,
-            isPublic,
-            updatedBy: userId,
-            timestamp: new Date().toISOString(),
-          },
-        })
-      );
-    })
-  );
-
-  return {
-    success: true,
-    channelId,
-    isPublic,
-  };
 };

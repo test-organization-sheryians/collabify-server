@@ -2,11 +2,12 @@ import createSubscriber from "pg-listen";
 import { db } from "@/infra/db";
 import { env } from "@/shared/config/env";
 import { createLogger } from "@/shared/lib/logger";
+import { notifDebug } from "../shared/debug/notification-debug";
 
 const logger = createLogger("notification:engine:poller");
 import { createQueue } from "@/services/bullmq";
-import { QUEUE_NAMES } from "../core/constants";
-import { DeciderJobData } from "../core/types";
+import { QUEUE_NAMES } from "../constants";
+import { DeciderJobData } from "../events/types";
 
 const BATCH_SIZE = 500;
 const POLLING_INTERVAL_MS = 10000; // 10 seconds backup
@@ -87,7 +88,9 @@ export const OutboxPoller = {
           eventId: String(event.id), // BigInt to String
           type: event.event_type,
           payload: event.payload,
-          createdAt: event.created_at,
+          createdAt: event.created_at instanceof Date
+            ? event.created_at.toISOString()
+            : String(event.created_at),
         },
         opts: {
           removeOnComplete: true,
@@ -97,6 +100,11 @@ export const OutboxPoller = {
 
       // Add to BullMQ
       await deciderQueue.addBulk(jobs);
+
+      // [NOTIF:PICKUP] — log each event that made it into the Decider queue
+      for (const event of events) {
+        notifDebug.pickup({ type: event.event_type, eventId: String(event.id) });
+      }
 
       // Mark as COMPLETED after successful handoff to queue
       const ids = events.map((e) => e.id);

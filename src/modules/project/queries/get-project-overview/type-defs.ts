@@ -4,14 +4,76 @@ export const getProjectOverviewTypeDefs = /* GraphQL */ `
   }
 
   type ProjectOverview {
-    totalIssues:     Int!
-    openIssues:      Int!
-    completedIssues: Int!
-    overdueIssues:   Int!
-    pageCount:       Int!
-    issuesByStatus:  [IssueStatusCount!]!
-    recentIssues:    [OverviewIssue!]!
-    members:         [OverviewMember!]!
+    totalIssues:       Int!
+    openIssues:        Int!
+    completedIssues:   Int!
+    overdueIssues:     Int!
+    pageCount:         Int!
+    memberCount:       Int!
+    issuesByStatus:    [IssueStatusCount!]!
+    recentIssues:      [OverviewIssue!]!
+    members:           [OverviewMember!]!
+    
+    issuesByPriority:  [PriorityCount!]!
+    upcomingIssues:    [UpcomingIssue!]!
+    recentPages:       [PagePreview!]!
+    recentVaultFiles:  [VaultFilePreview!]!
+    recentWhiteboards: [WhiteboardPreview!]!
+    vaultUsage:        VaultUsageSummary!
+    projectChannels:   [ChannelPreview!]!
+  }
+
+  type PriorityCount {
+    priority: String!
+    count:    Int!
+  }
+
+  type UpcomingIssue {
+    id:             ID!
+    number:         Int!
+    title:          String!
+    dueDate:        String!
+    assigneeName:   String
+    assigneeAvatar: String
+    statusName:     String!
+    statusColor:    String!
+  }
+
+  type PagePreview {
+    id:            ID!
+    title:         String!
+    emojiIcon:     String
+    updatedAt:     String!
+    createdByName: String
+  }
+
+  type VaultFilePreview {
+    id:            ID!
+    name:          String!
+    mimeType:      String!
+    sizeBytes:     Float!
+    createdByName: String
+    createdAt:     String!
+  }
+
+  type WhiteboardPreview {
+    id:           ID!
+    title:        String!
+    elementCount: Int!
+    updatedAt:    String!
+    isLocked:     Boolean!
+  }
+
+  type VaultUsageSummary {
+    usedBytes: Float!
+    fileCount: Int!
+  }
+
+  type ChannelPreview {
+    id:        ID!
+    name:      String!
+    topic:     String
+    updatedAt: String!
   }
 
   type IssueStatusCount {

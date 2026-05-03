@@ -1,5 +1,4 @@
-import { Context } from "hono";
-import { ChatWebSocket, createSuccessFrame } from "@/infra/ws/types";
+import { ChatWebSocket, createSuccessFrame, WSHandlerContext } from "@/infra/ws/types";
 import { wsRegistry } from "@/infra/ws/subscription-registry";
 import { UnsubscribeConversationInput } from "./schema";
 import { createLogger } from "@/shared/lib/logger";
@@ -13,7 +12,7 @@ import { KeyFactory } from "@/infra/redis/keys";
  * Replaces: unsubscribe-channel + unsubscribe-thread
  */
 export const unsubscribeConversationHandler = async (
-  ctx: Context,
+  ctx: WSHandlerContext,
   socket: ChatWebSocket,
   input: UnsubscribeConversationInput
 ) => {

@@ -30,12 +30,34 @@ export function evaluateConditions(
         case "StringEquals":
           if (actualValue !== expected) return false;
           break;
+        case "StringContains":
+          if (typeof actualValue !== "string") return false;
+          if (!actualValue.includes(String(expected))) return false;
+          break;
         case "BoolEquals":
           if (actualValue !== expected) return false;
           break;
         case "NullEquals":
           if (expected === null && actualValue !== null) return false;
           if (expected !== null && actualValue === null) return false;
+          break;
+        case "NumericGreaterThan": {
+          const actual = Number(actualValue);
+          const exp = Number(expected);
+          if (isNaN(actual) || isNaN(exp)) return false;
+          if (actual <= exp) return false;
+          break;
+        }
+        case "NumericLessThan": {
+          const actual = Number(actualValue);
+          const exp = Number(expected);
+          if (isNaN(actual) || isNaN(exp)) return false;
+          if (actual >= exp) return false;
+          break;
+        }
+        case "ArrayContains":
+          if (!Array.isArray(actualValue)) return false;
+          if (!actualValue.includes(expected)) return false;
           break;
         default:
           // Unknown operator — treat as condition fail (safe default)

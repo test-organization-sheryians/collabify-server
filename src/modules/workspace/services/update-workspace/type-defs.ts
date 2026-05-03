@@ -1,7 +1,7 @@
 export const updateWorkspaceTypeDefs = `
   input UpdateWorkspaceInput {
     name: String
-    logoUrl: String
+    logoS3Key: String
     domainWhitelist: String
   }
 

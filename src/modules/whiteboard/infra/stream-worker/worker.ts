@@ -5,6 +5,7 @@ import {
   startConsumptionLoop,
   startRecoveryLoop,
   startMetricsLoop,
+  startHeartbeatLoop,
 } from "./worker-loops";
 import { thresholdRegistry } from "./processor";
 
@@ -66,14 +67,22 @@ export const whiteboardStreamWorkerV2 = {
       streamLengthMax: (thresholdConfig as any)?.maxLength ?? "N/A",
     });
 
-    // Start loops
+    // Start loops (heartbeat must start first — it must be writing liveness
+    // before the recovery loop runs its first prune pass at RECOVERY_INTERVAL_MS)
     logger.info("🔄 Starting worker loops...");
+    this.heartbeatLoop();
     this.consumptionLoop();
     this.recoveryLoop();
     this.metricsLoop();
 
     logger.info("✅ Worker V2 started successfully");
     logger.info("═══════════════════════════════════════════════════════");
+  },
+
+  heartbeatLoop() {
+    if (!this.state) return;
+    logger.info("💓 Starting heartbeat loop...");
+    void startHeartbeatLoop(this.state);
   },
 
   consumptionLoop() {

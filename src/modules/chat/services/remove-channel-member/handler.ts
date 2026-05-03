@@ -1,86 +1,39 @@
-import { ServiceContext } from "@/graphql/types";
+import type { ServiceContext } from "@/graphql/types";
 import { AppError } from "@/shared/errors";
-import type {
-  RemoveChannelMemberInput,
-  RemoveChannelMemberOutput,
-} from "./types";
+import { createLogger } from "@/shared/lib/logger";
 
+import type { RemoveChannelMemberInput, RemoveChannelMemberOutput } from "./types";
+import { assertAccess } from "./steps/assert-access";
+import { executeRemove } from "./steps/execute-remove";
+
+const log = createLogger("chat:services:remove-channel-member");
+
+/**
+ * Remove Channel Member Handler (Phase D)
+ * Evaluates Project level limits resolving `chat:channel:member:remove`, drops Prisma DB targets natively clearing Redis `authGate` state automatically.
+ */
 export const handler = async (
   input: RemoveChannelMemberInput,
   ctx: ServiceContext
 ): Promise<RemoveChannelMemberOutput> => {
-  const { userId: actorId } = ctx.auth;
-  if (!actorId) {
+  if (!ctx.auth?.userId) {
     throw AppError.unauthorized("User not authenticated");
   }
-  if (!ctx.authGate || !ctx.permissions) throw AppError.unauthorized();
 
-  const { workspaceId, channelId, userId: targetUserId } = input;
-
-  // Step 0 — channel member gate + permission (before DB fetch)
-  const cachedChannel = await ctx.authGate.getChannel(channelId);
-  if (!cachedChannel) throw AppError.notFound("Channel not found");
-  const scope = { type: "workspace" as const, id: cachedChannel.workspaceId };
-  await Promise.all([
-    ctx.authGate.assertChannelMember(channelId),
-    ctx.permissions.assert("channel.member:remove", scope),
-  ]);
-
-  // Verify channel exists (still needed for channel.name in fanout)
-  const channel = await ctx.db.chatConversation.findFirst({
-    where: {
-      id: channelId,
-      workspaceId,
-      type: "CHANNEL",
-      deletedAt: null,
-    },
-  });
-
-  if (!channel) {
-    throw AppError.notFound("Channel not found");
+  try {
+    const { channel } = await assertAccess(input, ctx);
+    return await executeRemove(input, channel, ctx);
+  } catch (err) {
+    if (err instanceof AppError) {
+      throw err;
+    }
+    
+    // Explicitly trace dropped bounds safely via global orchestrator logs natively
+    log.error("[chat:services:remove-channel-member] Unexpected failure", {
+      err,
+      input: { channelId: input.channelId, userId: input.userId },
+    });
+    
+    throw err;
   }
-
-  // Verify member exists
-  const membership = await ctx.db.chatMember.findUnique({
-    where: {
-      conversationId_userId: {
-        conversationId: channelId,
-        userId: targetUserId,
-      },
-    },
-  });
-
-  if (!membership) {
-    throw AppError.notFound("User is not a member of this channel");
-  }
-
-  // Remove member
-  await ctx.db.chatMember.delete({
-    where: {
-      conversationId_userId: {
-        conversationId: channelId,
-        userId: targetUserId,
-      },
-    },
-  });
-
-  // Fanout to removed user
-  await ctx.redis.publish(
-    `user:${targetUserId}:events`,
-    JSON.stringify({
-      type: "chat:channel-member-removed",
-      payload: {
-        channelId,
-        channelName: channel.name,
-        removedBy: actorId,
-        timestamp: new Date().toISOString(),
-      },
-    })
-  );
-
-  return {
-    success: true,
-    channelId,
-    userId: targetUserId,
-  };
 };

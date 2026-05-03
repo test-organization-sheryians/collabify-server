@@ -17,6 +17,9 @@ import {
   deleteWorkspaceRoleTypeDefs,
   assignRolePermissionTypeDefs,
   removeRolePermissionTypeDefs,
+  renameWorkspaceSlugTypeDefs,
+  requestWorkspaceLogoUploadTypeDefs,
+  updateWorkspaceNotifPrefsTypeDefs,
 } from "../services";
 
 import {
@@ -30,6 +33,7 @@ import {
   getWorkspaceRolesTypeDefs,
   getRolePermissionsTypeDefs,
   getWorkspaceOverviewTypeDefs,
+  getWorkspacePermissionsTypeDefs,
 } from "../queries";
 
 const baseTypeDefs = `
@@ -37,8 +41,10 @@ const baseTypeDefs = `
     id: ID!
     slug: String!
     name: String!
+    logoS3Key: String
     logoUrl: String
     domainWhitelist: String
+    memberRole: String
     createdAt: String!
     updatedAt: String!
   }
@@ -93,6 +99,9 @@ export const typeDefs = [
   deleteWorkspaceRoleTypeDefs,
   assignRolePermissionTypeDefs,
   removeRolePermissionTypeDefs,
+  renameWorkspaceSlugTypeDefs,
+  requestWorkspaceLogoUploadTypeDefs,
+  updateWorkspaceNotifPrefsTypeDefs,
 
   // Queries
   getInviteInfoTypeDefs,
@@ -105,4 +114,5 @@ export const typeDefs = [
   getWorkspaceRolesTypeDefs,
   getRolePermissionsTypeDefs,
   getWorkspaceOverviewTypeDefs,
+  getWorkspacePermissionsTypeDefs,
 ];

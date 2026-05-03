@@ -3,7 +3,7 @@ import { db } from "../../infra/db";
 import {
   User,
   Page,
-  Task,
+  Issue,
   ChatMessage,
   Workspace,
   Project,
@@ -26,11 +26,11 @@ export const createNotificationLoaders = () => ({
     return ids.map((id) => map.get(id) || null);
   }),
 
-  taskById: new DataLoader<string, Task | null>(async (ids) => {
-    const tasks = await db.task.findMany({
+  issueById: new DataLoader<string, Issue | null>(async (ids) => {
+    const issues = await db.issue.findMany({
       where: { id: { in: [...ids] } },
     });
-    const map = new Map(tasks.map((t) => [t.id, t]));
+    const map = new Map(issues.map((i) => [i.id, i]));
     return ids.map((id) => map.get(id) || null);
   }),
 

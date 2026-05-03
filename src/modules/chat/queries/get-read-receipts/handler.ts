@@ -23,6 +23,7 @@ export const handler = async (
   ctx: ServiceContext
 ): Promise<ReadReceiptsOutput> => {
   try {
+    if (!ctx.auth?.userId) throw AppError.unauthorized();
     const { conversationId, sequence } = await assertAccess(input.messageId, ctx);
     return await fetchReadReceipts(input.messageId, conversationId, sequence, ctx);
   } catch (err) {

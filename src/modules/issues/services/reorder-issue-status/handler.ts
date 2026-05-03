@@ -44,7 +44,7 @@ export const reorderIssueStatusHandler = async (
 
   await Promise.all([
     ctx.authGate.assertProjectMember(existing.projectId),
-    ctx.permissions.assert("issue.status:update", scope),
+    ctx.permissions.assert("issue:status:manage", scope),
   ]);
 
   const status = await updatePosition(

@@ -23,7 +23,8 @@ export const handler = async (
   input: GetUnreadCountsInput,
   ctx: ServiceContext
 ): Promise<GetUnreadCountsOutput> => {
-  const userId = ctx.auth.userId!;
+  if (!ctx.auth?.userId) throw AppError.unauthorized();
+  const userId = ctx.auth.userId;
 
   try {
     await assertAccess(input.workspaceId, ctx);

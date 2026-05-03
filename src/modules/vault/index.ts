@@ -23,3 +23,10 @@ export type {
   RegisterExternalFileInput,
   RegisterExternalFileResult,
 } from "./lib/vault-intake.service";
+
+/**
+ * Vault background workers — call startVaultJobs(db) once at server startup.
+ * vaultEntityPurgeQueue can be imported by delete handlers to trigger purges.
+ */
+export { startVaultJobs, vaultEntityPurgeQueue } from "./jobs";
+export type { EntityPurgePayload } from "./jobs/entity-purge";

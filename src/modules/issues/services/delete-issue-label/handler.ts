@@ -41,7 +41,7 @@ export const deleteIssueLabelHandler = async (
 
   await Promise.all([
     ctx.authGate.assertProjectMember(existing.projectId),
-    ctx.permissions.assert("issue.label:delete", scope),
+    ctx.permissions.assert("issue:label:manage", scope),
   ]);
 
   await softDeleteLabel(input.labelId, ctx.db);

@@ -9,6 +9,9 @@ import type { ConversationRow, LastMessageRow, MemberRow } from "../types";
  * Kept separate from fetchConversation so the mapping layer is independently
  * testable without any DB context.
  *
+ * Member role is sourced from the user's ProjectMember.projectRole (project-level
+ * RBAC), falling back to "MEMBER" for users without a project-scoped role.
+ *
  * // TODO: `createdBy` always returns null — the DB schema does not track this field.
  * // Either add a `createdBy` column to chatConversation or drop the SDL field.
  */
@@ -16,14 +19,14 @@ export function buildResponse(
   row: ConversationRow,
   unreadCount: number,
   lastMessage: LastMessageRow | null,
-  userId: string
+  _userId: string
 ): Conversation {
   return {
     id: row.id,
     type: row.type as unknown as ConversationType,
     name: row.name,
     topic: row.topic,
-    isPublic: row.type === "CHANNEL",
+    isPublic: row.isPublic,
     workspaceId: row.workspaceId,
     projectId: row.projectId,
     parentMessageId: row.parentMessageId,
@@ -33,12 +36,15 @@ export function buildResponse(
     unreadCount,
     members: row.members.map((m: MemberRow) => ({
       userId: m.userId,
-      role: m.role,
+      // Project-level role is the authoritative role; channel-level role was removed.
+      role: m.user.projectMembers?.[0]?.projectRole?.name ?? "MEMBER",
       isMuted: m.isMuted,
       joinedAt: m.joinedAt,
       user: {
-        ...m.user,
+        id: m.user.id,
         fullName: m.user.fullName || "Unknown",
+        email: m.user.email,
+        avatarUrl: m.user.avatarUrl,
       },
     })),
     lastMessage: lastMessage ?? null,

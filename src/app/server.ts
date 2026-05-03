@@ -10,19 +10,23 @@ import { env } from "../shared/config/env";
 import { createLogger } from "../shared/lib/logger";
 import { createGraphQLApp } from "./graphql/yoga";
 import webhookRoutes from "./routes/webhooks";
+import { vaultProxyRoutes } from "./routes/vault-proxy";
 import { ChatModule } from "../modules/chat";
 import { WhiteboardModule } from "../modules/whiteboard";
+import { startVaultJobs } from "../modules/vault";
 import { wsRegistry } from "../infra/ws/subscription-registry";
 import { registry } from "./metrics";
+import { runAuthBootstrap } from "../modules/authorization/bootstrap/bootstrap";
 
 const logger = createLogger("app:server");
 const app = new Hono();
 
-// 1. Bootstrapping
-void checkConnection(); // Check DB
-// NotificationModule.startEngine().catch((err) => {
-//   logger.error("Failed to start Notification Engine", { err });
-// });
+void checkConnection();
+void runAuthBootstrap(db, redis);
+
+NotificationModule.startEngine().catch((err: Error) => {
+  logger.error("Failed to start Notification Engine", { err });
+});
 
 ChatModule.startEngine().catch((err: Error) => {
   logger.error("Failed to start Chat Engine", { err });
@@ -32,16 +36,16 @@ WhiteboardModule.startEngine().catch((err: Error) => {
   logger.error("Failed to start Whiteboard Engine", { err });
 });
 
-// Start Subscription Janitor
+startVaultJobs(db).catch((err: Error) => {
+  logger.error("Failed to start Vault Jobs", { err });
+});
+
 wsRegistry.init();
 
-// Initialize Global Middleware
 registerGlobalMiddleware(app);
 
-// Register WebSocket Routes
 registerGlobalWSRoutes();
 
-// 3. Routes
 app.get("/", (c: Context) => c.text("Collabify Server is running!"));
 app.get("/health", async (c: Context) => {
   try {
@@ -59,14 +63,13 @@ app.get("/metrics", async (c: Context) => {
 });
 app.route("/", webhookRoutes);
 app.route("/internal", internalRoutes);
+app.route("/", vaultProxyRoutes);
 
-// 4. GraphQL
 const yoga = createGraphQLApp();
 app.use("/graphql", async (c: Context) => {
   return yoga.fetch(c.req.raw, {}, { c });
 });
 
-// 5. WebSocket
 const { upgradeHandler, websocketHandler } = createWSGateway();
 app.get("/ws", upgradeHandler);
 
