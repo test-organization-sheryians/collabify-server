@@ -8,3 +8,4 @@ test/
 dist/
 ssl/server.crt
 ssl/server.key
+.env.production

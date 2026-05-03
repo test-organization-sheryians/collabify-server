@@ -10,13 +10,18 @@ const connectionString = env.DATABASE_URL;
 import { createLogger } from "../shared/lib/logger";
 
 const logger = createLogger("infra:db");
+
+// DB_SSL=false → no SSL (Coolify internal Docker network, local Docker)
+// DB_SSL=true or unset in production → SSL without CA verification (AWS RDS)
+const sslConfig = (() => {
+  if (process.env.DB_SSL === "false") return undefined;
+  if (env.NODE_ENV === "production") return { rejectUnauthorized: false };
+  return undefined;
+})();
+
 const pool = new Pool({
   connectionString,
-  // RDS requires SSL. Alpine Linux doesn't ship the Amazon CA bundle so we
-  // skip CA chain verification (connection is still encrypted).
-  // Do NOT put sslmode=require in DATABASE_URL — pg treats it as verify-full
-  // and overrides this setting.
-  ssl: env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined,
+  ssl: sslConfig,
 });
 
 const adapter = new PrismaPg(pool);
