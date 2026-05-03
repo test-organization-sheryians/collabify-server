@@ -17,7 +17,8 @@ RUN apk add --no-cache curl
 
 EXPOSE 3001
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD curl -f http://localhost:3001/health || exit 1
 
-CMD ["bun", "run", "src/app/server.ts"]
+# Run migrations then start server
+CMD ["sh", "-c", "bunx prisma migrate deploy && bun run src/app/server.ts"]
