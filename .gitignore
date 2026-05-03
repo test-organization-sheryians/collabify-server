@@ -2,9 +2,9 @@
 node_modules/
 
 /src/generated/prisma
-.env
 .gitignore
 test/
 dist/
 ssl/server.crt
 ssl/server.key
+config.bat
