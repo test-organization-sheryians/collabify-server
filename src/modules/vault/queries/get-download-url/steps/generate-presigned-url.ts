@@ -1,12 +1,17 @@
-import { env } from "@/shared/config/env";
+import { generatePresignedGet } from "@/modules/vault/lib/s3-keys";
 
 /**
- * Build the permanent vault proxy URL for a fileId.
- * No AWS call — the URL is deterministic and permanent.
+ * Generates a short-lived presigned S3 GET URL for a vault file.
+ *
+ * Uses the file's s3Key to call AWS directly — the returned URL is
+ * publicly usable (no auth headers needed) for its TTL, making it
+ * safe to use as an <img> src cross-origin.
+ *
+ * Default TTL: 5 minutes (VAULT_S3.PRESIGNED_GET_TTL_SECONDS in lib/constants).
  */
-export function generateDownloadUrl(
-  fileId: string
-): { url: string } {
-  const url = `${env.API_URL}/vault/file/${fileId}`;
+export async function generateDownloadUrl(
+  s3Key: string
+): Promise<{ url: string }> {
+  const url = await generatePresignedGet(s3Key);
   return { url };
 }
